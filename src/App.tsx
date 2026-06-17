@@ -1,62 +1,39 @@
-import { useQuery } from "convex/react";
-import { api } from "../convex/_generated/api";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "./contexts/AuthContext";
+import { SeasonProvider } from "./contexts/SeasonContext";
+import Layout from "./components/Layout";
+import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
+import Compta from "./pages/Compta";
+
+// Composant temporaire pour les routes non implémentées
+const Placeholder = ({ title }: { title: string }) => (
+  <div className="p-8 text-center">
+    <h2 className="text-2xl font-bold mb-4">{title}</h2>
+    <p>Ce module est en cours de développement.</p>
+  </div>
+);
 
 function App() {
-  // Cette ligne va requêter les transactions via Convex en temps réel
-  // Elle peut provoquer une erreur TypeScript tant que "npx convex dev" n'a pas été lancé.
-  const transactions = useQuery(api.transactions.get);
-
   return (
-    <div className="app-container">
-      <header className="header">
-        <h1>Dashboard Comptabilité</h1>
-        <p className="subtitle">Saison 2025-26</p>
-      </header>
-
-      <main className="main-content">
-        <section className="card">
-          <h2>Journal des transactions</h2>
-          
-          {transactions === undefined ? (
-            <div className="loading">Chargement des données depuis Convex...</div>
-          ) : transactions.length === 0 ? (
-            <div className="empty-state">
-              <p>Aucune transaction trouvée.</p>
-              <p className="hint">Une fois connecté à Convex, vos données s'afficheront ici en temps réel.</p>
-            </div>
-          ) : (
-            <div className="table-container">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Nom</th>
-                    <th>Type</th>
-                    <th className="align-right">Montant</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {transactions.map((t) => (
-                    <tr key={t._id}>
-                      <td>{t.date}</td>
-                      <td>{t.nom}</td>
-                      <td>
-                        <span className={`badge ${t.typeDocument.toLowerCase().replace(/ /g, '-')}`}>
-                          {t.typeDocument}
-                        </span>
-                      </td>
-                      <td className="align-right font-mono">
-                        {t.realise.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      </main>
-    </div>
+    <AuthProvider>
+      <SeasonProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            
+            {/* Routes protégées */}
+            <Route element={<Layout />}>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/compta" element={<Compta />} />
+              <Route path="/adherents" element={<Placeholder title="Module Adhérents" />} />
+              <Route path="/evenements" element={<Placeholder title="Module Événements" />} />
+              <Route path="/statistiques" element={<Placeholder title="Module Statistiques" />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </SeasonProvider>
+    </AuthProvider>
   );
 }
 
