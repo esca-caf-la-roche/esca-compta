@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useSeason } from "../contexts/SeasonContext";
-import { ArrowLeft, ArrowUpRight, ArrowDownRight, Wallet, Filter, Search, Plus, Edit2, Trash2, ExternalLink } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, ArrowDownRight, Wallet, Filter, Search, Plus, Edit2, Trash2, ExternalLink, FolderSync } from "lucide-react";
 import { Link } from "react-router-dom";
 import TransactionFormModal from "../components/TransactionFormModal";
 import BudgetTrendsModal from "../components/BudgetTrendsModal";
@@ -14,6 +14,11 @@ export default function Compta() {
   const transactions = useQuery(api.transactions.get);
   const previsionnels = useQuery(api.previsionnels.get);
   const deleteTransaction = useMutation(api.transactions.remove);
+  const updateTransaction = useMutation(api.transactions.update);
+  const processDrive = useAction(api.drive.processTransactionDrive);
+
+  // États pour le chargement de Drive
+  const [isProcessingDrive, setIsProcessingDrive] = useState<Id<"transactions"> | null>(null);
 
   // États pour la modale
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -100,6 +105,42 @@ export default function Compta() {
   const openNewModal = () => {
     setTransactionToEdit(null);
     setIsModalOpen(true);
+  };
+
+  const handleRenommer = async (t: any) => {
+    const dateObj = new Date(t.date);
+    const dateStr = !isNaN(dateObj.getTime()) ? dateObj.toISOString().slice(2, 10) : t.date;
+    const anaNamePart = t.analytiqueNom.substring(0, 5);
+    const typePart = t.typeDocument.replaceAll(" ", "_");
+    const tiersPart = t.tiersNom.replaceAll(" ", "_");
+    const comPart = (t.commentaires || "").trim().replaceAll(" ", "_");
+    const generatedNom = `${anaNamePart}_${dateStr}_${typePart}_${tiersPart}_${comPart}`;
+    
+    try {
+      await updateTransaction({ id: t._id, nom: generatedNom });
+    } catch(err) {
+      console.error(err);
+      alert("Erreur lors du renommage");
+    }
+  };
+
+  const handleProcessDrive = async (t: any) => {
+    setIsProcessingDrive(t._id);
+    try {
+      await processDrive({
+        transactionId: t._id,
+        analytiqueNom: t.analytiqueNom,
+        date: t.date,
+        typeDocument: t.typeDocument,
+        tiersNom: t.tiersNom,
+        commentaires: t.commentaires,
+      });
+    } catch (error) {
+      console.error(error);
+      alert("Erreur lors de la création du lien Drive.");
+    } finally {
+      setIsProcessingDrive(null);
+    }
   };
 
   return (
@@ -261,7 +302,22 @@ export default function Compta() {
                       </a>
                     </div>
                   )}
-                  <div className="tc-actions">
+                  <div className="tc-actions" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+                    <button 
+                      className="btn-secondary" 
+                      onClick={() => handleRenommer(t)} 
+                      style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem" }}
+                    >
+                      Renommer
+                    </button>
+                    <button 
+                      className="btn-secondary info" 
+                      onClick={() => handleProcessDrive(t)} 
+                      disabled={isProcessingDrive === t._id}
+                      style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem", opacity: isProcessingDrive === t._id ? 0.5 : 1 }}
+                    >
+                      {isProcessingDrive === t._id ? "⏳ En cours..." : "Créer lien GDrive"}
+                    </button>
                     <button className="btn-icon" onClick={() => handleEdit(t)} title="Modifier" aria-label="Modifier">
                       <Edit2 size={16} />
                     </button>

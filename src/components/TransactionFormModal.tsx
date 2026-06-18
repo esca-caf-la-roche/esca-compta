@@ -108,8 +108,17 @@ export default function TransactionFormModal({ isOpen, onClose, transactionToEdi
       const realMontant = parseFloat(montant);
       const realise = typeTransaction === "depense" ? -Math.abs(realMontant) : Math.abs(realMontant);
 
+      // Génération automatique du nom
+      const dateObj = new Date(date);
+      const dateStr = !isNaN(dateObj.getTime()) ? dateObj.toISOString().slice(2, 10) : date;
+      const anaNamePart = anaName.substring(0, 5);
+      const typePart = typeDocument.replaceAll(" ", "_");
+      const tiersPart = tName.replaceAll(" ", "_");
+      const comPart = commentaires.trim().replaceAll(" ", "_");
+      const generatedNom = `${anaNamePart}_${dateStr}_${typePart}_${tiersPart}_${comPart}`;
+
       const payload = {
-        nom,
+        nom: generatedNom,
         date,
         realise,
         typeDocument,
@@ -145,19 +154,6 @@ export default function TransactionFormModal({ isOpen, onClose, transactionToEdi
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label className="form-label" htmlFor="nom">Titre de la transaction</label>
-            <input 
-              className="input-field" 
-              id="nom" 
-              type="text" 
-              required 
-              value={nom} 
-              onChange={e => setNom(e.target.value)} 
-              placeholder="Ex: Facture d'électricité"
-            />
-          </div>
-
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
             <div className="form-group">
               <label className="form-label" htmlFor="date">Date</label>
