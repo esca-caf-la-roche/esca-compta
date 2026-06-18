@@ -46,7 +46,7 @@ export default function Compta() {
   // Filtrage des transactions
   const filteredTransactions = useMemo(() => {
     if (!transactions) return undefined;
-    return transactions.filter((t: any) => {
+    const filtered = transactions.filter((t: any) => {
       const matchTiers = filterTiers === "Tous" || t.tiersNom === filterTiers;
       const matchAna = filterAnalytique === "Tous" || t.analytiqueNom === filterAnalytique;
       
@@ -56,6 +56,12 @@ export default function Compta() {
         (t.commentaires && t.commentaires.toLowerCase().includes(searchLower));
 
       return matchTiers && matchAna && matchSearch;
+    });
+
+    return filtered.sort((a: any, b: any) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return dateB - dateA; // Plus récent au plus vieux
     });
   }, [transactions, filterTiers, filterAnalytique, searchQuery]);
 
