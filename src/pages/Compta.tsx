@@ -5,16 +5,19 @@ import { useSeason } from "../contexts/SeasonContext";
 import { ArrowLeft, ArrowUpRight, ArrowDownRight, Wallet, Filter, Search, Plus, Edit2, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import TransactionFormModal from "../components/TransactionFormModal";
+import BudgetTrendsModal from "../components/BudgetTrendsModal";
 import type { Id } from "../../convex/_generated/dataModel";
 
 export default function Compta() {
   const { season } = useSeason();
   // On pourrait passer la saison en argument de la requête si Convex le gère.
   const transactions = useQuery(api.transactions.get);
+  const previsionnels = useQuery(api.previsionnels.get);
   const deleteTransaction = useMutation(api.transactions.remove);
 
   // États pour la modale
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isTrendsModalOpen, setIsTrendsModalOpen] = useState(false);
   const [transactionToEdit, setTransactionToEdit] = useState<any | null>(null);
 
   // États pour les filtres
@@ -101,7 +104,7 @@ export default function Compta() {
 
   return (
     <div className="compta-page fade-in">
-      <header className="page-header flex-header" style={{ justifyContent: "space-between", alignItems: "flex-end" }}>
+      <header className="page-header flex-header" style={{ justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem" }}>
         <div>
           <Link to="/" className="back-link">
             <ArrowLeft size={16} /> Retour au tableau de bord
@@ -109,11 +112,16 @@ export default function Compta() {
           <h1>Comptabilité</h1>
           <p className="subtitle">Saison : {season}</p>
         </div>
-        <div style={{ display: "flex", gap: "1rem" }}>
-          <Link to="/compta/previsionnel" className="btn-secondary" style={{ width: "auto", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
-            Voir le Prévisionnel
-          </Link>
-          <button className="btn-primary" style={{ width: "auto" }} onClick={openNewModal}>
+        <div className="header-actions" style={{ display: "flex", flexDirection: "column", gap: "0.75rem", alignItems: "flex-end", flex: "1 1 300px" }}>
+          <div style={{ display: "flex", gap: "0.5rem", width: "100%", justifyContent: "flex-end", flexWrap: "wrap" }}>
+            <Link to="/compta/previsionnel" className="btn-secondary" style={{ flex: 1, minWidth: "180px", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none", fontSize: "0.9rem", padding: "0.75rem 1rem", textAlign: "center" }}>
+              Voir le Prévisionnel
+            </Link>
+            <button className="btn-secondary" style={{ flex: 1, minWidth: "180px", fontSize: "0.9rem", padding: "0.75rem 1rem" }} onClick={() => setIsTrendsModalOpen(true)}>
+              Tendances du Budget
+            </button>
+          </div>
+          <button className="btn-primary" style={{ width: "100%", justifyContent: "center" }} onClick={openNewModal}>
             <Plus size={20} style={{ display: "inline-block", marginRight: "0.5rem", verticalAlign: "middle" }} />
             Nouvelle Transaction
           </button>
@@ -265,6 +273,13 @@ export default function Compta() {
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         transactionToEdit={transactionToEdit} 
+      />
+
+      <BudgetTrendsModal
+        isOpen={isTrendsModalOpen}
+        onClose={() => setIsTrendsModalOpen(false)}
+        transactions={transactions}
+        previsionnels={previsionnels}
       />
     </div>
   );
