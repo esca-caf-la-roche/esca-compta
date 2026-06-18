@@ -25,7 +25,7 @@ export default function Previsionnel() {
     if (!previsionnels) return undefined;
     return previsionnels.filter((p: any) => {
       return filterAnalytique === "Tous" || p.analytiqueNom === filterAnalytique;
-    });
+    }).sort((a: any, b: any) => a.analytiqueNom.localeCompare(b.analytiqueNom));
   }, [previsionnels, filterAnalytique]);
 
   const stats = useMemo(() => {
@@ -70,7 +70,7 @@ export default function Previsionnel() {
 
   return (
     <div className="compta-page fade-in">
-      <header className="page-header flex-header" style={{ justifyContent: "space-between", alignItems: "flex-end", marginBottom: "3rem" }}>
+      <header className="page-header" style={{ display: "flex", flexWrap: "wrap", gap: "1rem", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "3rem" }}>
         <div>
           <Link to="/compta" className="back-link">
             <ArrowLeft size={16} /> Retour à la comptabilité
@@ -78,7 +78,7 @@ export default function Previsionnel() {
           <h1>Prévisionnel</h1>
           <p className="subtitle">Budget et suivi analytique</p>
         </div>
-        <button className="btn-primary" style={{ width: "auto" }} onClick={openNewModal}>
+        <button className="btn-primary" style={{ width: "auto", flexGrow: 1, minWidth: "200px" }} onClick={openNewModal}>
           <Plus size={20} style={{ display: "inline-block", marginRight: "0.5rem", verticalAlign: "middle" }} />
           Nouveau Prévisionnel
         </button>
@@ -152,48 +152,41 @@ export default function Previsionnel() {
             <p>Aucun prévisionnel ne correspond à ce filtre.</p>
           </div>
         ) : (
-          <div className="transactions-list" style={{ display: "table", width: "100%", borderCollapse: "collapse" }}>
-            <div style={{ display: "table-row", fontWeight: "bold", borderBottom: "2px solid #eee" }}>
-              <div style={{ display: "table-cell", padding: "1rem" }}>Nom</div>
-              <div style={{ display: "table-cell", padding: "1rem" }}>Analytique BD</div>
-              <div style={{ display: "table-cell", padding: "1rem", textAlign: "right" }}>Montant</div>
-              <div style={{ display: "table-cell", padding: "1rem", textAlign: "center" }}>État</div>
-              <div style={{ display: "table-cell", padding: "1rem", textAlign: "right" }}>Actions</div>
-            </div>
+          <div className="transactions-list">
             {filteredPrevisionnels?.map((prev: any) => {
               const isDepense = prev.montant < 0;
               return (
-                <div key={prev._id} style={{ display: "table-row", borderBottom: "1px solid #eee" }}>
-                  <div style={{ display: "table-cell", padding: "1rem", verticalAlign: "middle" }}>
-                    {prev.nom}
+                <div key={prev._id} className="transaction-card">
+                  <div className="tc-header">
+                    <div className="tc-header-main">
+                      <div className="tc-title" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <button 
+                          onClick={() => toggleEtat(prev)} 
+                          style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", padding: 0 }}
+                          title={prev.etat ? "Marquer comme non réalisé" : "Marquer comme réalisé"}
+                        >
+                          {prev.etat ? <CheckCircle color="green" size={24} /> : <Circle color="#ccc" size={24} />}
+                        </button>
+                        <span>{prev.nom}</span>
+                      </div>
+                    </div>
+                    <div className={`tc-amount ${isDepense ? 'depense' : 'recette'}`}>
+                      {isDepense ? "- " : "+ "}
+                      {Math.abs(prev.montant).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+                    </div>
                   </div>
-                  <div style={{ display: "table-cell", padding: "1rem", verticalAlign: "middle" }}>
+                  <div className="tc-badges" style={{ marginTop: "0.5rem" }}>
                     <span className="badge facture" style={{ boxShadow: "2px 2px 0px 0px #000" }}>
-                      {prev.analytiqueNom}
+                      Analytique : {prev.analytiqueNom}
                     </span>
                   </div>
-                  <div style={{ display: "table-cell", padding: "1rem", textAlign: "right", verticalAlign: "middle", fontFamily: "monospace", color: isDepense ? "#e53e3e" : "inherit" }}>
-                    {isDepense ? "- " : "+ "}
-                    {Math.abs(prev.montant).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
-                  </div>
-                  <div style={{ display: "table-cell", padding: "1rem", textAlign: "center", verticalAlign: "middle" }}>
-                    <button 
-                      onClick={() => toggleEtat(prev)} 
-                      style={{ background: "none", border: "none", cursor: "pointer" }}
-                      title={prev.etat ? "Marquer comme non réalisé" : "Marquer comme réalisé"}
-                    >
-                      {prev.etat ? <CheckCircle color="green" /> : <Circle color="#ccc" />}
+                  <div className="tc-actions">
+                    <button className="btn-icon" onClick={() => handleEdit(prev)} title="Modifier" aria-label="Modifier">
+                      <Edit2 size={16} />
                     </button>
-                  </div>
-                  <div style={{ display: "table-cell", padding: "1rem", textAlign: "right", verticalAlign: "middle" }}>
-                    <div className="tc-actions" style={{ justifyContent: "flex-end" }}>
-                      <button className="btn-icon" onClick={() => handleEdit(prev)} title="Modifier">
-                        <Edit2 size={16} />
-                      </button>
-                      <button className="btn-icon danger" onClick={() => handleDelete(prev._id)} title="Supprimer">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
+                    <button className="btn-icon danger" onClick={() => handleDelete(prev._id)} title="Supprimer" aria-label="Supprimer">
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 </div>
               );
