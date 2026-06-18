@@ -45,3 +45,31 @@ export const create = mutation({
     });
   },
 });
+
+// Modifier une transaction existante
+export const update = mutation({
+  args: {
+    id: v.id("transactions"),
+    nom: v.optional(v.string()),
+    date: v.optional(v.string()),
+    realise: v.optional(v.number()),
+    typeDocument: v.optional(v.string()),
+    commentaires: v.optional(v.string()),
+    lienDrive: v.optional(v.string()),
+    tiersId: v.optional(v.id("tiers")),
+    analytiqueId: v.optional(v.id("analytiques")),
+  },
+  handler: async (ctx, args) => {
+    const { id, ...updates } = args;
+    // Convex gère la mise à jour partielle avec patch
+    await ctx.db.patch(id, updates);
+  },
+});
+
+// Supprimer une transaction
+export const remove = mutation({
+  args: { id: v.id("transactions") },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.id);
+  },
+});

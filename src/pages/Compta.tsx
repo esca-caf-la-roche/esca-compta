@@ -1,14 +1,21 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useSeason } from "../contexts/SeasonContext";
-import { ArrowLeft, ArrowUpRight, ArrowDownRight, Wallet, Filter, Search } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, ArrowDownRight, Wallet, Filter, Search, Plus, Edit2, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import TransactionFormModal from "../components/TransactionFormModal";
+import type { Id } from "../../convex/_generated/dataModel";
 
 export default function Compta() {
   const { season } = useSeason();
   // On pourrait passer la saison en argument de la requête si Convex le gère.
   const transactions = useQuery(api.transactions.get);
+  const deleteTransaction = useMutation(api.transactions.remove);
+
+  // États pour la modale
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [transactionToEdit, setTransactionToEdit] = useState<any | null>(null);
 
   // États pour les filtres
   const [filterTiers, setFilterTiers] = useState<string>("Tous");
@@ -76,9 +83,25 @@ export default function Compta() {
 
   const soldeNet = stats.recettes - stats.depenses;
 
+  const handleEdit = (transaction: any) => {
+    setTransactionToEdit(transaction);
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id: Id<"transactions">) => {
+    if (window.confirm("Êtes-vous sûr de vouloir supprimer cette transaction ?")) {
+      await deleteTransaction({ id });
+    }
+  };
+
+  const openNewModal = () => {
+    setTransactionToEdit(null);
+    setIsModalOpen(true);
+  };
+
   return (
     <div className="compta-page fade-in">
-      <header className="page-header flex-header">
+      <header className="page-header flex-header" style={{ justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
           <Link to="/" className="back-link">
             <ArrowLeft size={16} /> Retour au tableau de bord
@@ -86,6 +109,10 @@ export default function Compta() {
           <h1>Comptabilité</h1>
           <p className="subtitle">Saison : {season}</p>
         </div>
+        <button className="btn-primary" style={{ width: "auto" }} onClick={openNewModal}>
+          <Plus size={20} style={{ display: "inline-block", marginRight: "0.5rem", verticalAlign: "middle" }} />
+          Nouvelle Transaction
+        </button>
       </header>
 
       {transactions !== undefined && transactions.length > 0 && (
@@ -214,12 +241,26 @@ export default function Compta() {
                       {t.commentaires}
                     </div>
                   )}
+                  <div className="tc-actions">
+                    <button className="btn-icon" onClick={() => handleEdit(t)} title="Modifier" aria-label="Modifier">
+                      <Edit2 size={16} />
+                    </button>
+                    <button className="btn-icon danger" onClick={() => handleDelete(t._id)} title="Supprimer" aria-label="Supprimer">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
               );
             })}
           </div>
         )}
       </section>
+
+      <TransactionFormModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        transactionToEdit={transactionToEdit} 
+      />
     </div>
   );
 }

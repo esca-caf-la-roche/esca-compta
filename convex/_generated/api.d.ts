@@ -9,6 +9,8 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as references from "../references.js";
+import type * as tiers from "../tiers.js";
 import type * as transactions from "../transactions.js";
 
 import type {
@@ -19,6 +21,8 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  references: typeof references;
+  tiers: typeof tiers;
   transactions: typeof transactions;
 }>;
 
