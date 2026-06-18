@@ -1,11 +1,22 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 
-// Lire toutes les transactions
+// Lire toutes les transactions en résolvant les relations Tiers et Analytiques
 export const get = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("transactions").order("desc").collect();
+    const transactions = await ctx.db.query("transactions").order("desc").collect();
+    return await Promise.all(
+      transactions.map(async (t) => {
+        const tiers = await ctx.db.get(t.tiersId);
+        const analytique = await ctx.db.get(t.analytiqueId);
+        return {
+          ...t,
+          tiersNom: tiers ? tiers.nom : "Inconnu",
+          analytiqueNom: analytique ? analytique.nom : "Inconnu",
+        };
+      })
+    );
   },
 });
 

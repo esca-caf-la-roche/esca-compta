@@ -9,7 +9,6 @@
  */
 
 import type * as auth from "../auth.js";
-import type * as migration from "../migration.js";
 import type * as transactions from "../transactions.js";
 
 import type {
@@ -20,7 +19,6 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
-  migration: typeof migration;
   transactions: typeof transactions;
 }>;
 

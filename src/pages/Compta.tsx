@@ -1,13 +1,80 @@
+import { useState, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useSeason } from "../contexts/SeasonContext";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, ArrowDownRight, Wallet, Filter, Search } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export default function Compta() {
   const { season } = useSeason();
   // On pourrait passer la saison en argument de la requête si Convex le gère.
   const transactions = useQuery(api.transactions.get);
+
+  // États pour les filtres
+  const [filterTiers, setFilterTiers] = useState<string>("Tous");
+  const [filterAnalytique, setFilterAnalytique] = useState<string>("Tous");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
+  // Listes uniques pour les menus déroulants
+  const uniqueTiers = useMemo(() => {
+    if (!transactions) return [];
+    const set = new Set(transactions.map((t: any) => t.tiersNom));
+    return Array.from(set).sort();
+  }, [transactions]);
+
+  const uniqueAnalytiques = useMemo(() => {
+    if (!transactions) return [];
+    const set = new Set(transactions.map((t: any) => t.analytiqueNom));
+    return Array.from(set).sort();
+  }, [transactions]);
+
+  // Filtrage des transactions
+  const filteredTransactions = useMemo(() => {
+    if (!transactions) return undefined;
+    return transactions.filter((t: any) => {
+      const matchTiers = filterTiers === "Tous" || t.tiersNom === filterTiers;
+      const matchAna = filterAnalytique === "Tous" || t.analytiqueNom === filterAnalytique;
+      
+      const searchLower = searchQuery.toLowerCase();
+      const matchSearch = searchQuery === "" || 
+        t.nom.toLowerCase().includes(searchLower) || 
+        (t.commentaires && t.commentaires.toLowerCase().includes(searchLower));
+
+      return matchTiers && matchAna && matchSearch;
+    });
+  }, [transactions, filterTiers, filterAnalytique, searchQuery]);
+
+  // Fonction pour formater les dates proprement
+  const formatDate = (dateStr: string) => {
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr;
+      return date.toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  // Calcul des statistiques pour les KPI basées sur les transactions FILTRÉES
+  const stats = filteredTransactions
+    ? filteredTransactions.reduce(
+        (acc, t) => {
+          if (t.realise >= 0) {
+            acc.recettes += t.realise;
+          } else {
+            acc.depenses += Math.abs(t.realise);
+          }
+          return acc;
+        },
+        { recettes: 0, depenses: 0 }
+      )
+    : { recettes: 0, depenses: 0 };
+
+  const soldeNet = stats.recettes - stats.depenses;
 
   return (
     <div className="compta-page fade-in">
@@ -21,44 +88,135 @@ export default function Compta() {
         </div>
       </header>
 
-      <section className="card glass-card mt-6">
+      {transactions !== undefined && transactions.length > 0 && (
+        <div className="filter-bar fade-in" style={{ marginBottom: "2rem" }}>
+          <div className="filter-group">
+            <Filter size={18} color="#000" />
+            <span className="filter-label" style={{ marginRight: "1rem" }}>Filtres :</span>
+          </div>
+          <div className="filter-group">
+            <label htmlFor="filter-tiers" className="filter-label">Tiers</label>
+            <select
+              id="filter-tiers"
+              className="filter-dropdown"
+              value={filterTiers}
+              onChange={(e) => setFilterTiers(e.target.value)}
+            >
+              <option value="Tous">Tous</option>
+              {uniqueTiers.map(t => <option key={t as string} value={t as string}>{t as string}</option>)}
+            </select>
+          </div>
+          <div className="filter-group">
+            <label htmlFor="filter-ana" className="filter-label">Analytique</label>
+            <select
+              id="filter-ana"
+              className="filter-dropdown"
+              value={filterAnalytique}
+              onChange={(e) => setFilterAnalytique(e.target.value)}
+            >
+              <option value="Tous">Tous</option>
+              {uniqueAnalytiques.map(a => <option key={a as string} value={a as string}>{a as string}</option>)}
+            </select>
+          </div>
+          <div className="filter-group" style={{ marginLeft: "auto" }}>
+            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+              <input
+                id="filter-search"
+                type="text"
+                className="filter-input"
+                placeholder="Titre, commentaire..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ paddingLeft: "2.5rem" }}
+              />
+              <Search size={16} color="#555" style={{ position: "absolute", left: "0.75rem" }} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {transactions !== undefined && transactions.length > 0 && (
+        <div className="tiles-grid mt-6" style={{ marginBottom: "2rem", marginTop: 0 }}>
+          <div className="tile-card bg-success" style={{ padding: "1.5rem" }}>
+            <div className="tile-icon-wrapper" style={{ width: "50px", height: "50px", marginBottom: "1rem" }}>
+              <ArrowUpRight size={24} color="#000" />
+            </div>
+            <div className="tile-content">
+              <p className="text-sm tracking-widest text-gray-500 uppercase" style={{ fontSize: "0.8rem", color: "#000" }}>Total Recettes</p>
+              <h3 className="font-mono mt-2" style={{ fontSize: "1.6rem" }}>
+                {stats.recettes.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+              </h3>
+            </div>
+          </div>
+
+          <div className="tile-card bg-primary" style={{ padding: "1.5rem" }}>
+            <div className="tile-icon-wrapper" style={{ width: "50px", height: "50px", marginBottom: "1rem" }}>
+              <ArrowDownRight size={24} color="#000" />
+            </div>
+            <div className="tile-content">
+              <p className="text-sm tracking-widest text-gray-500 uppercase" style={{ fontSize: "0.8rem", color: "#000" }}>Total Dépenses</p>
+              <h3 className="font-mono mt-2" style={{ fontSize: "1.6rem" }}>
+                {stats.depenses.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+              </h3>
+            </div>
+          </div>
+
+          <div className={`tile-card ${soldeNet >= 0 ? "bg-info" : "bg-warning"}`} style={{ padding: "1.5rem" }}>
+            <div className="tile-icon-wrapper" style={{ width: "50px", height: "50px", marginBottom: "1rem" }}>
+              <Wallet size={24} color="#000" />
+            </div>
+            <div className="tile-content">
+              <p className="text-sm tracking-widest text-gray-500 uppercase" style={{ fontSize: "0.8rem", color: "#000" }}>Solde Net</p>
+              <h3 className="font-mono mt-2" style={{ fontSize: "1.6rem" }}>
+                {soldeNet.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+              </h3>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <section className="card glass-card mt-6" style={{ marginTop: 0 }}>
         <h2>Journal des transactions</h2>
         
         {transactions === undefined ? (
           <div className="loading">Chargement des données depuis Convex...</div>
-        ) : transactions.length === 0 ? (
+        ) : filteredTransactions?.length === 0 ? (
           <div className="empty-state">
-            <p>Aucune transaction trouvée.</p>
-            <p className="hint">Les données s'afficheront ici en temps réel.</p>
+            <p>Aucune transaction ne correspond à ces filtres.</p>
           </div>
         ) : (
-          <div className="table-container">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Nom</th>
-                  <th>Type</th>
-                  <th className="align-right">Montant</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.map((t) => (
-                  <tr key={t._id}>
-                    <td>{t.date}</td>
-                    <td>{t.nom}</td>
-                    <td>
-                      <span className={`badge ${t.typeDocument.toLowerCase().replace(/ /g, '-')}`}>
-                        {t.typeDocument}
-                      </span>
-                    </td>
-                    <td className="align-right font-mono">
-                      {t.realise.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="transactions-list">
+            {filteredTransactions?.map((t: any) => {
+              const isDepense = t.realise < 0;
+              return (
+                <div key={t._id} className="transaction-card">
+                  <div className="tc-header">
+                    <div className="tc-header-main">
+                      <div className="tc-date">{formatDate(t.date)}</div>
+                      <div className="tc-title">{t.nom}</div>
+                      <div className="tc-type">{t.typeDocument}</div>
+                    </div>
+                    <div className={`tc-amount ${isDepense ? 'depense' : 'recette'}`}>
+                      {isDepense ? "- " : "+ "}
+                      {Math.abs(t.realise).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+                    </div>
+                  </div>
+                  <div className="tc-badges">
+                    <span className="badge" style={{ backgroundColor: "#fff", boxShadow: "2px 2px 0px 0px #000" }}>
+                      Tiers : {t.tiersNom}
+                    </span>
+                    <span className="badge facture" style={{ boxShadow: "2px 2px 0px 0px #000" }}>
+                      Analytique : {t.analytiqueNom}
+                    </span>
+                  </div>
+                  {t.commentaires && (
+                    <div className="tc-comment">
+                      {t.commentaires}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </section>
