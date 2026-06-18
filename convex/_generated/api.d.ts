@@ -8,7 +8,9 @@
  * @module
  */
 
+import type * as analytiques from "../analytiques.js";
 import type * as auth from "../auth.js";
+import type * as previsionnels from "../previsionnels.js";
 import type * as references from "../references.js";
 import type * as tiers from "../tiers.js";
 import type * as transactions from "../transactions.js";
@@ -20,7 +22,9 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  analytiques: typeof analytiques;
   auth: typeof auth;
+  previsionnels: typeof previsionnels;
   references: typeof references;
   tiers: typeof tiers;
   transactions: typeof transactions;

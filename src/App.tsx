@@ -5,6 +5,7 @@ import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Compta from "./pages/Compta";
+import Previsionnel from "./pages/Previsionnel";
 
 // Composant temporaire pour les routes non implémentées
 const Placeholder = ({ title }: { title: string }) => (
@@ -26,6 +27,7 @@ function App() {
             <Route element={<Layout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/compta" element={<Compta />} />
+              <Route path="/compta/previsionnel" element={<Previsionnel />} />
               <Route path="/adherents" element={<Placeholder title="Module Adhérents" />} />
               <Route path="/evenements" element={<Placeholder title="Module Événements" />} />
               <Route path="/statistiques" element={<Placeholder title="Module Statistiques" />} />

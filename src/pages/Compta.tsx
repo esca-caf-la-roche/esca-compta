@@ -109,10 +109,15 @@ export default function Compta() {
           <h1>Comptabilité</h1>
           <p className="subtitle">Saison : {season}</p>
         </div>
-        <button className="btn-primary" style={{ width: "auto" }} onClick={openNewModal}>
-          <Plus size={20} style={{ display: "inline-block", marginRight: "0.5rem", verticalAlign: "middle" }} />
-          Nouvelle Transaction
-        </button>
+        <div style={{ display: "flex", gap: "1rem" }}>
+          <Link to="/compta/previsionnel" className="btn-secondary" style={{ width: "auto", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+            Voir le Prévisionnel
+          </Link>
+          <button className="btn-primary" style={{ width: "auto" }} onClick={openNewModal}>
+            <Plus size={20} style={{ display: "inline-block", marginRight: "0.5rem", verticalAlign: "middle" }} />
+            Nouvelle Transaction
+          </button>
+        </div>
       </header>
 
       {transactions !== undefined && transactions.length > 0 && (
