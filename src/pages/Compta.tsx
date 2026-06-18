@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useSeason } from "../contexts/SeasonContext";
-import { ArrowLeft, ArrowUpRight, ArrowDownRight, Wallet, Filter, Search, Plus, Edit2, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, ArrowDownRight, Wallet, Filter, Search, Plus, Edit2, Trash2, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
 import TransactionFormModal from "../components/TransactionFormModal";
 import BudgetTrendsModal from "../components/BudgetTrendsModal";
@@ -252,6 +252,13 @@ export default function Compta() {
                   {t.commentaires && (
                     <div className="tc-comment">
                       {t.commentaires}
+                    </div>
+                  )}
+                  {t.lienDrive && (
+                    <div className="tc-link" style={{ marginTop: "0.5rem" }}>
+                      <a href={t.lienDrive} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", color: "#2563eb", textDecoration: "none", fontSize: "0.85rem" }}>
+                        <ExternalLink size={14} /> Voir le justificatif
+                      </a>
                     </div>
                   )}
                   <div className="tc-actions">
