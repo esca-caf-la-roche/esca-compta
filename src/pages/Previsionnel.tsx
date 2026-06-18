@@ -14,6 +14,7 @@ export default function Previsionnel() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [previsionnelToEdit, setPrevisionnelToEdit] = useState<any | null>(null);
   const [filterAnalytique, setFilterAnalytique] = useState<string>("Tous");
+  const [filterEtat, setFilterEtat] = useState<string>("Tous");
 
   const uniqueAnalytiques = useMemo(() => {
     if (!previsionnels) return [];
@@ -24,9 +25,11 @@ export default function Previsionnel() {
   const filteredPrevisionnels = useMemo(() => {
     if (!previsionnels) return undefined;
     return previsionnels.filter((p: any) => {
-      return filterAnalytique === "Tous" || p.analytiqueNom === filterAnalytique;
+      const matchAna = filterAnalytique === "Tous" || p.analytiqueNom === filterAnalytique;
+      const matchEtat = filterEtat === "Tous" || (filterEtat === "Réalisé" ? p.etat : !p.etat);
+      return matchAna && matchEtat;
     }).sort((a: any, b: any) => a.analytiqueNom.localeCompare(b.analytiqueNom));
-  }, [previsionnels, filterAnalytique]);
+  }, [previsionnels, filterAnalytique, filterEtat]);
 
   const stats = useMemo(() => {
     if (!filteredPrevisionnels) return { total: 0, realise: 0, recettes: 0, depenses: 0 };
@@ -100,6 +103,19 @@ export default function Previsionnel() {
             >
               <option value="Tous">Tous</option>
               {uniqueAnalytiques.map(a => <option key={a as string} value={a as string}>{a as string}</option>)}
+            </select>
+          </div>
+          <div className="filter-group">
+            <label htmlFor="filter-etat" className="filter-label">État</label>
+            <select
+              id="filter-etat"
+              className="filter-dropdown"
+              value={filterEtat}
+              onChange={(e) => setFilterEtat(e.target.value)}
+            >
+              <option value="Tous">Tous</option>
+              <option value="Réalisé">Réalisé</option>
+              <option value="Non Réalisé">Non Réalisé</option>
             </select>
           </div>
         </div>
