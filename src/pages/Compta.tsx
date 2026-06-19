@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useQuery, useMutation, useAction } from "convex/react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useAction, usePaginatedQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useSeason } from "../contexts/SeasonContext";
 import { ArrowLeft, ArrowUpRight, ArrowDownRight, Wallet, Filter, Search, Plus, Edit2, Trash2, ExternalLink, Mail } from "lucide-react";
@@ -8,11 +8,55 @@ import TransactionFormModal from "../components/TransactionFormModal";
 import BudgetTrendsModal from "../components/BudgetTrendsModal";
 import type { Id } from "../../convex/_generated/dataModel";
 
+type TransactionRecord = {
+  _id: Id<"transactions">;
+  _creationTime: number;
+  date: string;
+  nom: string;
+  realise: number;
+  typeDocument?: string;
+  typeDocumentId?: Id<"typesDocuments">;
+  typeDocumentNom?: string;
+  commentaires?: string;
+  lienDrive?: string;
+  tiersId: Id<"tiers">;
+  tiersNom: string;
+  analytiqueId: Id<"analytiques">;
+  analytiqueNom: string;
+  saison: string;
+};
+
 export default function Compta() {
   const { season } = useSeason();
-  // Requêtes filtrées par la saison en cours
-  const transactions = useQuery(api.transactions.get, { saison: season });
-  const previsionnels = useQuery(api.previsionnels.get, { saison: season });
+  
+  // États pour les filtres
+  const [filterTiers, setFilterTiers] = useState<string>("Tous");
+  const [filterAnalytique, setFilterAnalytique] = useState<string>("Tous");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Requête des statistiques serveur
+  const statsQuery = useQuery(api.transactions.getStats, { saison: season });
+  
+  // Requête paginée avec filtres délégués au backend
+  const { results: transactions, status, loadMore } = usePaginatedQuery(
+    api.transactions.get, 
+    { 
+      saison: season,
+      filterTiersId: filterTiers,
+      filterAnalytiqueId: filterAnalytique,
+      searchQuery: debouncedSearchQuery
+    },
+    { initialNumItems: 50 }
+  );
+
   const deleteTransaction = useMutation(api.transactions.remove);
   const updateTransaction = useMutation(api.transactions.update);
   const processDrive = useAction(api.drive.processTransactionDrive);
@@ -23,47 +67,11 @@ export default function Compta() {
   // États pour la modale
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isTrendsModalOpen, setIsTrendsModalOpen] = useState(false);
-  const [transactionToEdit, setTransactionToEdit] = useState<any | null>(null);
+  const [transactionToEdit, setTransactionToEdit] = useState<TransactionRecord | null>(null);
 
-  // États pour les filtres
-  const [filterTiers, setFilterTiers] = useState<string>("Tous");
-  const [filterAnalytique, setFilterAnalytique] = useState<string>("Tous");
-  const [searchQuery, setSearchQuery] = useState<string>("");
-
-  // Listes uniques pour les menus déroulants
-  const uniqueTiers = useMemo(() => {
-    if (!transactions) return [];
-    const set = new Set(transactions.map((t: any) => t.tiersNom));
-    return Array.from(set).sort();
-  }, [transactions]);
-
-  const uniqueAnalytiques = useMemo(() => {
-    if (!transactions) return [];
-    const set = new Set(transactions.map((t: any) => t.analytiqueNom));
-    return Array.from(set).sort();
-  }, [transactions]);
-
-  // Filtrage des transactions
-  const filteredTransactions = useMemo(() => {
-    if (!transactions) return undefined;
-    const filtered = transactions.filter((t: any) => {
-      const matchTiers = filterTiers === "Tous" || t.tiersNom === filterTiers;
-      const matchAna = filterAnalytique === "Tous" || t.analytiqueNom === filterAnalytique;
-      
-      const searchLower = searchQuery.toLowerCase();
-      const matchSearch = searchQuery === "" || 
-        t.nom.toLowerCase().includes(searchLower) || 
-        (t.commentaires && t.commentaires.toLowerCase().includes(searchLower));
-
-      return matchTiers && matchAna && matchSearch;
-    });
-
-    return filtered.sort((a: any, b: any) => {
-      const dateA = new Date(a.date).getTime();
-      const dateB = new Date(b.date).getTime();
-      return dateB - dateA; // Plus récent au plus vieux
-    });
-  }, [transactions, filterTiers, filterAnalytique, searchQuery]);
+  // Listes uniques pour les menus déroulants depuis le serveur
+  const uniqueTiers = statsQuery?.uniqueTiers || [];
+  const uniqueAnalytiques = statsQuery?.uniqueAnalytiques || [];
 
   // Fonction pour formater les dates proprement
   const formatDate = (dateStr: string) => {
@@ -80,24 +88,11 @@ export default function Compta() {
     }
   };
 
-  // Calcul des statistiques pour les KPI basées sur les transactions FILTRÉES
-  const stats = filteredTransactions
-    ? filteredTransactions.reduce(
-        (acc, t) => {
-          if (t.realise >= 0) {
-            acc.recettes += t.realise;
-          } else {
-            acc.depenses += Math.abs(t.realise);
-          }
-          return acc;
-        },
-        { recettes: 0, depenses: 0 }
-      )
-    : { recettes: 0, depenses: 0 };
+  // Calcul des statistiques pour les KPI basées sur TOUTES les transactions de la saison (Serveur)
+  const stats = statsQuery?.stats || { recettes: 0, depenses: 0, soldeNet: 0 };
+  const soldeNet = stats.soldeNet;
 
-  const soldeNet = stats.recettes - stats.depenses;
-
-  const handleEdit = (transaction: any) => {
+  const handleEdit = (transaction: TransactionRecord) => {
     setTransactionToEdit(transaction);
     setIsModalOpen(true);
   };
@@ -113,7 +108,7 @@ export default function Compta() {
     setIsModalOpen(true);
   };
 
-  const handleRenommer = async (t: any) => {
+  const handleRenommer = async (t: TransactionRecord) => {
     const dateObj = new Date(t.date);
     const dateStr = !isNaN(dateObj.getTime()) ? dateObj.toISOString().slice(2, 10) : t.date;
     const anaNamePart = t.analytiqueNom.substring(0, 5);
@@ -130,7 +125,7 @@ export default function Compta() {
     }
   };
 
-  const handleProcessDrive = async (t: any) => {
+  const handleProcessDrive = async (t: TransactionRecord) => {
     setIsProcessingDrive(t._id);
     
     // Formater la saison "2026-27" en "2026-2027"
@@ -156,7 +151,7 @@ export default function Compta() {
     }
   };
 
-  const getMailtoLink = (t: any) => {
+  const getMailtoLink = (t: TransactionRecord) => {
     const subject = encodeURIComponent(`${t.typeDocumentNom || t.typeDocument || ''} de ${t.tiersNom || ''}`);
     const montant = Math.abs(t.realise || 0).toFixed(2).replace('.', ',');
     const body = encodeURIComponent(`Salut Isa,\n\nEn pièce jointe la ${t.typeDocumentNom || t.typeDocument || ''} de ${t.tiersNom || ''}. \n\nPour un montant de ${montant} €.\n\nBonne réception\nJeanFi`);
@@ -205,7 +200,7 @@ export default function Compta() {
               onChange={(e) => setFilterTiers(e.target.value)}
             >
               <option value="Tous">Tous</option>
-              {uniqueTiers.map(t => <option key={t as string} value={t as string}>{t as string}</option>)}
+              {uniqueTiers.map(t => <option key={t.id} value={t.id}>{t.nom}</option>)}
             </select>
           </div>
           <div className="filter-group">
@@ -217,7 +212,7 @@ export default function Compta() {
               onChange={(e) => setFilterAnalytique(e.target.value)}
             >
               <option value="Tous">Tous</option>
-              {uniqueAnalytiques.map(a => <option key={a as string} value={a as string}>{a as string}</option>)}
+              {uniqueAnalytiques.map(a => <option key={a.id} value={a.id}>{a.nom}</option>)}
             </select>
           </div>
           <div className="filter-group" style={{ marginLeft: "auto" }}>
@@ -282,13 +277,13 @@ export default function Compta() {
         
         {transactions === undefined ? (
           <div className="loading">Chargement des données depuis Convex...</div>
-        ) : filteredTransactions?.length === 0 ? (
+        ) : transactions?.length === 0 ? (
           <div className="empty-state">
             <p>Aucune transaction ne correspond à ces filtres.</p>
           </div>
         ) : (
           <div className="transactions-list">
-            {filteredTransactions?.map((t: any) => {
+            {transactions?.map((t: TransactionRecord) => {
               const isDepense = t.realise < 0;
               return (
                 <div key={t._id} className="transaction-card">
@@ -360,6 +355,14 @@ export default function Compta() {
             })}
           </div>
         )}
+
+        {status === "CanLoadMore" && (
+          <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
+            <button className="btn-secondary" onClick={() => loadMore(50)}>
+              Charger plus de transactions
+            </button>
+          </div>
+        )}
       </section>
 
       <TransactionFormModal 
@@ -371,8 +374,6 @@ export default function Compta() {
       <BudgetTrendsModal
         isOpen={isTrendsModalOpen}
         onClose={() => setIsTrendsModalOpen(false)}
-        transactions={transactions}
-        previsionnels={previsionnels}
       />
     </div>
   );

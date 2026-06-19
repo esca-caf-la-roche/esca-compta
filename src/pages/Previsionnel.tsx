@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useState } from "react";
+import { useQuery, useMutation, usePaginatedQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { ArrowLeft, Plus, Edit2, Trash2, CheckCircle, Circle, Filter } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -7,48 +7,43 @@ import PrevisionnelFormModal from "../components/PrevisionnelFormModal";
 import type { Id } from "../../convex/_generated/dataModel";
 import { useSeason } from "../contexts/SeasonContext";
 
+type PrevisionnelRecord = {
+  _id: Id<"previsionnels">;
+  _creationTime: number;
+  nom: string;
+  montant: number;
+  etat: boolean;
+  analytiqueId: Id<"analytiques">;
+  analytiqueNom: string;
+  saison: string;
+};
+
 export default function Previsionnel() {
   const { season } = useSeason();
-  const previsionnels = useQuery(api.previsionnels.get, { saison: season });
   const deletePrevisionnel = useMutation(api.previsionnels.remove);
   const updatePrevisionnel = useMutation(api.previsionnels.update);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [previsionnelToEdit, setPrevisionnelToEdit] = useState<any | null>(null);
+  const [previsionnelToEdit, setPrevisionnelToEdit] = useState<PrevisionnelRecord | null>(null);
   const [filterAnalytique, setFilterAnalytique] = useState<string>("Tous");
   const [filterEtat, setFilterEtat] = useState<string>("Tous");
 
-  const uniqueAnalytiques = useMemo(() => {
-    if (!previsionnels) return [];
-    const set = new Set(previsionnels.map((p: any) => p.analytiqueNom));
-    return Array.from(set).sort();
-  }, [previsionnels]);
+  const statsQuery = useQuery(api.previsionnels.getStats, { saison: season });
+  
+  const { results: previsionnels, status, loadMore } = usePaginatedQuery(
+    api.previsionnels.get, 
+    { 
+      saison: season,
+      filterAnalytiqueId: filterAnalytique,
+      filterEtat: filterEtat
+    },
+    { initialNumItems: 50 }
+  );
 
-  const filteredPrevisionnels = useMemo(() => {
-    if (!previsionnels) return undefined;
-    return previsionnels.filter((p: any) => {
-      const matchAna = filterAnalytique === "Tous" || p.analytiqueNom === filterAnalytique;
-      const matchEtat = filterEtat === "Tous" || (filterEtat === "Réalisé" ? p.etat : !p.etat);
-      return matchAna && matchEtat;
-    }).sort((a: any, b: any) => a.analytiqueNom.localeCompare(b.analytiqueNom));
-  }, [previsionnels, filterAnalytique, filterEtat]);
+  const uniqueAnalytiques = statsQuery?.uniqueAnalytiques || [];
 
-  const stats = useMemo(() => {
-    if (!filteredPrevisionnels) return { total: 0, realise: 0, recettes: 0, depenses: 0 };
-    return filteredPrevisionnels.reduce(
-      (acc, prev) => {
-        acc.total += prev.montant;
-        if (prev.montant >= 0) {
-          acc.recettes += prev.montant;
-        } else {
-          acc.depenses += Math.abs(prev.montant);
-        }
-        if (prev.etat) acc.realise += prev.montant;
-        return acc;
-      },
-      { total: 0, realise: 0, recettes: 0, depenses: 0 }
-    );
-  }, [filteredPrevisionnels]);
+  const stats = statsQuery?.stats || { total: 0, realise: 0, recettes: 0, depenses: 0 };
+
 
   const handleDelete = async (id: Id<"previsionnels">) => {
     if (window.confirm("Êtes-vous sûr de vouloir supprimer ce prévisionnel ?")) {
@@ -61,12 +56,12 @@ export default function Previsionnel() {
     setIsModalOpen(true);
   };
 
-  const handleEdit = (prev: any) => {
+  const handleEdit = (prev: PrevisionnelRecord) => {
     setPrevisionnelToEdit(prev);
     setIsModalOpen(true);
   };
 
-  const toggleEtat = async (prev: any) => {
+  const toggleEtat = async (prev: PrevisionnelRecord) => {
     await updatePrevisionnel({
       id: prev._id,
       etat: !prev.etat,
@@ -104,7 +99,7 @@ export default function Previsionnel() {
               onChange={(e) => setFilterAnalytique(e.target.value)}
             >
               <option value="Tous">Tous</option>
-              {uniqueAnalytiques.map(a => <option key={a as string} value={a as string}>{a as string}</option>)}
+              {uniqueAnalytiques.map(a => <option key={a.id} value={a.id}>{a.nom}</option>)}
             </select>
           </div>
           <div className="filter-group">
@@ -123,7 +118,7 @@ export default function Previsionnel() {
         </div>
       )}
 
-      {filteredPrevisionnels !== undefined && (
+      {statsQuery !== undefined && (
         <div className="tiles-grid mt-6" style={{ marginBottom: "2rem" }}>
           <div className="tile-card bg-success" style={{ padding: "1.5rem" }}>
             <div className="tile-content">
@@ -165,13 +160,13 @@ export default function Previsionnel() {
         
         {previsionnels === undefined ? (
           <div className="loading">Chargement des données...</div>
-        ) : filteredPrevisionnels?.length === 0 ? (
+        ) : previsionnels?.length === 0 ? (
           <div className="empty-state">
             <p>Aucun prévisionnel ne correspond à ce filtre.</p>
           </div>
         ) : (
           <div className="transactions-list">
-            {filteredPrevisionnels?.map((prev: any) => {
+            {previsionnels?.map((prev: PrevisionnelRecord) => {
               const isDepense = prev.montant < 0;
               return (
                 <div key={prev._id} className="transaction-card">
@@ -209,6 +204,14 @@ export default function Previsionnel() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {status === "CanLoadMore" && (
+          <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
+            <button className="btn-secondary" onClick={() => loadMore(50)}>
+              Charger plus de prévisionnels
+            </button>
           </div>
         )}
       </section>
