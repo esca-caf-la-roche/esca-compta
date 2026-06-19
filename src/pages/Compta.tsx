@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useSeason } from "../contexts/SeasonContext";
-import { ArrowLeft, ArrowUpRight, ArrowDownRight, Wallet, Filter, Search, Plus, Edit2, Trash2, ExternalLink, FolderSync } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, ArrowDownRight, Wallet, Filter, Search, Plus, Edit2, Trash2, ExternalLink, FolderSync, Mail } from "lucide-react";
 import { Link } from "react-router-dom";
 import TransactionFormModal from "../components/TransactionFormModal";
 import BudgetTrendsModal from "../components/BudgetTrendsModal";
@@ -154,6 +154,14 @@ export default function Compta() {
     } finally {
       setIsProcessingDrive(null);
     }
+  };
+
+  const getMailtoLink = (t: any) => {
+    const subject = encodeURIComponent(`${t.typeDocument || ''} de ${t.tiersNom || ''}`);
+    const montant = Math.abs(t.realise || 0).toFixed(2).replace('.', ',');
+    const body = encodeURIComponent(`Salut Isa,\n\nEn pièce jointe la ${t.typeDocument || ''} de ${t.tiersNom || ''}. \n\nPour un montant de ${montant} €.\n\nBonne réception\nJeanFi`);
+    // L'URL force l'utilisation du compte escalade@... et pré-remplit le destinataire compta@...
+    return `https://mail.google.com/mail/u/escalade@caflarochebonneville.fr/?view=cm&fs=1&to=compta@caflarochebonneville.fr&su=${subject}&body=${body}`;
   };
 
   return (
@@ -331,6 +339,15 @@ export default function Compta() {
                     >
                       {isProcessingDrive === t._id ? "⏳ En cours..." : "Créer lien GDrive"}
                     </button>
+                    <a 
+                      href={getMailtoLink(t)} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="btn-secondary" 
+                      style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem", display: "inline-flex", alignItems: "center", gap: "0.25rem", textDecoration: "none", backgroundColor: "#eef2ff", color: "#4f46e5", borderColor: "#c7d2fe" }}
+                    >
+                      <Mail size={14} /> Préparer le mail
+                    </a>
                     <button className="btn-icon" onClick={() => handleEdit(t)} title="Modifier" aria-label="Modifier">
                       <Edit2 size={16} />
                     </button>
