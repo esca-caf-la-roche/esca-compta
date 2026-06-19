@@ -33,7 +33,7 @@ export default function TransactionFormModal({ isOpen, onClose, transactionToEdi
   const updateTransaction = useMutation(api.transactions.update);
   const createTiers = useMutation(api.tiers.create);
 
-  const [nom, setNom] = useState("");
+
   const [date, setDate] = useState("");
   const [montant, setMontant] = useState("");
   const [typeTransaction, setTypeTransaction] = useState<"recette" | "depense">("depense");
@@ -47,7 +47,7 @@ export default function TransactionFormModal({ isOpen, onClose, transactionToEdi
   // Pré-remplir le formulaire si on édite
   useEffect(() => {
     if (transactionToEdit) {
-      setNom(transactionToEdit.nom);
+
       setDate(transactionToEdit.date);
       setMontant(Math.abs(transactionToEdit.realise).toString());
       setTypeTransaction(transactionToEdit.realise >= 0 ? "recette" : "depense");
@@ -62,7 +62,7 @@ export default function TransactionFormModal({ isOpen, onClose, transactionToEdi
       setAnalytiqueInput(aName);
     } else {
       // Valeurs par défaut pour une création
-      setNom("");
+
       setDate(new Date().toISOString().split("T")[0]); // Date du jour
       setMontant("");
       setTypeTransaction("depense");

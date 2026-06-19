@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { X, Save, AlertCircle } from "lucide-react";
+import { X, Save } from "lucide-react";
 import { useSeason } from "../contexts/SeasonContext";
 
 interface PrevisionnelFormModalProps {

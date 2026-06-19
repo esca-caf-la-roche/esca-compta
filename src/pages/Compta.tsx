@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useSeason } from "../contexts/SeasonContext";
-import { ArrowLeft, ArrowUpRight, ArrowDownRight, Wallet, Filter, Search, Plus, Edit2, Trash2, ExternalLink, FolderSync, Mail } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, ArrowDownRight, Wallet, Filter, Search, Plus, Edit2, Trash2, ExternalLink, Mail } from "lucide-react";
 import { Link } from "react-router-dom";
 import TransactionFormModal from "../components/TransactionFormModal";
 import BudgetTrendsModal from "../components/BudgetTrendsModal";
