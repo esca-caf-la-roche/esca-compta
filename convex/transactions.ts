@@ -3,9 +3,13 @@ import { v } from "convex/values";
 
 // Lire toutes les transactions en résolvant les relations Tiers et Analytiques
 export const get = query({
-  args: {},
-  handler: async (ctx) => {
-    const transactions = await ctx.db.query("transactions").order("desc").collect();
+  args: { saison: v.string() },
+  handler: async (ctx, args) => {
+    const transactions = await ctx.db
+      .query("transactions")
+      .withIndex("by_saison", (q) => q.eq("saison", args.saison))
+      .order("desc")
+      .collect();
     return await Promise.all(
       transactions.map(async (t) => {
         const tiers = await ctx.db.get(t.tiersId);
@@ -31,6 +35,7 @@ export const create = mutation({
     lienDrive: v.optional(v.string()),
     tiersId: v.id("tiers"),
     analytiqueId: v.id("analytiques"),
+    saison: v.string(),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("transactions", {
@@ -42,6 +47,7 @@ export const create = mutation({
       lienDrive: args.lienDrive,
       tiersId: args.tiersId,
       analytiqueId: args.analytiqueId,
+      saison: args.saison,
     });
   },
 });
@@ -58,6 +64,7 @@ export const update = mutation({
     lienDrive: v.optional(v.string()),
     tiersId: v.optional(v.id("tiers")),
     analytiqueId: v.optional(v.id("analytiques")),
+    saison: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { id, ...updates } = args;

@@ -27,7 +27,8 @@ export default defineSchema({
     montant: v.number(),
     etat: v.boolean(),
     analytiqueId: v.id("analytiques"),
-  }),
+    saison: v.string(),
+  }).index("by_saison", ["saison"]),
 
   transactions: defineTable({
     nom: v.string(),
@@ -38,5 +39,6 @@ export default defineSchema({
     lienDrive: v.optional(v.string()),
     tiersId: v.id("tiers"),
     analytiqueId: v.id("analytiques"),
-  }),
+    saison: v.string(),
+  }).index("by_saison", ["saison"]),
 });

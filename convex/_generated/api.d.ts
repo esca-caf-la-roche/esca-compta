@@ -10,6 +10,8 @@
 
 import type * as analytiques from "../analytiques.js";
 import type * as auth from "../auth.js";
+import type * as drive from "../drive.js";
+import type * as migrations from "../migrations.js";
 import type * as previsionnels from "../previsionnels.js";
 import type * as references from "../references.js";
 import type * as tiers from "../tiers.js";
@@ -24,6 +26,8 @@ import type {
 declare const fullApi: ApiFromModules<{
   analytiques: typeof analytiques;
   auth: typeof auth;
+  drive: typeof drive;
+  migrations: typeof migrations;
   previsionnels: typeof previsionnels;
   references: typeof references;
   tiers: typeof tiers;

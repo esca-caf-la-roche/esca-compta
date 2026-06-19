@@ -1,28 +1,14 @@
 "use node";
 
-import { action, internalMutation } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { action } from "./_generated/server";
+import { api } from "./_generated/api";
 import { v } from "convex/values";
 import { google } from "googleapis";
-
-// Mutation interne pour mettre à jour la transaction une fois le traitement Drive terminé
-export const updateTransactionDriveInfo = internalMutation({
-  args: {
-    id: v.id("transactions"),
-    nom: v.string(),
-    lienDrive: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await ctx.db.patch(args.id, {
-      nom: args.nom,
-      lienDrive: args.lienDrive,
-    });
-  },
-});
 
 export const processTransactionDrive = action({
   args: {
     transactionId: v.id("transactions"),
+    saisonDirName: v.string(),
     analytiqueNom: v.string(),
     date: v.string(), // YYYY-MM-DD
     typeDocument: v.string(),
@@ -70,59 +56,87 @@ export const processTransactionDrive = action({
 
       const drive = google.drive({ version: 'v3', auth });
 
-      const PARENT_FOLDER_ID = "1Vj8CcRR6gSN4gLlB6DAxYs9zXzVTK4Ha";
+      const PARENT_FOLDER_ID = "1-kWAnIldPP_csUd4wbDJ1zn2Clos-QHQ";
 
-      // 3. Chercher le répertoire MM-YYYY
-      const query = `name='${monthYearStr}' and mimeType='application/vnd.google-apps.folder' and '${PARENT_FOLDER_ID}' in parents and trashed=false`;
+      // 3. Chercher le répertoire de la Saison (ex: 2026-2027)
+      const seasonQuery = `name='${args.saisonDirName}' and mimeType='application/vnd.google-apps.folder' and '${PARENT_FOLDER_ID}' in parents and trashed=false`;
       
-      const searchRes = await drive.files.list({
-        q: query,
+      const seasonSearchRes = await drive.files.list({
+        q: seasonQuery,
+        fields: 'files(id)',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+      });
+
+      let seasonFolderId = "";
+
+      if (seasonSearchRes.data.files && seasonSearchRes.data.files.length > 0) {
+        seasonFolderId = seasonSearchRes.data.files[0].id!;
+      } else {
+        // Créer le répertoire Saison
+        const createSeasonRes = await drive.files.create({
+          requestBody: {
+            name: args.saisonDirName,
+            mimeType: 'application/vnd.google-apps.folder',
+            parents: [PARENT_FOLDER_ID],
+          },
+          fields: 'id',
+          supportsAllDrives: true,
+        });
+        seasonFolderId = createSeasonRes.data.id!;
+      }
+
+      // 4. Chercher le répertoire MM-YYYY
+      const monthQuery = `name='${monthYearStr}' and mimeType='application/vnd.google-apps.folder' and '${seasonFolderId}' in parents and trashed=false`;
+      
+      const monthSearchRes = await drive.files.list({
+        q: monthQuery,
         fields: 'files(id, webViewLink)',
         supportsAllDrives: true,
         includeItemsFromAllDrives: true,
       });
 
-      let folderId = "";
+      let monthFolderId = "";
       let folderLink = "";
 
-      if (searchRes.data.files && searchRes.data.files.length > 0) {
+      if (monthSearchRes.data.files && monthSearchRes.data.files.length > 0) {
         // Le répertoire existe
-        folderId = searchRes.data.files[0].id!;
-        folderLink = searchRes.data.files[0].webViewLink!;
+        monthFolderId = monthSearchRes.data.files[0].id!;
+        folderLink = monthSearchRes.data.files[0].webViewLink!;
       } else {
-        // 4. Créer le répertoire MM-YYYY
+        // Créer le répertoire MM-YYYY
         const createRes = await drive.files.create({
           requestBody: {
             name: monthYearStr,
             mimeType: 'application/vnd.google-apps.folder',
-            parents: [PARENT_FOLDER_ID],
+            parents: [seasonFolderId],
           },
           fields: 'id, webViewLink',
           supportsAllDrives: true,
         });
 
-        folderId = createRes.data.id!;
+        monthFolderId = createRes.data.id!;
         folderLink = createRes.data.webViewLink!;
       }
 
-      // 5. Partager avec j.duheron@caflarochebonneville.fr
+      // 5. Partager avec escalade@caflarochebonneville.fr
       try {
         await drive.permissions.create({
-          fileId: folderId,
+          fileId: monthFolderId,
           requestBody: {
             role: 'reader',
             type: 'user',
-            emailAddress: 'j.duheron@caflarochebonneville.fr',
+            emailAddress: 'escalade@caflarochebonneville.fr',
           },
           supportsAllDrives: true,
-          sendNotificationEmail: false,
+          sendNotificationEmail: false, // N'envoie pas de mail (silencieux)
         });
       } catch (permError) {
         console.warn("Impossible de partager le dossier (peut-être déjà partagé):", permError);
       }
 
-      // 6. Mettre à jour la transaction via mutation interne
-      await ctx.runMutation(internal.drive.updateTransactionDriveInfo, {
+      // 6. Mettre à jour la transaction via mutation publique
+      await ctx.runMutation(api.transactions.update, {
         id: args.transactionId,
         nom: newNom,
         lienDrive: folderLink,

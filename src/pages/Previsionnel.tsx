@@ -5,9 +5,11 @@ import { ArrowLeft, Plus, Edit2, Trash2, CheckCircle, Circle, Filter } from "luc
 import { Link } from "react-router-dom";
 import PrevisionnelFormModal from "../components/PrevisionnelFormModal";
 import type { Id } from "../../convex/_generated/dataModel";
+import { useSeason } from "../contexts/SeasonContext";
 
 export default function Previsionnel() {
-  const previsionnels = useQuery(api.previsionnels.get);
+  const { season } = useSeason();
+  const previsionnels = useQuery(api.previsionnels.get, { saison: season });
   const deletePrevisionnel = useMutation(api.previsionnels.remove);
   const updatePrevisionnel = useMutation(api.previsionnels.update);
 

@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { X, Save } from "lucide-react";
 import type { Id } from "../../convex/_generated/dataModel";
+import { useSeason } from "../contexts/SeasonContext";
 
 type Transaction = {
   _id: Id<"transactions">;
@@ -24,6 +25,7 @@ type Props = {
 };
 
 export default function TransactionFormModal({ isOpen, onClose, transactionToEdit }: Props) {
+  const { season } = useSeason();
   const tiersList = useQuery(api.references.getTiers);
   const analytiquesList = useQuery(api.references.getAnalytiques);
   
@@ -124,6 +126,7 @@ export default function TransactionFormModal({ isOpen, onClose, transactionToEdi
         typeDocument,
         tiersId: finalTiersId,
         analytiqueId: foundAna._id,
+        saison: season,
         commentaires: commentaires.trim() !== "" ? commentaires : undefined,
       };
 

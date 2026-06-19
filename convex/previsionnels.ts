@@ -2,9 +2,12 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
 export const get = query({
-  args: {},
-  handler: async (ctx) => {
-    const previsionnels = await ctx.db.query("previsionnels").collect();
+  args: { saison: v.string() },
+  handler: async (ctx, args) => {
+    const previsionnels = await ctx.db
+      .query("previsionnels")
+      .withIndex("by_saison", (q) => q.eq("saison", args.saison))
+      .collect();
     
     // Jointure manuelle avec analytiques
     return Promise.all(
@@ -29,6 +32,7 @@ export const add = mutation({
     montant: v.number(),
     etat: v.boolean(),
     analytiqueId: v.id("analytiques"),
+    saison: v.string(),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("previsionnels", {
@@ -36,6 +40,7 @@ export const add = mutation({
       montant: args.montant,
       etat: args.etat,
       analytiqueId: args.analytiqueId,
+      saison: args.saison,
     });
   },
 });
@@ -47,6 +52,7 @@ export const update = mutation({
     montant: v.optional(v.number()),
     etat: v.optional(v.boolean()),
     analytiqueId: v.optional(v.id("analytiques")),
+    saison: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { id, ...updates } = args;

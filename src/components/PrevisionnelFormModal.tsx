@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { X, Save, AlertCircle } from "lucide-react";
+import { useSeason } from "../contexts/SeasonContext";
 
 interface PrevisionnelFormModalProps {
   isOpen: boolean;
@@ -10,6 +11,7 @@ interface PrevisionnelFormModalProps {
 }
 
 export default function PrevisionnelFormModal({ isOpen, onClose, previsionnelToEdit }: PrevisionnelFormModalProps) {
+  const { season } = useSeason();
   const [nom, setNom] = useState("");
   const [montant, setMontant] = useState("");
   const [etat, setEtat] = useState(false);
@@ -60,6 +62,7 @@ export default function PrevisionnelFormModal({ isOpen, onClose, previsionnelToE
           montant: montantNum,
           etat,
           analytiqueId: analytiqueId as any,
+          saison: season,
         });
       } else {
         await addPrevisionnel({
@@ -67,6 +70,7 @@ export default function PrevisionnelFormModal({ isOpen, onClose, previsionnelToE
           montant: montantNum,
           etat,
           analytiqueId: analytiqueId as any,
+          saison: season,
         });
       }
       onClose();

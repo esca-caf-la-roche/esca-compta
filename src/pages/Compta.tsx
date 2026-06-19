@@ -10,9 +10,9 @@ import type { Id } from "../../convex/_generated/dataModel";
 
 export default function Compta() {
   const { season } = useSeason();
-  // On pourrait passer la saison en argument de la requête si Convex le gère.
-  const transactions = useQuery(api.transactions.get);
-  const previsionnels = useQuery(api.previsionnels.get);
+  // Requêtes filtrées par la saison en cours
+  const transactions = useQuery(api.transactions.get, { saison: season });
+  const previsionnels = useQuery(api.previsionnels.get, { saison: season });
   const deleteTransaction = useMutation(api.transactions.remove);
   const updateTransaction = useMutation(api.transactions.update);
   const processDrive = useAction(api.drive.processTransactionDrive);
@@ -132,9 +132,16 @@ export default function Compta() {
 
   const handleProcessDrive = async (t: any) => {
     setIsProcessingDrive(t._id);
+    
+    // Formater la saison "2026-27" en "2026-2027"
+    const formattedSeason = season.includes("-") && season.split("-")[1].length === 2 
+      ? season.split("-")[0] + "-20" + season.split("-")[1] 
+      : season;
+
     try {
       await processDrive({
         transactionId: t._id,
+        saisonDirName: formattedSeason,
         analytiqueNom: t.analytiqueNom,
         date: t.date,
         typeDocument: t.typeDocument,
