@@ -14,8 +14,10 @@ import type * as drive from "../drive.js";
 import type * as migrations from "../migrations.js";
 import type * as previsionnels from "../previsionnels.js";
 import type * as references from "../references.js";
+import type * as saisons from "../saisons.js";
 import type * as tiers from "../tiers.js";
 import type * as transactions from "../transactions.js";
+import type * as typesDocuments from "../typesDocuments.js";
 
 import type {
   ApiFromModules,
@@ -30,8 +32,10 @@ declare const fullApi: ApiFromModules<{
   migrations: typeof migrations;
   previsionnels: typeof previsionnels;
   references: typeof references;
+  saisons: typeof saisons;
   tiers: typeof tiers;
   transactions: typeof transactions;
+  typesDocuments: typeof typesDocuments;
 }>;
 
 /**

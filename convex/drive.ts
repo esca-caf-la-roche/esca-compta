@@ -11,7 +11,7 @@ export const processTransactionDrive = action({
     saisonDirName: v.string(),
     analytiqueNom: v.string(),
     date: v.string(), // YYYY-MM-DD
-    typeDocument: v.string(),
+    typeDocumentNom: v.string(),
     tiersNom: v.string(),
     commentaires: v.optional(v.string()),
   },
@@ -32,7 +32,7 @@ export const processTransactionDrive = action({
       }
 
       const analytiquePart = args.analytiqueNom.substring(0, 5);
-      const typePart = args.typeDocument.replaceAll(" ", "_");
+      const typePart = args.typeDocumentNom.replaceAll(" ", "_");
       const tiersPart = args.tiersNom.replaceAll(" ", "_");
       const comPart = (args.commentaires || "").replaceAll(" ", "_");
 

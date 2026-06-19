@@ -18,6 +18,9 @@ export const get = query({
           ...t,
           tiersNom: tiers ? tiers.nom : "Inconnu",
           analytiqueNom: analytique ? analytique.nom : "Inconnu",
+          typeDocumentNom: t.typeDocumentId 
+            ? ((await ctx.db.get(t.typeDocumentId))?.nom || "Inconnu")
+            : (t.typeDocument || "Inconnu"),
         };
       })
     );
@@ -30,7 +33,8 @@ export const create = mutation({
     nom: v.string(),
     date: v.string(),
     realise: v.number(),
-    typeDocument: v.string(),
+    typeDocument: v.optional(v.string()),
+    typeDocumentId: v.optional(v.id("typesDocuments")),
     commentaires: v.optional(v.string()),
     lienDrive: v.optional(v.string()),
     tiersId: v.id("tiers"),
@@ -43,6 +47,7 @@ export const create = mutation({
       date: args.date,
       realise: args.realise,
       typeDocument: args.typeDocument,
+      typeDocumentId: args.typeDocumentId,
       commentaires: args.commentaires,
       lienDrive: args.lienDrive,
       tiersId: args.tiersId,
@@ -60,6 +65,7 @@ export const update = mutation({
     date: v.optional(v.string()),
     realise: v.optional(v.number()),
     typeDocument: v.optional(v.string()),
+    typeDocumentId: v.optional(v.id("typesDocuments")),
     commentaires: v.optional(v.string()),
     lienDrive: v.optional(v.string()),
     tiersId: v.optional(v.id("tiers")),

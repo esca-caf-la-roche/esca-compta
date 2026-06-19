@@ -10,7 +10,8 @@ type Transaction = {
   nom: string;
   date: string;
   realise: number;
-  typeDocument: string;
+  typeDocumentId?: Id<"typesDocuments">;
+  typeDocumentNom?: string;
   commentaires?: string;
   tiersId: Id<"tiers">;
   analytiqueId: Id<"analytiques">;
@@ -29,15 +30,18 @@ export default function TransactionFormModal({ isOpen, onClose, transactionToEdi
   const tiersList = useQuery(api.references.getTiers);
   const analytiquesList = useQuery(api.references.getAnalytiques);
   
+  const typesDocumentsList = useQuery(api.typesDocuments.get);
+  
   const createTransaction = useMutation(api.transactions.create);
   const updateTransaction = useMutation(api.transactions.update);
   const createTiers = useMutation(api.tiers.create);
+  const createTypeDocument = useMutation(api.typesDocuments.create);
 
 
   const [date, setDate] = useState("");
   const [montant, setMontant] = useState("");
   const [typeTransaction, setTypeTransaction] = useState<"recette" | "depense">("depense");
-  const [typeDocument, setTypeDocument] = useState("Facture");
+  const [typeDocumentInput, setTypeDocumentInput] = useState("");
   const [tiersInput, setTiersInput] = useState("");
   const [analytiqueInput, setAnalytiqueInput] = useState("");
   const [commentaires, setCommentaires] = useState("");
@@ -51,7 +55,7 @@ export default function TransactionFormModal({ isOpen, onClose, transactionToEdi
       setDate(transactionToEdit.date);
       setMontant(Math.abs(transactionToEdit.realise).toString());
       setTypeTransaction(transactionToEdit.realise >= 0 ? "recette" : "depense");
-      setTypeDocument(transactionToEdit.typeDocument);
+      setTypeDocumentInput(transactionToEdit.typeDocumentNom || transactionToEdit.typeDocument || "");
       setCommentaires(transactionToEdit.commentaires || "");
       
       // Essayer de récupérer le nom depuis l'objet étendu, sinon on cherche dans la liste
@@ -66,7 +70,7 @@ export default function TransactionFormModal({ isOpen, onClose, transactionToEdi
       setDate(new Date().toISOString().split("T")[0]); // Date du jour
       setMontant("");
       setTypeTransaction("depense");
-      setTypeDocument("Facture");
+      setTypeDocumentInput("");
       setTiersInput("");
       setAnalytiqueInput("");
       setCommentaires("");
@@ -83,6 +87,12 @@ export default function TransactionFormModal({ isOpen, onClose, transactionToEdi
     
     if (!anaName || !tName) {
       alert("Veuillez renseigner le Tiers et l'Analytique.");
+      return;
+    }
+
+    const docName = typeDocumentInput.trim();
+    if (!docName) {
+      alert("Veuillez renseigner le Type de document.");
       return;
     }
 
@@ -107,6 +117,16 @@ export default function TransactionFormModal({ isOpen, onClose, transactionToEdi
         finalTiersId = await createTiers({ nom: tName });
       }
 
+      // Vérification du Type de Document : s'il n'existe pas, on le crée
+      let finalTypeDocId: Id<"typesDocuments">;
+      const foundTypeDoc = typesDocumentsList?.find(td => td.nom.toLowerCase() === docName.toLowerCase());
+      
+      if (foundTypeDoc) {
+        finalTypeDocId = foundTypeDoc._id;
+      } else {
+        finalTypeDocId = await createTypeDocument({ nom: docName });
+      }
+
       const realMontant = parseFloat(montant);
       const realise = typeTransaction === "depense" ? -Math.abs(realMontant) : Math.abs(realMontant);
 
@@ -114,7 +134,7 @@ export default function TransactionFormModal({ isOpen, onClose, transactionToEdi
       const dateObj = new Date(date);
       const dateStr = !isNaN(dateObj.getTime()) ? dateObj.toISOString().slice(2, 10) : date;
       const anaNamePart = anaName.substring(0, 5);
-      const typePart = typeDocument.replaceAll(" ", "_");
+      const typePart = docName.replaceAll(" ", "_");
       const tiersPart = tName.replaceAll(" ", "_");
       const comPart = commentaires.trim().replaceAll(" ", "_");
       const generatedNom = `${anaNamePart}_${dateStr}_${typePart}_${tiersPart}_${comPart}`;
@@ -123,7 +143,7 @@ export default function TransactionFormModal({ isOpen, onClose, transactionToEdi
         nom: generatedNom,
         date,
         realise,
-        typeDocument,
+        typeDocumentId: finalTypeDocId,
         tiersId: finalTiersId,
         analytiqueId: foundAna._id,
         saison: season,
@@ -203,17 +223,22 @@ export default function TransactionFormModal({ isOpen, onClose, transactionToEdi
 
             <div className="form-group">
               <label className="form-label" htmlFor="typeDocument">Type de document</label>
-              <select 
+              <input 
                 className="input-field" 
                 id="typeDocument" 
-                value={typeDocument} 
-                onChange={e => setTypeDocument(e.target.value)}
-              >
-                <option value="Facture">Facture</option>
-                <option value="Note de Frais">Note de Frais</option>
-                <option value="Virement SEPA">Virement SEPA</option>
-                <option value="Autre">Autre</option>
-              </select>
+                type="text"
+                list="types-list"
+                required
+                value={typeDocumentInput} 
+                onChange={e => setTypeDocumentInput(e.target.value)}
+                placeholder="Sélectionner ou taper pour créer"
+                autoComplete="off"
+              />
+              <datalist id="types-list">
+                {typesDocumentsList?.map(td => (
+                  <option key={td._id} value={td.nom} />
+                ))}
+              </datalist>
             </div>
           </div>
 

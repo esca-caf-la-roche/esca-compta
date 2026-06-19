@@ -117,7 +117,7 @@ export default function Compta() {
     const dateObj = new Date(t.date);
     const dateStr = !isNaN(dateObj.getTime()) ? dateObj.toISOString().slice(2, 10) : t.date;
     const anaNamePart = t.analytiqueNom.substring(0, 5);
-    const typePart = t.typeDocument.replaceAll(" ", "_");
+    const typePart = (t.typeDocumentNom || t.typeDocument || "").replaceAll(" ", "_");
     const tiersPart = t.tiersNom.replaceAll(" ", "_");
     const comPart = (t.commentaires || "").trim().replaceAll(" ", "_");
     const generatedNom = `${anaNamePart}_${dateStr}_${typePart}_${tiersPart}_${comPart}`;
@@ -144,7 +144,7 @@ export default function Compta() {
         saisonDirName: formattedSeason,
         analytiqueNom: t.analytiqueNom,
         date: t.date,
-        typeDocument: t.typeDocument,
+        typeDocumentNom: t.typeDocumentNom || t.typeDocument,
         tiersNom: t.tiersNom,
         commentaires: t.commentaires,
       });
@@ -157,9 +157,9 @@ export default function Compta() {
   };
 
   const getMailtoLink = (t: any) => {
-    const subject = encodeURIComponent(`${t.typeDocument || ''} de ${t.tiersNom || ''}`);
+    const subject = encodeURIComponent(`${t.typeDocumentNom || t.typeDocument || ''} de ${t.tiersNom || ''}`);
     const montant = Math.abs(t.realise || 0).toFixed(2).replace('.', ',');
-    const body = encodeURIComponent(`Salut Isa,\n\nEn pièce jointe la ${t.typeDocument || ''} de ${t.tiersNom || ''}. \n\nPour un montant de ${montant} €.\n\nBonne réception\nJeanFi`);
+    const body = encodeURIComponent(`Salut Isa,\n\nEn pièce jointe la ${t.typeDocumentNom || t.typeDocument || ''} de ${t.tiersNom || ''}. \n\nPour un montant de ${montant} €.\n\nBonne réception\nJeanFi`);
     // L'URL force l'utilisation du compte escalade@... et pré-remplit le destinataire compta@...
     return `https://mail.google.com/mail/u/escalade@caflarochebonneville.fr/?view=cm&fs=1&to=compta@caflarochebonneville.fr&su=${subject}&body=${body}`;
   };
@@ -296,7 +296,7 @@ export default function Compta() {
                     <div className="tc-header-main">
                       <div className="tc-date">{formatDate(t.date)}</div>
                       <div className="tc-title">{t.nom}</div>
-                      <div className="tc-type">{t.typeDocument}</div>
+                      <div className="tc-type">{t.typeDocumentNom || t.typeDocument}</div>
                     </div>
                     <div className={`tc-amount ${isDepense ? 'depense' : 'recette'}`}>
                       {isDepense ? "- " : "+ "}

@@ -22,6 +22,15 @@ export default defineSchema({
     description: v.optional(v.string()),
   }),
 
+  typesDocuments: defineTable({
+    nom: v.string(),
+  }),
+
+  saisons: defineTable({
+    nom: v.string(), // "2025-26"
+    isDefault: v.boolean(),
+  }),
+
   previsionnels: defineTable({
     nom: v.string(),
     montant: v.number(),
@@ -34,7 +43,8 @@ export default defineSchema({
     nom: v.string(),
     date: v.string(), // ISO format (ex: '2025-08-19')
     realise: v.number(),
-    typeDocument: v.string(), // 'Facture', 'Note de Frais', etc.
+    typeDocument: v.optional(v.string()), // Ancien champ texte (deprecated)
+    typeDocumentId: v.optional(v.id("typesDocuments")), // Nouveau champ relationnel
     commentaires: v.optional(v.string()),
     lienDrive: v.optional(v.string()),
     tiersId: v.id("tiers"),
