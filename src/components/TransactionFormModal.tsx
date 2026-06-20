@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { X, Save } from "lucide-react";
@@ -10,6 +10,7 @@ type Transaction = {
   nom: string;
   date: string;
   realise: number;
+  typeDocument?: string;
   typeDocumentId?: Id<"typesDocuments">;
   typeDocumentNom?: string;
   commentaires?: string;
@@ -38,44 +39,15 @@ export default function TransactionFormModal({ isOpen, onClose, transactionToEdi
   const createTypeDocument = useMutation(api.typesDocuments.create);
 
 
-  const [date, setDate] = useState("");
-  const [montant, setMontant] = useState("");
-  const [typeTransaction, setTypeTransaction] = useState<"recette" | "depense">("depense");
-  const [typeDocumentInput, setTypeDocumentInput] = useState("");
-  const [tiersInput, setTiersInput] = useState("");
-  const [analytiqueInput, setAnalytiqueInput] = useState("");
-  const [commentaires, setCommentaires] = useState("");
+  const [date, setDate] = useState(() => transactionToEdit?.date ?? new Date().toISOString().split("T")[0]);
+  const [montant, setMontant] = useState(() => transactionToEdit ? Math.abs(transactionToEdit.realise).toString() : "");
+  const [typeTransaction, setTypeTransaction] = useState<"recette" | "depense">(() => transactionToEdit && transactionToEdit.realise >= 0 ? "recette" : "depense");
+  const [typeDocumentInput, setTypeDocumentInput] = useState(() => transactionToEdit?.typeDocumentNom || transactionToEdit?.typeDocument || "");
+  const [tiersInput, setTiersInput] = useState(() => transactionToEdit?.tiersNom || "");
+  const [analytiqueInput, setAnalytiqueInput] = useState(() => transactionToEdit?.analytiqueNom || "");
+  const [commentaires, setCommentaires] = useState(() => transactionToEdit?.commentaires || "");
   
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Pré-remplir le formulaire si on édite
-  useEffect(() => {
-    if (transactionToEdit) {
-
-      setDate(transactionToEdit.date);
-      setMontant(Math.abs(transactionToEdit.realise).toString());
-      setTypeTransaction(transactionToEdit.realise >= 0 ? "recette" : "depense");
-      setTypeDocumentInput(transactionToEdit.typeDocumentNom || transactionToEdit.typeDocument || "");
-      setCommentaires(transactionToEdit.commentaires || "");
-      
-      // Essayer de récupérer le nom depuis l'objet étendu, sinon on cherche dans la liste
-      const tName = transactionToEdit.tiersNom || tiersList?.find(t => t._id === transactionToEdit.tiersId)?.nom || "";
-      const aName = transactionToEdit.analytiqueNom || analytiquesList?.find(a => a._id === transactionToEdit.analytiqueId)?.nom || "";
-      
-      setTiersInput(tName);
-      setAnalytiqueInput(aName);
-    } else {
-      // Valeurs par défaut pour une création
-
-      setDate(new Date().toISOString().split("T")[0]); // Date du jour
-      setMontant("");
-      setTypeTransaction("depense");
-      setTypeDocumentInput("");
-      setTiersInput("");
-      setAnalytiqueInput("");
-      setCommentaires("");
-    }
-  }, [transactionToEdit, isOpen, tiersList, analytiquesList]);
 
   if (!isOpen) return null;
 

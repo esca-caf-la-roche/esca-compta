@@ -1,10 +1,12 @@
-import { Navigate, Outlet } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
+import { Outlet, Navigate } from "react-router-dom";
+import { useConvexAuth } from "convex/react";
+import { useAuthActions } from "@convex-dev/auth/react";
 import { useSeason } from "../contexts/SeasonContext";
 import { LogOut } from "lucide-react";
 
 export default function Layout() {
-  const { isAuthenticated, isLoading, logout } = useAuth();
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const { signOut } = useAuthActions();
   const { season, setSeason, availableSeasons } = useSeason();
 
   if (isLoading) {
@@ -38,7 +40,8 @@ export default function Layout() {
               ))}
             </select>
           </div>
-          <button onClick={logout} className="btn-logout" aria-label="Se déconnecter">
+          <button 
+            onClick={() => void signOut()} className="btn-logout" aria-label="Se déconnecter">
             <LogOut size={20} />
           </button>
         </div>

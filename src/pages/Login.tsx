@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useMutation } from "convex/react";
+import { useAuthActions } from "@convex-dev/auth/react";
+import { useConvex } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
 export default function Login() {
@@ -11,9 +11,8 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const sendOTP = useMutation(api.auth.sendOTP);
-  const verifyOTP = useMutation(api.auth.verifyOTP);
-  const { login } = useAuth();
+  const { signIn } = useAuthActions();
+  const convex = useConvex();
   const navigate = useNavigate();
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -21,10 +20,15 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      await sendOTP({ email });
+      const isAllowed = await convex.query(api.users.checkEmailExists, { email });
+      if (!isAllowed) {
+        throw new Error("Cet email n'est pas autorisé. Veuillez contacter un administrateur.");
+      }
+      await signIn("google-otp", { email });
       setStep("otp");
-    } catch (err: any) {
-      setError(err.message || "Erreur lors de l'envoi de l'OTP.");
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Erreur lors de l'envoi de l'OTP.";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -35,11 +39,11 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      const result = await verifyOTP({ email, code: otp });
-      login(result.token);
+      await signIn("google-otp", { email, code: otp });
       navigate("/");
-    } catch (err: any) {
-      setError(err.message || "OTP incorrect.");
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "OTP incorrect.";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -84,7 +88,7 @@ export default function Login() {
                 className="input-field text-center font-mono text-xl tracking-widest"
               />
               <p className="text-sm mt-2 text-gray-500">
-                Regardez dans la console Convex pour le code de test.
+                L'email a été envoyé (vérifiez la console en dev).
               </p>
             </div>
             <button type="submit" disabled={loading} className="btn-primary">

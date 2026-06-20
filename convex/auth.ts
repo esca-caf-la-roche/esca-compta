@@ -1,73 +1,48 @@
-import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { convexAuth } from "@convex-dev/auth/server";
+import { Email } from "@convex-dev/auth/providers/Email";
+import { api } from "./_generated/api";
 
-export const sendOTP = mutation({
-  args: { email: v.string() },
-  handler: async (ctx, args) => {
-    // 1. Vérifier si l'utilisateur existe
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
-      .first();
-
-    if (!user) {
-      throw new Error("Cet email n'est pas autorisé. Le compte doit être créé dans l'interface Convex.");
-    }
-
-    // 2. Générer un code à 6 chiffres
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
-
-    // 3. Stocker l'OTP (supprimer les anciens d'abord)
-    const existingOTPs = await ctx.db
-      .query("otps")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
-      .collect();
-    for (const otp of existingOTPs) {
-      await ctx.db.delete(otp._id);
-    }
-
-    await ctx.db.insert("otps", {
-      email: args.email,
-      code,
-      expiresAt,
-    });
-
-    // 4. Simuler l'envoi du code. Pour l'instant, on l'affiche dans les logs Convex.
-    console.log(`[OTP] Code pour ${args.email} : ${code}`);
-    return { success: true };
+const GoogleOTP = Email({
+  id: "google-otp",
+  apiKey: "dummy", 
+  maxAge: 60 * 10, // 10 minutes
+  generateVerificationToken: () => {
+    // Code OTP à 6 chiffres
+    return Math.floor(100000 + Math.random() * 900000).toString();
   },
+  sendVerificationRequest: (async (
+    { identifier: email, token: code }: { identifier: string; token: string },
+    ctx: any,
+  ) => {
+    // Vérification côté serveur que l'utilisateur existe dans la base de données avant d'envoyer l'OTP
+    const isAllowed = await ctx.runQuery(api.users.checkEmailExists, { email });
+    if (!isAllowed) {
+      throw new Error("Cet email n'est pas autorisé.");
+    }
+    // On appelle une action Node.js car auth.ts s'exécute dans V8
+    await ctx.runAction(api.email.sendOTP, { email, code });
+  }) as any,
 });
 
-export const verifyOTP = mutation({
-  args: { email: v.string(), code: v.string() },
-  handler: async (ctx, args) => {
-    const otpRecord = await ctx.db
-      .query("otps")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
-      .first();
+export const { auth, signIn, signOut, store } = convexAuth({
+  providers: [GoogleOTP],
+  callbacks: {
+    async createOrUpdateUser(ctx, args) {
+      const email = args.profile.email as string | undefined;
+      if (!email) {
+        throw new Error("L'email est requis.");
+      }
+      
+      const existingUser = await ctx.db
+        .query("users")
+        .filter((q) => q.eq(q.field("email"), email))
+        .first();
 
-    if (!otpRecord) throw new Error("Aucun code OTP trouvé.");
-    if (otpRecord.code !== args.code) throw new Error("Code OTP incorrect.");
-    if (Date.now() > otpRecord.expiresAt) throw new Error("Le code OTP a expiré.");
+      if (!existingUser) {
+        throw new Error("Cet email n'est pas autorisé. Veuillez contacter un administrateur.");
+      }
 
-    // L'OTP est valide, on le supprime
-    await ctx.db.delete(otpRecord._id);
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
-      .first();
-
-    if (!user) throw new Error("Utilisateur introuvable.");
-
-    return { token: user._id, user }; 
-  },
-});
-
-export const getUser = query({
-  args: { userId: v.id("users") },
-  handler: async (ctx, args) => {
-    return await ctx.db.get(args.userId);
-  },
+      return existingUser._id;
+    }
+  }
 });

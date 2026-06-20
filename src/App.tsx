@@ -1,5 +1,4 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "./contexts/AuthContext";
 import { SeasonProvider } from "./contexts/SeasonContext";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
@@ -17,8 +16,7 @@ const Placeholder = ({ title }: { title: string }) => (
 
 function App() {
   return (
-    <AuthProvider>
-      <SeasonProvider>
+    <SeasonProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
@@ -34,8 +32,7 @@ function App() {
             </Route>
           </Routes>
         </BrowserRouter>
-      </SeasonProvider>
-    </AuthProvider>
+    </SeasonProvider>
   );
 }
 

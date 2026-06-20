@@ -77,7 +77,6 @@ export default function BudgetTrendsModal({ isOpen, onClose }: Props) {
                 {trends.map(t => {
                   const isPositive = t.diff > 0;
                   const isNegative = t.diff < 0;
-                  const isZero = t.diff === 0;
                   
                   return (
                     <tr key={t.analytiqueNom} style={{ borderBottom: "1px solid #f0f0f0" }}>

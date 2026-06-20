@@ -139,7 +139,7 @@ export default function Compta() {
         saisonDirName: formattedSeason,
         analytiqueNom: t.analytiqueNom,
         date: t.date,
-        typeDocumentNom: t.typeDocumentNom || t.typeDocument,
+        typeDocumentNom: t.typeDocumentNom || t.typeDocument || "",
         tiersNom: t.tiersNom,
         commentaires: t.commentaires,
       });
@@ -365,11 +365,14 @@ export default function Compta() {
         )}
       </section>
 
-      <TransactionFormModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        transactionToEdit={transactionToEdit} 
-      />
+      {isModalOpen && (
+        <TransactionFormModal 
+          key={transactionToEdit?._id || "new"}
+          isOpen={isModalOpen} 
+          onClose={() => setIsModalOpen(false)} 
+          transactionToEdit={transactionToEdit} 
+        />
+      )}
 
       <BudgetTrendsModal
         isOpen={isTrendsModalOpen}

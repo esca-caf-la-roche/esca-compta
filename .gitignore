@@ -30,3 +30,8 @@ dist-ssr
 
 # Reports
 audit_convex.md
+
+# Agents & Skills
+.agents/
+.claude/
+skills-lock.json
