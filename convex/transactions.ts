@@ -177,3 +177,54 @@ export const remove = mutation({
     await ctx.db.delete(args.id);
   },
 });
+
+// Récupérer les transactions pour l'export CSV (sans pagination)
+export const getExport = query({
+  args: { 
+    saison: v.string(),
+    filterTiersId: v.optional(v.string()),
+    filterAnalytiqueId: v.optional(v.string()),
+    searchQuery: v.optional(v.string())
+  },
+  handler: async (ctx, args) => {
+    let q = ctx.db
+      .query("transactions")
+      .withIndex("by_saison", (q) => q.eq("saison", args.saison))
+      .order("desc");
+
+    if (args.filterTiersId && args.filterTiersId !== "Tous") {
+      q = q.filter((q) => q.eq(q.field("tiersId"), args.filterTiersId));
+    }
+    if (args.filterAnalytiqueId && args.filterAnalytiqueId !== "Tous") {
+      q = q.filter((q) => q.eq(q.field("analytiqueId"), args.filterAnalytiqueId));
+    }
+
+    const all = await q.collect();
+    let filtered = all;
+
+    if (args.searchQuery && args.searchQuery.trim() !== "") {
+      const searchStr = normalizeStr(args.searchQuery.trim());
+      filtered = all.filter(t => 
+        normalizeStr(t.nom).includes(searchStr) || 
+        (t.commentaires && normalizeStr(t.commentaires).includes(searchStr))
+      );
+    }
+
+    const result = await Promise.all(
+      filtered.map(async (t) => {
+        const tiers = await ctx.db.get(t.tiersId as Id<"tiers">);
+        const analytique = await ctx.db.get(t.analytiqueId as Id<"analytiques">);
+        return {
+          ...t,
+          tiersNom: tiers ? tiers.nom : "Inconnu",
+          analytiqueNom: analytique ? analytique.nom : "Inconnu",
+          typeDocumentNom: t.typeDocumentId 
+            ? ((await ctx.db.get(t.typeDocumentId as Id<"typesDocuments">))?.nom || "Inconnu")
+            : (t.typeDocument || "Inconnu"),
+        };
+      })
+    );
+
+    return result;
+  },
+});

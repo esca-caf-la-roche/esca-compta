@@ -1,61 +1,51 @@
+import { Migrations } from "@convex-dev/migrations";
+import { components } from "./_generated/api";
+import { DataModel } from "./_generated/dataModel";
 import { mutation } from "./_generated/server";
 
-export const migrateSaisons = mutation({
-  args: {},
-  handler: async (ctx) => {
-    let countTrans = 0;
-    const transactions = await ctx.db.query("transactions").collect();
-    for (const t of transactions) {
-      if (!t.saison) {
-        await ctx.db.patch(t._id, { saison: "2025-26" });
-        countTrans++;
-      }
-    }
+export const migrations = new Migrations<DataModel>(components.migrations);
 
-    let countPrev = 0;
-    const previsionnels = await ctx.db.query("previsionnels").collect();
-    for (const p of previsionnels) {
-      if (!p.saison) {
-        await ctx.db.patch(p._id, { saison: "2025-26" });
-        countPrev++;
-      }
+export const migrateSaisonsTransactions = migrations.define({
+  table: "transactions",
+  migrateOne: async (ctx, t) => {
+    if (!t.saison) {
+      await ctx.db.patch(t._id, { saison: "2025-26" });
     }
-
-    return { transactionsMigrated: countTrans, previsionnelsMigrated: countPrev };
   },
 });
 
-export const migrateTypesDocuments = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const transactions = await ctx.db.query("transactions").collect();
-    let migratedCount = 0;
-
-    for (const t of transactions) {
-      if (!t.typeDocumentId && t.typeDocument) {
-        const typeName = t.typeDocument.trim();
-        
-        // Chercher si le type existe déjà
-        const existingTypes = await ctx.db.query("typesDocuments").collect();
-        const existingType = existingTypes.find(td => td.nom.toLowerCase() === typeName.toLowerCase());
-
-        let newTypeId;
-        if (existingType) {
-          newTypeId = existingType._id;
-        } else {
-          // Créer le type s'il n'existe pas
-          newTypeId = await ctx.db.insert("typesDocuments", { nom: typeName });
-        }
-
-        // Mettre à jour la transaction avec l'ID
-        await ctx.db.patch(t._id, {
-          typeDocumentId: newTypeId,
-        });
-        
-        migratedCount++;
-      }
+export const migrateSaisonsPrevisionnels = migrations.define({
+  table: "previsionnels",
+  migrateOne: async (ctx, p) => {
+    if (!p.saison) {
+      await ctx.db.patch(p._id, { saison: "2025-26" });
     }
-    return { success: true, migratedCount };
+  },
+});
+
+export const migrateTypesDocuments = migrations.define({
+  table: "transactions",
+  migrateOne: async (ctx, t) => {
+    if (!t.typeDocumentId && t.typeDocument) {
+      const typeName = t.typeDocument.trim();
+      
+      // Chercher si le type existe déjà
+      const existingTypes = await ctx.db.query("typesDocuments").collect();
+      const existingType = existingTypes.find(td => td.nom.toLowerCase() === typeName.toLowerCase());
+
+      let newTypeId;
+      if (existingType) {
+        newTypeId = existingType._id;
+      } else {
+        // Créer le type s'il n'existe pas
+        newTypeId = await ctx.db.insert("typesDocuments", { nom: typeName });
+      }
+
+      // Mettre à jour la transaction avec l'ID
+      await ctx.db.patch(t._id, {
+        typeDocumentId: newTypeId,
+      });
+    }
   },
 });
 

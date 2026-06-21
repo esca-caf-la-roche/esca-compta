@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useAction, usePaginatedQuery } from "convex/react";
+import { useQuery, useMutation, useAction, usePaginatedQuery, useConvex } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useSeason } from "../contexts/SeasonContext";
-import { ArrowLeft, ArrowUpRight, ArrowDownRight, Wallet, Filter, Search, Plus, Edit2, Trash2, ExternalLink, Mail } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, ArrowDownRight, Wallet, Filter, Search, Plus, Edit2, Trash2, ExternalLink, Mail, Download } from "lucide-react";
 import { Link } from "react-router-dom";
 import TransactionFormModal from "../components/TransactionFormModal";
 import BudgetTrendsModal from "../components/BudgetTrendsModal";
@@ -28,6 +28,7 @@ type TransactionRecord = {
 
 export default function Compta() {
   const { season } = useSeason();
+  const convex = useConvex();
   
   // États pour les filtres
   const [filterTiers, setFilterTiers] = useState<string>("Tous");
@@ -159,6 +160,53 @@ export default function Compta() {
     return `https://mail.google.com/mail/u/escalade@caflarochebonneville.fr/?view=cm&fs=1&to=compta@caflarochebonneville.fr&su=${subject}&body=${body}`;
   };
 
+  const handleExportCSV = async () => {
+    try {
+      const data = await convex.query(api.transactions.getExport, {
+        saison: season,
+        filterTiersId: filterTiers,
+        filterAnalytiqueId: filterAnalytique,
+        searchQuery: debouncedSearchQuery
+      });
+
+      if (!data || data.length === 0) {
+        alert("Aucune donnée à exporter.");
+        return;
+      }
+
+      // Convertir data en CSV
+      const headers = ["Date", "Nom", "Type de Document", "Montant", "Tiers", "Analytique", "Commentaires"];
+      const rows = data.map(t => [
+        formatDate(t.date),
+        t.nom,
+        t.typeDocumentNom || t.typeDocument || "",
+        t.realise.toString().replace(".", ","),
+        t.tiersNom,
+        t.analytiqueNom,
+        t.commentaires || ""
+      ]);
+
+      const csvContent = [
+        headers.join(";"),
+        ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(";"))
+      ].join("\n");
+
+      // Ajouter le BOM pour Excel (UTF-8)
+      const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `export_compta_${season}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+    } catch (error) {
+      console.error("Erreur lors de l'export CSV", error);
+      alert("Erreur lors de l'export CSV");
+    }
+  };
+
   return (
     <div className="compta-page fade-in">
       <header className="page-header flex-header" style={{ justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem" }}>
@@ -228,6 +276,12 @@ export default function Compta() {
               />
               <Search size={16} color="#555" style={{ position: "absolute", left: "0.75rem" }} />
             </div>
+          </div>
+          <div className="filter-group">
+            <button className="btn-secondary" style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem", padding: "0.5rem 1rem" }} onClick={handleExportCSV}>
+              <Download size={16} />
+              Exporter CSV
+            </button>
           </div>
         </div>
       )}
