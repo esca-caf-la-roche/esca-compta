@@ -1,7 +1,7 @@
 import { convexAuth } from "@convex-dev/auth/server";
 import { Email } from "@convex-dev/auth/providers/Email";
 import { api, internal } from "./_generated/api";
-import { ActionCtx } from "./_generated/server";
+import type { ActionCtx } from "./_generated/server";
 
 const GoogleOTP = Email({
   id: "google-otp",

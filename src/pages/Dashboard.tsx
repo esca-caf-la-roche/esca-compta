@@ -1,6 +1,6 @@
 import { useState } from "react";
 import Tile from "../components/Tile";
-import { Calculator, Settings } from "lucide-react";
+import { Calculator, Settings, CreditCard } from "lucide-react";
 import SeasonManagementModal from "../components/SeasonManagementModal";
 
 export default function Dashboard() {
@@ -29,6 +29,13 @@ export default function Dashboard() {
           icon={Calculator}
           to="/compta"
           colorClass="bg-info"
+        />
+        <Tile
+          title="Paiements Escalade"
+          description="Suivi des paiements pour les cours d'escalade."
+          icon={CreditCard}
+          href="https://project-y4zr8.vercel.app/login"
+          colorClass="bg-success"
         />
       </div>
 

@@ -5,13 +5,14 @@ interface TileProps {
   title: string;
   description: string;
   icon: LucideIcon;
-  to: string;
+  to?: string;
+  href?: string;
   colorClass: string;
 }
 
-export default function Tile({ title, description, icon: Icon, to, colorClass }: TileProps) {
-  return (
-    <Link to={to} className={`tile-card ${colorClass}`}>
+export default function Tile({ title, description, icon: Icon, to, href, colorClass }: TileProps) {
+  const content = (
+    <>
       <div className="tile-icon-wrapper">
         <Icon className="tile-icon" size={32} />
       </div>
@@ -20,6 +21,20 @@ export default function Tile({ title, description, icon: Icon, to, colorClass }:
         <p>{description}</p>
       </div>
       <div className="tile-hover-effect"></div>
+    </>
+  );
+
+  if (href) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className={`tile-card ${colorClass}`}>
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <Link to={to || "#"} className={`tile-card ${colorClass}`}>
+      {content}
     </Link>
   );
 }
