@@ -16,7 +16,6 @@ Ce document décrit l'architecture globale de l'application de Gestion d'Escalad
   - `Layout.tsx` : Le gabarit principal (Header, Sélecteur de saison) qui englobe les routes protégées.
   - `Tile.tsx` : La carte de navigation du Dashboard.
 - `contexts/` : 
-  - `AuthContext.tsx` : Fournit l'état d'authentification (`userId`, fonctions `login`/`logout`).
   - `SeasonContext.tsx` : Fournit la saison actuelle et s'occupe de la persistance dans `localStorage`.
 - `pages/` : Les différentes vues de l'application (chaque page correspond à une route).
   - `Login.tsx` : La page publique de connexion.
@@ -28,6 +27,7 @@ Ce document décrit l'architecture globale de l'application de Gestion d'Escalad
 
 ## Structure Backend (`convex/`)
 
-- `schema.ts` : Déclaration rigoureuse des tables et de leurs index (users, otps, transactions, etc.).
-- `auth.ts` : Fonctions (mutations et queries) gérant la génération de l'OTP et la vérification de connexion.
+- `schema.ts` : Déclaration du schéma de base de données incluant les tables d'authentification de `@convex-dev/auth` (via `authTables`).
+- `auth.ts` : Configuration officielle de `@convex-dev/auth` (signIn, signOut, callbacks de sécurité).
+- `email.ts` : Action d'envoi SMTP des codes OTP via nodemailer.
 - `transactions.ts` : Les fonctions CRUD pour la manipulation de la comptabilité.
