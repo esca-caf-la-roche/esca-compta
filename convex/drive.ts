@@ -41,9 +41,10 @@ export const processTransactionDrive = action({
       // 2. Initialiser l'API Google Drive
       const email = process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL;
       const privateKey = process.env.GOOGLE_DRIVE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+      const PARENT_FOLDER_ID = process.env.DRIVE_PARENT_FOLDER_ID;
 
-      if (!email || !privateKey) {
-        throw new Error("Les identifiants Google Drive ne sont pas configurés (GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL, GOOGLE_DRIVE_PRIVATE_KEY).");
+      if (!email || !privateKey || !PARENT_FOLDER_ID) {
+        throw new Error("Les identifiants Google Drive ne sont pas configurés (GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL, GOOGLE_DRIVE_PRIVATE_KEY, DRIVE_PARENT_FOLDER_ID).");
       }
 
       const auth = new google.auth.GoogleAuth({
@@ -55,8 +56,6 @@ export const processTransactionDrive = action({
       });
 
       const drive = google.drive({ version: 'v3', auth });
-
-      const PARENT_FOLDER_ID = "1-kWAnIldPP_csUd4wbDJ1zn2Clos-QHQ";
 
       // 3. Chercher le répertoire de la Saison (ex: 2026-2027)
       const seasonQuery = `name='${args.saisonDirName}' and mimeType='application/vnd.google-apps.folder' and '${PARENT_FOLDER_ID}' in parents and trashed=false`;
@@ -144,9 +143,10 @@ export const processTransactionDrive = action({
 
       return { success: true, newNom, lienDrive: folderLink };
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Erreur Drive:", error);
-      throw new Error(`Erreur lors du traitement Google Drive: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : "Erreur inconnue";
+      throw new Error(`Erreur lors du traitement Google Drive: ${errorMessage}`, { cause: error });
     }
   },
 });
