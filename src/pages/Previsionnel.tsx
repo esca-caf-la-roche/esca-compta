@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import PrevisionnelFormModal from "../components/PrevisionnelFormModal";
 import type { Id } from "../../convex/_generated/dataModel";
 import { useSeason } from "../contexts/SeasonContext";
+import { getPastelColor } from "../utils/colors";
 
 type PrevisionnelRecord = {
   _id: Id<"previsionnels">;
@@ -189,8 +190,8 @@ export default function Previsionnel() {
                     </div>
                   </div>
                   <div className="tc-badges" style={{ marginTop: "0.5rem" }}>
-                    <span className="badge facture" style={{ boxShadow: "2px 2px 0px 0px #000" }}>
-                      Analytique : {prev.analytiqueNom}
+                    <span className="badge facture" style={{ backgroundColor: getPastelColor(prev.analytiqueNom), boxShadow: "2px 2px 0px 0px #000", color: "#1a1a1a", border: "1px solid #1a1a1a" }}>
+                      {prev.analytiqueNom}
                     </span>
                   </div>
                   <div className="tc-actions">

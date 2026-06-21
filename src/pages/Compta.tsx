@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowUpRight, ArrowDownRight, Wallet, Filter, Search, Plus, 
 import { Link } from "react-router-dom";
 import TransactionFormModal from "../components/TransactionFormModal";
 import BudgetTrendsModal from "../components/BudgetTrendsModal";
+import { getPastelColor } from "../utils/colors";
 import type { Id } from "../../convex/_generated/dataModel";
 
 type TransactionRecord = {
@@ -354,10 +355,10 @@ export default function Compta() {
                   </div>
                   <div className="tc-badges">
                     <span className="badge" style={{ backgroundColor: "#fff", boxShadow: "2px 2px 0px 0px #000" }}>
-                      Tiers : {t.tiersNom}
+                      {t.tiersNom}
                     </span>
-                    <span className="badge facture" style={{ boxShadow: "2px 2px 0px 0px #000" }}>
-                      Analytique : {t.analytiqueNom}
+                    <span className="badge facture" style={{ backgroundColor: getPastelColor(t.analytiqueNom), boxShadow: "2px 2px 0px 0px #000", color: "#1a1a1a", border: "1px solid #1a1a1a" }}>
+                      {t.analytiqueNom}
                     </span>
                   </div>
                   {t.commentaires && (
