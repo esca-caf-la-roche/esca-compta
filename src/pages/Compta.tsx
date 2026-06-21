@@ -241,18 +241,6 @@ export default function Compta() {
             <span className="filter-label" style={{ marginRight: "1rem" }}>Filtres :</span>
           </div>
           <div className="filter-group">
-            <label htmlFor="filter-tiers" className="filter-label">Tiers</label>
-            <select
-              id="filter-tiers"
-              className="filter-dropdown"
-              value={filterTiers}
-              onChange={(e) => setFilterTiers(e.target.value)}
-            >
-              <option value="Tous">Tous</option>
-              {uniqueTiers.map(t => <option key={t.id} value={t.id}>{t.nom}</option>)}
-            </select>
-          </div>
-          <div className="filter-group">
             <label htmlFor="filter-ana" className="filter-label">Analytique</label>
             <select
               id="filter-ana"
@@ -262,6 +250,18 @@ export default function Compta() {
             >
               <option value="Tous">Tous</option>
               {uniqueAnalytiques.map(a => <option key={a.id} value={a.id}>{a.nom}</option>)}
+            </select>
+          </div>
+          <div className="filter-group">
+            <label htmlFor="filter-tiers" className="filter-label">Tiers</label>
+            <select
+              id="filter-tiers"
+              className="filter-dropdown"
+              value={filterTiers}
+              onChange={(e) => setFilterTiers(e.target.value)}
+            >
+              <option value="Tous">Tous</option>
+              {uniqueTiers.map(t => <option key={t.id} value={t.id}>{t.nom}</option>)}
             </select>
           </div>
           <div className="filter-group" style={{ marginLeft: "auto" }}>
@@ -354,11 +354,11 @@ export default function Compta() {
                     </div>
                   </div>
                   <div className="tc-badges">
-                    <span className="badge" style={{ backgroundColor: "#fff", boxShadow: "2px 2px 0px 0px #000" }}>
-                      {t.tiersNom}
-                    </span>
                     <span className="badge facture" style={{ backgroundColor: getPastelColor(t.analytiqueNom), boxShadow: "2px 2px 0px 0px #000", color: "#1a1a1a", border: "1px solid #1a1a1a" }}>
                       {t.analytiqueNom}
+                    </span>
+                    <span className="badge" style={{ backgroundColor: "#fff", boxShadow: "2px 2px 0px 0px #000" }}>
+                      {t.tiersNom}
                     </span>
                   </div>
                   {t.commentaires && (
