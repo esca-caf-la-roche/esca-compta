@@ -3,7 +3,7 @@ name: Deploy to Production
 on:
   push:
     branches:
-      - main # Change ceci en "master" si ta branche principale s'appelle master
+      - master
 
 # Autorise cette action à écrire sur GitHub Pages
 permissions:
