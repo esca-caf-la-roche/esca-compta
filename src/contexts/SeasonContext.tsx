@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useMemo } from "react";
 import { useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../convex/_generated/api";
 
@@ -13,7 +13,9 @@ const SeasonContext = createContext<SeasonContextType | undefined>(undefined);
 export const SeasonProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useConvexAuth();
   const dbSaisons = useQuery(api.saisons.get, isAuthenticated ? undefined : "skip");
-  const availableSeasons = dbSaisons ? dbSaisons.map(s => s.nom) : ["2025-26"];
+  const availableSeasons = useMemo(() => {
+    return dbSaisons ? dbSaisons.map(s => s.nom) : ["2025-26"];
+  }, [dbSaisons]);
 
   const [season, setSeasonState] = useState<string>("");
 
@@ -22,10 +24,12 @@ export const SeasonProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!season && dbSaisons) {
       const stored = localStorage.getItem("escalade_season");
       if (stored && availableSeasons.includes(stored)) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSeasonState(stored);
       } else {
         const defaultS = dbSaisons.find(s => s.isDefault);
         const fallback = defaultS ? defaultS.nom : (dbSaisons.length > 0 ? dbSaisons[0].nom : "2025-26");
+         
         setSeasonState(fallback);
         localStorage.setItem("escalade_season", fallback);
       }
@@ -44,6 +48,7 @@ export const SeasonProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useSeason = () => {
   const context = useContext(SeasonContext);
   if (context === undefined) {
