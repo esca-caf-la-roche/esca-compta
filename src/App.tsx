@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { HashRouter, Routes, Route } from "react-router-dom";
 import { SeasonProvider } from "./contexts/SeasonContext";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
@@ -17,7 +17,7 @@ const Placeholder = ({ title }: { title: string }) => (
 function App() {
   return (
     <SeasonProvider>
-        <BrowserRouter basename={import.meta.env.BASE_URL}>
+        <HashRouter basename={import.meta.env.BASE_URL}>
           <Routes>
             <Route path="/login" element={<Login />} />
             
@@ -31,7 +31,7 @@ function App() {
               <Route path="/statistiques" element={<Placeholder title="Module Statistiques" />} />
             </Route>
           </Routes>
-        </BrowserRouter>
+        </HashRouter>
     </SeasonProvider>
   );
 }
