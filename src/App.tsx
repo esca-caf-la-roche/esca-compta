@@ -17,7 +17,7 @@ const Placeholder = ({ title }: { title: string }) => (
 function App() {
   return (
     <SeasonProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={import.meta.env.BASE_URL}>
           <Routes>
             <Route path="/login" element={<Login />} />
             
