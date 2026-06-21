@@ -11,3 +11,6 @@ Convex agent skills for common tasks can be installed by running
 `npx convex ai-files install`.
 
 <!-- convex-ai-end -->
+
+### SECURITY GUIDELINE
+When adding or modifying any backend endpoints in the convex/ directory, ALWAYS use uthenticatedQuery, uthenticatedMutation, and uthenticatedAction from convex/customFunctions.ts instead of the default query, mutation, or ction from ./_generated/server to ensure the endpoint is secured behind authentication.

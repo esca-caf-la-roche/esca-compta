@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../convex/_generated/api";
 
 interface SeasonContextType {
@@ -11,7 +11,8 @@ interface SeasonContextType {
 const SeasonContext = createContext<SeasonContextType | undefined>(undefined);
 
 export const SeasonProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const dbSaisons = useQuery(api.saisons.get);
+  const { isAuthenticated } = useConvexAuth();
+  const dbSaisons = useQuery(api.saisons.get, isAuthenticated ? undefined : "skip");
   const availableSeasons = dbSaisons ? dbSaisons.map(s => s.nom) : ["2025-26"];
 
   const [season, setSeasonState] = useState<string>("");

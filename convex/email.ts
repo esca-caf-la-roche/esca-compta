@@ -1,6 +1,6 @@
 "use node";
 
-import { action } from "./_generated/server";
+import { internalAction as action } from "./_generated/server";
 import { v } from "convex/values";
 import nodemailer from "nodemailer";
 

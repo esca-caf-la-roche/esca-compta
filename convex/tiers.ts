@@ -1,4 +1,4 @@
-import { mutation } from "./_generated/server";
+import { authenticatedMutation as mutation } from "./customFunctions";
 import { v } from "convex/values";
 
 export const create = mutation({

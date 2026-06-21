@@ -1,6 +1,6 @@
 "use node";
 
-import { action } from "./_generated/server";
+import { authenticatedAction as action } from "./customFunctions";
 import { api } from "./_generated/api";
 import { v } from "convex/values";
 import { google } from "googleapis";

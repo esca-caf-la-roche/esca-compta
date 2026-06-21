@@ -1,4 +1,4 @@
-import { query, mutation } from "./_generated/server";
+import { authenticatedQuery as query, authenticatedMutation as mutation } from "./customFunctions";
 import { v } from "convex/values";
 
 export const get = query({

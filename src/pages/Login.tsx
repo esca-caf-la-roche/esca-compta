@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useConvex } from "convex/react";
+import { useConvex, useConvexAuth } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { useNavigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -13,10 +13,16 @@ export default function Login() {
 
   const { signIn } = useAuthActions();
   const convex = useConvex();
-  const navigate = useNavigate();
+  const { isAuthenticated } = useConvexAuth();
+
+  if (isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return; // Bloquer les doubles clics strictement
+    
     setError("");
     setLoading(true);
     try {
@@ -36,11 +42,14 @@ export default function Login() {
 
   const handleOTPSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return; // Bloquer les doubles clics
+
+    const cleanOtp = otp.trim();
     setError("");
     setLoading(true);
     try {
-      await signIn("google-otp", { email, code: otp });
-      navigate("/");
+      await signIn("google-otp", { email, code: cleanOtp });
+      // Ne pas utiliser navigate("/") ici ! On laisse le useEffect/render s'occuper de la redirection
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "OTP incorrect.";
       setError(errorMessage);

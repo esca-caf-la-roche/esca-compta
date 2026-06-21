@@ -1,6 +1,6 @@
 import { convexAuth } from "@convex-dev/auth/server";
 import { Email } from "@convex-dev/auth/providers/Email";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 const GoogleOTP = Email({
   id: "google-otp",
@@ -20,7 +20,7 @@ const GoogleOTP = Email({
       throw new Error("Cet email n'est pas autorisé.");
     }
     // On appelle une action Node.js car auth.ts s'exécute dans V8
-    await ctx.runAction(api.email.sendOTP, { email, code });
+    await ctx.runAction(internal.email.sendOTP, { email, code });
   }) as any,
 });
 

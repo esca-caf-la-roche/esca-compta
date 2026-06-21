@@ -1,4 +1,4 @@
-import { query } from "./_generated/server";
+import { authenticatedQuery as query } from "./customFunctions";
 
 export const getTiers = query({
   args: {},

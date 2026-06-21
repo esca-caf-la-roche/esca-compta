@@ -1,7 +1,7 @@
 import { Migrations } from "@convex-dev/migrations";
 import { components } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
-import { mutation } from "./_generated/server";
+import { authenticatedMutation as mutation } from "./customFunctions";
 
 export const migrations = new Migrations<DataModel>(components.migrations);
 
