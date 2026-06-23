@@ -45,7 +45,7 @@ export default function Dashboard() {
               title="Paiements Escalade"
               description="Suivi des paiements pour les cours d'escalade."
               icon={CreditCard}
-              href="https://project-y4zr8.vercel.app/login"
+              to="/paiements"
               colorClass="bg-success"
             />
           )}
