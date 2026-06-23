@@ -181,8 +181,8 @@ export default function Configurations() {
             <h2 style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
               <Calendar size={20} /> Ajouter une saison
             </h2>
-            <form onSubmit={handleAddSaison} style={{ display: "flex", gap: "1rem", alignItems: "flex-end" }}>
-              <div style={{ flex: 1 }}>
+            <form onSubmit={handleAddSaison} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <div style={{ width: "100%" }}>
                 <label className="form-label">Nom de la saison (ex: 2027-28)</label>
                 <input
                   type="text"
@@ -191,9 +191,10 @@ export default function Configurations() {
                   value={newSaisonName}
                   onChange={e => setNewSaisonName(e.target.value)}
                   required
+                  style={{ width: "100%" }}
                 />
               </div>
-              <button type="submit" className="btn-primary" disabled={isSubmittingSaison} style={{ whiteSpace: "nowrap", height: "42px" }}>
+              <button type="submit" className="btn-primary" disabled={isSubmittingSaison} style={{ whiteSpace: "nowrap", alignSelf: "flex-start" }}>
                 <Save size={16} style={{ marginRight: "0.5rem" }} /> Ajouter
               </button>
             </form>
@@ -248,29 +249,33 @@ export default function Configurations() {
             <h2 style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
               <Shield size={20} /> Ajouter un utilisateur
             </h2>
-            <form onSubmit={handleAddUser} style={{ display: "flex", gap: "1rem", alignItems: "flex-end", flexWrap: "wrap" }}>
-              <div style={{ flex: "1 1 200px" }}>
-                <label className="form-label">Email autorisé</label>
-                <input
-                  type="email"
-                  className="input-field"
-                  placeholder="nom@exemple.com"
-                  value={newUserEmail}
-                  onChange={e => setNewUserEmail(e.target.value)}
-                  required
-                />
+            <form onSubmit={handleAddUser} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", width: "100%" }}>
+                <div style={{ flex: "1 1 200px" }}>
+                  <label className="form-label">Email autorisé</label>
+                  <input
+                    type="email"
+                    className="input-field"
+                    placeholder="nom@exemple.com"
+                    value={newUserEmail}
+                    onChange={e => setNewUserEmail(e.target.value)}
+                    required
+                    style={{ width: "100%" }}
+                  />
+                </div>
+                <div style={{ flex: "1 1 200px" }}>
+                  <label className="form-label">Nom (Optionnel)</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Jean Dupont"
+                    value={newUserName}
+                    onChange={e => setNewUserName(e.target.value)}
+                    style={{ width: "100%" }}
+                  />
+                </div>
               </div>
-              <div style={{ flex: "1 1 200px" }}>
-                <label className="form-label">Nom (Optionnel)</label>
-                <input
-                  type="text"
-                  className="input-field"
-                  placeholder="Jean Dupont"
-                  value={newUserName}
-                  onChange={e => setNewUserName(e.target.value)}
-                />
-              </div>
-              <button type="submit" className="btn-primary" disabled={isSubmittingUser} style={{ whiteSpace: "nowrap", height: "42px" }}>
+              <button type="submit" className="btn-primary" disabled={isSubmittingUser} style={{ whiteSpace: "nowrap", alignSelf: "flex-start" }}>
                 <Save size={16} style={{ marginRight: "0.5rem" }} /> Ajouter
               </button>
             </form>
