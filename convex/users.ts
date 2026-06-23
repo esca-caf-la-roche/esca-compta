@@ -32,7 +32,7 @@ export const listUsers = authenticatedQuery({
     const userSettings = await ctx.db.query("userSettings").collect();
     
     return users.map(user => {
-      const settings = userSettings.find(s => s.userId === user._id) || { allowedTiles: [], role: "user" };
+      const settings = userSettings.find(s => s.userId === user._id) || { allowedTiles: [] as string[], role: "user" };
       return {
         ...user,
         settings
@@ -46,9 +46,9 @@ export const getCurrentUserSettings = authenticatedQuery({
   handler: async (ctx) => {
     const settings = await ctx.db
       .query("userSettings")
-      .withIndex("by_userId", (q) => q.eq("userId", ctx.user._id))
+      .withIndex("by_userId", (q) => q.eq("userId", ctx.userId))
       .first();
-    return settings || { allowedTiles: [], role: "user" };
+    return settings || { allowedTiles: [] as string[], role: "user" };
   },
 });
 
@@ -57,7 +57,7 @@ export const addUser = authenticatedMutation({
   handler: async (ctx, args) => {
     const callerSettings = await ctx.db
       .query("userSettings")
-      .withIndex("by_userId", (q) => q.eq("userId", ctx.user._id))
+      .withIndex("by_userId", (q) => q.eq("userId", ctx.userId))
       .first();
       
     if (callerSettings?.role !== "admin") {
@@ -93,7 +93,7 @@ export const removeUser = authenticatedMutation({
   handler: async (ctx, args) => {
     const callerSettings = await ctx.db
       .query("userSettings")
-      .withIndex("by_userId", (q) => q.eq("userId", ctx.user._id))
+      .withIndex("by_userId", (q) => q.eq("userId", ctx.userId))
       .first();
       
     if (callerSettings?.role !== "admin") {
@@ -122,7 +122,7 @@ export const updateUserSettings = authenticatedMutation({
   handler: async (ctx, args) => {
     const callerSettings = await ctx.db
       .query("userSettings")
-      .withIndex("by_userId", (q) => q.eq("userId", ctx.user._id))
+      .withIndex("by_userId", (q) => q.eq("userId", ctx.userId))
       .first();
       
     if (callerSettings?.role !== "admin") {
