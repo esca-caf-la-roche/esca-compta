@@ -1,6 +1,7 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { authenticatedQuery, authenticatedMutation } from "./customFunctions";
 
 export const current = query({
   args: {},
@@ -21,5 +22,129 @@ export const checkEmailExists = query({
       .withIndex("email", (q) => q.eq("email", args.email))
       .first();
     return user !== null;
+  },
+});
+
+export const listUsers = authenticatedQuery({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    const userSettings = await ctx.db.query("userSettings").collect();
+    
+    return users.map(user => {
+      const settings = userSettings.find(s => s.userId === user._id) || { allowedTiles: [], role: "user" };
+      return {
+        ...user,
+        settings
+      };
+    });
+  },
+});
+
+export const getCurrentUserSettings = authenticatedQuery({
+  args: {},
+  handler: async (ctx) => {
+    const settings = await ctx.db
+      .query("userSettings")
+      .withIndex("by_userId", (q) => q.eq("userId", ctx.user._id))
+      .first();
+    return settings || { allowedTiles: [], role: "user" };
+  },
+});
+
+export const addUser = authenticatedMutation({
+  args: { email: v.string(), name: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const callerSettings = await ctx.db
+      .query("userSettings")
+      .withIndex("by_userId", (q) => q.eq("userId", ctx.user._id))
+      .first();
+      
+    if (callerSettings?.role !== "admin") {
+      throw new Error("Seul un administrateur peut ajouter un utilisateur.");
+    }
+    
+    const existingUser = await ctx.db
+      .query("users")
+      .withIndex("email", (q) => q.eq("email", args.email))
+      .first();
+      
+    if (existingUser) {
+      throw new Error("Un utilisateur avec cet email existe déjà.");
+    }
+    
+    const newUserId = await ctx.db.insert("users", { 
+      email: args.email,
+      name: args.name 
+    });
+    
+    await ctx.db.insert("userSettings", {
+      userId: newUserId,
+      allowedTiles: ["compta"],
+      role: "user"
+    });
+    
+    return newUserId;
+  },
+});
+
+export const removeUser = authenticatedMutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const callerSettings = await ctx.db
+      .query("userSettings")
+      .withIndex("by_userId", (q) => q.eq("userId", ctx.user._id))
+      .first();
+      
+    if (callerSettings?.role !== "admin") {
+      throw new Error("Seul un administrateur peut supprimer un utilisateur.");
+    }
+    
+    const settings = await ctx.db
+      .query("userSettings")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .first();
+      
+    if (settings) {
+      await ctx.db.delete(settings._id);
+    }
+    
+    await ctx.db.delete(args.userId);
+  },
+});
+
+export const updateUserSettings = authenticatedMutation({
+  args: { 
+    userId: v.id("users"), 
+    allowedTiles: v.array(v.string()), 
+    role: v.string() 
+  },
+  handler: async (ctx, args) => {
+    const callerSettings = await ctx.db
+      .query("userSettings")
+      .withIndex("by_userId", (q) => q.eq("userId", ctx.user._id))
+      .first();
+      
+    if (callerSettings?.role !== "admin") {
+      throw new Error("Seul un administrateur peut modifier les accès.");
+    }
+    
+    const settings = await ctx.db
+      .query("userSettings")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .first();
+      
+    if (settings) {
+      await ctx.db.patch(settings._id, {
+        allowedTiles: args.allowedTiles,
+        role: args.role
+      });
+    } else {
+      await ctx.db.insert("userSettings", {
+        userId: args.userId,
+        allowedTiles: args.allowedTiles,
+        role: args.role
+      });
+    }
   },
 });
