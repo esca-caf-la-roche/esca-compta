@@ -1,6 +1,5 @@
 import { v } from "convex/values";
 import { authenticatedMutation, authenticatedQuery } from "./customFunctions";
-import { internalMutation } from "./_generated/server";
 
 // --- HELLOASSO LINKS ---
 
