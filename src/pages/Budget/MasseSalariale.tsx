@@ -44,8 +44,23 @@ export default function MasseSalariale() {
   const data = useQuery(api.paie.getMasseSalariale, { saison: season });
   const userSettings = useQuery(api.users.getCurrentUserSettings);
   const removeSalarie = useMutation(api.paie.removeSalarie);
+  const reprendreSaisonPrecedente = useMutation(api.paie.reprendreSaisonPrecedente);
 
   const isAdmin = userSettings?.role === "admin";
+  const [reprise, setReprise] = useState(false);
+
+  const handleReprise = async () => {
+    setReprise(true);
+    try {
+      const res = await reprendreSaisonPrecedente({ saison: season });
+      alert(res.message);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Erreur lors de la reprise de la saison précédente.");
+    } finally {
+      setReprise(false);
+    }
+  };
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [isSalarieModalOpen, setIsSalarieModalOpen] = useState(false);
@@ -153,7 +168,7 @@ export default function MasseSalariale() {
         </div>
         {isAdmin && salaries.length > 0 && (
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-            <Link to="/configurations" className="btn-secondary" style={{ width: "auto", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
+            <Link to="/budget/parametres" className="btn-secondary" style={{ width: "auto", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
               <Settings2 size={16} style={{ verticalAlign: "middle", marginRight: "0.4rem" }} />
               Paramètres
             </Link>
@@ -175,14 +190,20 @@ export default function MasseSalariale() {
             </p>
             {isAdmin ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", alignItems: "center" }}>
-                <p style={{ color: "#6b7280", maxWidth: "520px" }}>
-                  Créez cette saison depuis <Link to="/configurations">Configurations → Saisons</Link>{" "}
-                  (elle reprendra les moniteurs de la saison précédente), ou ajoutez un moniteur manuellement.
+                <p style={{ color: "#6b7280", maxWidth: "560px" }}>
+                  Reprenez les moniteurs de la saison précédente (taux, heures, contrats) puis
+                  ajustez les augmentations, ou ajoutez un moniteur manuellement.
                 </p>
-                <button className="btn-secondary" style={{ width: "auto" }} onClick={openNew}>
-                  <Plus size={16} style={{ verticalAlign: "middle", marginRight: "0.4rem" }} />
-                  Ajouter manuellement
-                </button>
+                <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
+                  <button className="btn-primary" style={{ width: "auto" }} onClick={handleReprise} disabled={reprise}>
+                    <Plus size={16} style={{ verticalAlign: "middle", marginRight: "0.4rem" }} />
+                    {reprise ? "Reprise..." : "Reprendre la saison précédente"}
+                  </button>
+                  <button className="btn-secondary" style={{ width: "auto" }} onClick={openNew}>
+                    <Plus size={16} style={{ verticalAlign: "middle", marginRight: "0.4rem" }} />
+                    Ajouter manuellement
+                  </button>
+                </div>
               </div>
             ) : (
               <p style={{ color: "#9ca3af", fontStyle: "italic" }}>

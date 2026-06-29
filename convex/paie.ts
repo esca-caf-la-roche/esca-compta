@@ -412,6 +412,66 @@ export const removeSalarie = mutation({
   },
 });
 
+// Reprend (copie) les données de la saison précédente dans `saison` : paramètres
+// de paie + lignes de salaire (mêmes moniteurs, mêmes taux/heures, augmentation
+// remise à 0). N'agit que si la saison cible est vide.
+export const reprendreSaisonPrecedente = mutation({
+  args: { saison: v.string() },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx, ctx.userId);
+
+    const prev = previousSaison(args.saison);
+    if (!prev) throw new Error("Saison invalide (format attendu : AAAA-AA).");
+
+    const dejaPresent = await ctx.db
+      .query("salairesSaison")
+      .withIndex("by_saison", (q) => q.eq("saison", args.saison))
+      .first();
+    if (dejaPresent) {
+      return { copiees: 0, message: `Des données existent déjà pour ${args.saison}.` };
+    }
+
+    const prevLignes = await ctx.db
+      .query("salairesSaison")
+      .withIndex("by_saison", (q) => q.eq("saison", prev))
+      .collect();
+    if (prevLignes.length === 0) {
+      throw new Error(`Aucune donnée à reprendre pour la saison ${prev}.`);
+    }
+
+    // Paramètres de paie : repris de N-1 (ou défaut si absents).
+    const existingParams = await ctx.db
+      .query("parametresPaie")
+      .withIndex("by_saison", (q) => q.eq("saison", args.saison))
+      .first();
+    if (!existingParams) {
+      const prevParams = await ctx.db
+        .query("parametresPaie")
+        .withIndex("by_saison", (q) => q.eq("saison", prev))
+        .first();
+      if (prevParams) {
+        const { _id, _creationTime, saison, ...rest } = prevParams;
+        await ctx.db.insert("parametresPaie", { saison: args.saison, ...rest });
+      } else {
+        await ctx.db.insert("parametresPaie", { saison: args.saison, ...DEFAULT_PARAMS });
+      }
+    }
+
+    for (const l of prevLignes) {
+      await ctx.db.insert("salairesSaison", {
+        salarieId: l.salarieId,
+        saison: args.saison,
+        nbHeuresAnnuel: l.nbHeuresAnnuel,
+        nbMois: l.nbMois,
+        tauxHoraireBrut: l.tauxHoraireBrut, // 0 % d'augmentation -> taux identique
+        augmentationPct: 0,
+        actif: l.actif ?? true,
+      });
+    }
+    return { copiees: prevLignes.length, message: `${prevLignes.length} moniteurs repris de ${prev}.` };
+  },
+});
+
 export const updateParametres = mutation({
   args: {
     saison: v.string(),

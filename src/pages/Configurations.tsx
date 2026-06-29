@@ -1,32 +1,20 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Save, Star, Trash2, Users, Calendar, Shield, Edit2, X, Check, ArrowLeft, Wallet, Plus } from "lucide-react";
+import { Save, Star, Trash2, Users, Calendar, Shield, Edit2, X, Check, ArrowLeft } from "lucide-react";
 import type { Id } from "../../convex/_generated/dataModel";
-import ParametresPaieForm from "../components/Budget/ParametresPaieForm";
-
-/** Saison suivante au format "YYYY-YY" (ex: "2025-26" -> "2026-27"). Affichage seul. */
-function nextSaisonLabel(noms: string[]): string | null {
-  const latest = noms.filter((n) => /^\d{4}-\d{2}$/.test(n)).sort((a, b) => b.localeCompare(a))[0];
-  if (!latest) return null;
-  const start = parseInt(latest.slice(0, 4), 10) + 1;
-  return `${start}-${((start + 1) % 100).toString().padStart(2, "0")}`;
-}
 
 export default function Configurations() {
-  const [activeTab, setActiveTab] = useState<"saisons" | "utilisateurs" | "paie">("saisons");
+  const [activeTab, setActiveTab] = useState<"saisons" | "utilisateurs">("saisons");
 
   // Saisons
   const saisons = useQuery(api.saisons.get);
+  const createSaison = useMutation(api.saisons.create);
   const updateSaison = useMutation(api.saisons.update);
   const removeSaison = useMutation(api.saisons.remove);
-  const createNextSaison = useMutation(api.saisons.createNext);
+  const [newSaisonName, setNewSaisonName] = useState("");
   const [isSubmittingSaison, setIsSubmittingSaison] = useState(false);
-
-  // Paie / Budget
-  const [paieSaison, setPaieSaison] = useState<string>("");
-  const paieData = useQuery(api.paie.getMasseSalariale, paieSaison ? { saison: paieSaison } : "skip");
 
   // Utilisateurs
   const users = useQuery(api.users.listUsers);
@@ -44,26 +32,27 @@ export default function Configurations() {
   const [editTiles, setEditTiles] = useState<string[]>([]);
 
   // Saisons handlers
-  const handleCreateNext = async () => {
+  const handleAddSaison = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = newSaisonName.trim();
+    if (!name) return;
+
+    if (saisons?.some(s => s.nom === name)) {
+      alert("Cette saison existe déjà.");
+      return;
+    }
+
     setIsSubmittingSaison(true);
     try {
-      const res = await createNextSaison({});
-      alert(`Saison ${res.nom} ajoutée (${res.lignesReprises} moniteurs repris de la saison précédente).`);
-    } catch (err: any) {
+      await createSaison({ nom: name, isDefault: false });
+      setNewSaisonName("");
+    } catch (err) {
       console.error(err);
-      alert(err.message || "Erreur lors de l'ajout.");
+      alert("Erreur lors de l'ajout.");
     } finally {
       setIsSubmittingSaison(false);
     }
   };
-
-  // Sélectionne par défaut la saison "par défaut" (ou la plus récente) pour l'onglet Paie.
-  useEffect(() => {
-    if (!paieSaison && saisons && saisons.length > 0) {
-      const def = saisons.find((s) => s.isDefault) ?? saisons[0];
-      setPaieSaison(def.nom);
-    }
-  }, [saisons, paieSaison]);
 
   const handleSetDefault = async (id: Id<"saisons">) => {
     try {
@@ -198,47 +187,31 @@ export default function Configurations() {
         >
           <Users size={18} /> Utilisateurs et Accès
         </button>
-        <button
-          onClick={() => setActiveTab("paie")}
-          style={{
-            background: "transparent",
-            border: "none",
-            padding: "0.5rem 1rem",
-            fontSize: "1.1rem",
-            fontWeight: "bold",
-            cursor: "pointer",
-            color: activeTab === "paie" ? "#000" : "#6b7280",
-            borderBottom: activeTab === "paie" ? "3px solid #000" : "3px solid transparent",
-            display: "flex", alignItems: "center", gap: "0.5rem"
-          }}
-        >
-          <Wallet size={18} /> Paie / Budget
-        </button>
       </div>
 
       {activeTab === "saisons" && (
         <div className="tab-content fade-in">
           <div className="card glass-card" style={{ marginBottom: "2rem" }}>
             <h2 style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
-              <Calendar size={20} /> Ajouter la saison suivante
+              <Calendar size={20} /> Ajouter une saison
             </h2>
-            <p style={{ color: "#6b7280", marginBottom: "1rem", fontSize: "0.95rem" }}>
-              La nouvelle saison reprend automatiquement les paramètres de paie et les
-              moniteurs de la saison la plus récente. Vous pourrez ensuite ajuster les
-              augmentations, heures et effectifs.
-            </p>
-            <button
-              type="button"
-              className="btn-primary"
-              disabled={isSubmittingSaison || !saisons || saisons.length === 0}
-              onClick={handleCreateNext}
-              style={{ whiteSpace: "nowrap", alignSelf: "flex-start" }}
-            >
-              <Plus size={16} style={{ marginRight: "0.5rem" }} />
-              {saisons && nextSaisonLabel(saisons.map((s) => s.nom))
-                ? `Ajouter la saison ${nextSaisonLabel(saisons.map((s) => s.nom))}`
-                : "Ajouter la saison suivante"}
-            </button>
+            <form onSubmit={handleAddSaison} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <div style={{ width: "100%" }}>
+                <label className="form-label">Nom de la saison (ex: 2027-28)</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="Ex: 2027-28"
+                  value={newSaisonName}
+                  onChange={e => setNewSaisonName(e.target.value)}
+                  required
+                  style={{ width: "100%" }}
+                />
+              </div>
+              <button type="submit" className="btn-primary" disabled={isSubmittingSaison} style={{ whiteSpace: "nowrap", alignSelf: "flex-start" }}>
+                <Save size={16} style={{ marginRight: "0.5rem" }} /> Ajouter
+              </button>
+            </form>
           </div>
 
           <div className="card glass-card">
@@ -431,56 +404,6 @@ export default function Configurations() {
                   ))}
                 </tbody>
               </table>
-            )}
-          </div>
-        </div>
-      )}
-
-      {activeTab === "paie" && (
-        <div className="tab-content fade-in">
-          <div className="card glass-card">
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-              <h2 style={{ display: "flex", alignItems: "center", gap: "0.5rem", margin: 0 }}>
-                <Wallet size={20} /> Paramètres de paie
-              </h2>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <label className="form-label" htmlFor="paie-saison" style={{ margin: 0 }}>Saison</label>
-                <select
-                  id="paie-saison"
-                  className="input-field"
-                  value={paieSaison}
-                  onChange={(e) => setPaieSaison(e.target.value)}
-                  style={{ width: "auto" }}
-                >
-                  {(saisons ?? []).map((s) => (
-                    <option key={s._id} value={s.nom}>{s.nom}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {!paieSaison || paieData === undefined ? (
-              <div>Chargement...</div>
-            ) : !paieData.params ? (
-              <p style={{ color: "#9ca3af", fontStyle: "italic" }}>
-                Aucun paramètre de paie pour la saison {paieSaison}. Ajoutez la saison
-                via l'onglet « Saisons » pour reprendre les paramètres précédents.
-              </p>
-            ) : (
-              <ParametresPaieForm
-                key={paieSaison}
-                saison={paieSaison}
-                params={{
-                  margeSecurite: paieData.params.margeSecurite,
-                  indemniteCpPct: paieData.params.indemniteCpPct,
-                  mutuelleSalarie: paieData.params.mutuelleSalarie,
-                  mutuelleEmployeur: paieData.params.mutuelleEmployeur,
-                  primeEquipementAnnuelle: paieData.params.primeEquipementAnnuelle,
-                  fraisBulletin: paieData.params.fraisBulletin,
-                  cotisationsSalariales: paieData.params.cotisationsSalariales,
-                  cotisationsPatronales: paieData.params.cotisationsPatronales,
-                }}
-              />
             )}
           </div>
         </div>
