@@ -73,8 +73,10 @@ const DEFAULT_PARAMS = {
 };
 
 // --- Données historiques réelles (source : Budget_Escalade / Salaire be.csv) ---
-// Pour les CDI, nbHeuresAnnuel = heures « budget » saisies ; la conversion en
-// heures réelles est faite au calcul (cf. heuresAnnuellesEffectives).
+// Le taux horaire d'une saison est DÉRIVÉ : taux(N) = taux(N-1) × (1 + augmentation).
+// La base est 2023-24. Pour un nouvel arrivant, on saisit un taux d'entrée (baseRate).
+// Pour les CDI, nbHeuresAnnuel = heures « budget » saisies ; la conversion en heures
+// réelles est faite au calcul (cf. heuresAnnuellesEffectives).
 
 const SEED_MONITEURS: Record<string, { typeContrat: "CDII" | "CDI"; ordre: number }> = {
   "Clémentine": { typeContrat: "CDII", ordre: 0 },
@@ -87,30 +89,55 @@ const SEED_MONITEURS: Record<string, { typeContrat: "CDII" | "CDI"; ordre: numbe
   "Gael": { typeContrat: "CDI", ordre: 7 },
 };
 
-const SEED_LIGNES: Array<{
-  saison: string;
-  nom: string;
+// Données par saison/moniteur. `baseRate` = taux d'entrée (saison de référence ou
+// nouvel arrivant) ; sinon le taux est calculé via `augmentationPct` sur la saison N-1.
+type SeedLigne = {
+  baseRate?: number;
+  augmentationPct?: number;
   nbHeuresAnnuel: number;
   nbMois: number;
-  tauxHoraireBrut: number;
-  augmentationPct: number | null;
-}> = [
-  // Saison 2024-25 (augmentation vs 2023-24)
-  { saison: "2024-25", nom: "Clémentine", nbHeuresAnnuel: 740, nbMois: 12, tauxHoraireBrut: 19.665, augmentationPct: 3.5 },
-  { saison: "2024-25", nom: "David", nbHeuresAnnuel: 280, nbMois: 12, tauxHoraireBrut: 21.95235, augmentationPct: 3.5 },
-  { saison: "2024-25", nom: "Raphaël", nbHeuresAnnuel: 760, nbMois: 10, tauxHoraireBrut: 22.10082, augmentationPct: 4.2 },
-  { saison: "2024-25", nom: "Stéphane", nbHeuresAnnuel: 280, nbMois: 12, tauxHoraireBrut: 19.665, augmentationPct: 3.5 },
-  { saison: "2024-25", nom: "Nicolas", nbHeuresAnnuel: 180, nbMois: 12, tauxHoraireBrut: 20.7, augmentationPct: 3.5 },
-  { saison: "2024-25", nom: "Jérôme", nbHeuresAnnuel: 925, nbMois: 12, tauxHoraireBrut: 19.703, augmentationPct: 3.7 },
-  { saison: "2024-25", nom: "Hugo", nbHeuresAnnuel: 931, nbMois: 12, tauxHoraireBrut: 19.703, augmentationPct: 3.7 },
-  // Saison 2025-26 (augmentation vs 2024-25 ; Hugo parti, Gael arrivé)
-  { saison: "2025-26", nom: "Clémentine", nbHeuresAnnuel: 740, nbMois: 12, tauxHoraireBrut: 20.25, augmentationPct: 3 },
-  { saison: "2025-26", nom: "David", nbHeuresAnnuel: 280, nbMois: 12, tauxHoraireBrut: 22.61, augmentationPct: 3 },
-  { saison: "2025-26", nom: "Raphaël", nbHeuresAnnuel: 760, nbMois: 10, tauxHoraireBrut: 22.76, augmentationPct: 3 },
-  { saison: "2025-26", nom: "Stéphane", nbHeuresAnnuel: 280, nbMois: 12, tauxHoraireBrut: 20.25, augmentationPct: 3 },
-  { saison: "2025-26", nom: "Nicolas", nbHeuresAnnuel: 180, nbMois: 12, tauxHoraireBrut: 21.32, augmentationPct: 3 },
-  { saison: "2025-26", nom: "Jérôme", nbHeuresAnnuel: 1150, nbMois: 12, tauxHoraireBrut: 21.6, augmentationPct: 9.65 },
-  { saison: "2025-26", nom: "Gael", nbHeuresAnnuel: 515, nbMois: 12, tauxHoraireBrut: 21.6, augmentationPct: null },
+};
+
+const SEED_DATA: Array<{ saison: string; lignes: Record<string, SeedLigne> }> = [
+  {
+    // 2023-24 : saison de référence (taux de base, heures inconnues dans la source).
+    saison: "2023-24",
+    lignes: {
+      "Clémentine": { baseRate: 19, nbHeuresAnnuel: 0, nbMois: 12 },
+      "David": { baseRate: 21.21, nbHeuresAnnuel: 0, nbMois: 12 },
+      "Raphaël": { baseRate: 21.21, nbHeuresAnnuel: 0, nbMois: 10 },
+      "Stéphane": { baseRate: 19, nbHeuresAnnuel: 0, nbMois: 12 },
+      "Nicolas": { baseRate: 20, nbHeuresAnnuel: 0, nbMois: 12 },
+      "Jérôme": { baseRate: 19, nbHeuresAnnuel: 0, nbMois: 12 },
+      "Hugo": { baseRate: 19, nbHeuresAnnuel: 0, nbMois: 12 },
+    },
+  },
+  {
+    // 2024-25 : augmentation vs 2023-24.
+    saison: "2024-25",
+    lignes: {
+      "Clémentine": { augmentationPct: 3.5, nbHeuresAnnuel: 740, nbMois: 12 },
+      "David": { augmentationPct: 3.5, nbHeuresAnnuel: 280, nbMois: 12 },
+      "Raphaël": { augmentationPct: 4.2, nbHeuresAnnuel: 760, nbMois: 10 },
+      "Stéphane": { augmentationPct: 3.5, nbHeuresAnnuel: 280, nbMois: 12 },
+      "Nicolas": { augmentationPct: 3.5, nbHeuresAnnuel: 180, nbMois: 12 },
+      "Jérôme": { augmentationPct: 3.7, nbHeuresAnnuel: 925, nbMois: 12 },
+      "Hugo": { augmentationPct: 3.7, nbHeuresAnnuel: 931, nbMois: 12 },
+    },
+  },
+  {
+    // 2025-26 : augmentation vs 2024-25 ; Hugo parti, Gael arrivé (taux d'entrée).
+    saison: "2025-26",
+    lignes: {
+      "Clémentine": { augmentationPct: 3, nbHeuresAnnuel: 740, nbMois: 12 },
+      "David": { augmentationPct: 3, nbHeuresAnnuel: 280, nbMois: 12 },
+      "Raphaël": { augmentationPct: 3, nbHeuresAnnuel: 760, nbMois: 10 },
+      "Stéphane": { augmentationPct: 3, nbHeuresAnnuel: 280, nbMois: 12 },
+      "Nicolas": { augmentationPct: 3, nbHeuresAnnuel: 180, nbMois: 12 },
+      "Jérôme": { augmentationPct: 9.65, nbHeuresAnnuel: 1150, nbMois: 12 },
+      "Gael": { baseRate: 21.6, nbHeuresAnnuel: 515, nbMois: 12 },
+    },
+  },
 ];
 
 export const getMasseSalariale = query({
@@ -173,17 +200,52 @@ export const getMasseSalariale = query({
   },
 });
 
-// Amorçage one-shot des données historiques réelles (2024-25 et 2025-26).
+/** Taux dérivé : taux(N) = taux(N-1) × (1 + augmentation%).
+ *  Précision pleine conservée (comme l'Excel) : seul le salaire est arrondi au calcul. */
+function deriveTaux(prevRate: number, augmentationPct: number): number {
+  return prevRate * (1 + augmentationPct / 100);
+}
+
+// Purge des données de masse salariale (réservé à la ré-initialisation du seed).
+// `npx convex run paie:resetMasseSalariale`
+export const resetMasseSalariale = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    for (const table of ["salairesSaison", "parametresPaie", "salaries"] as const) {
+      const docs = await ctx.db.query(table).collect();
+      for (const d of docs) await ctx.db.delete(d._id);
+    }
+    return "Tables masse salariale vidées.";
+  },
+});
+
+/** Taux horaire du même moniteur lors de la saison précédente (ou null). */
+async function tauxSaisonPrecedente(
+  ctx: MutationCtx,
+  salarieId: Id<"salaries">,
+  saison: string
+): Promise<number | null> {
+  const prev = previousSaison(saison);
+  if (!prev) return null;
+  const ligne = await ctx.db
+    .query("salairesSaison")
+    .withIndex("by_saison", (q) => q.eq("saison", prev))
+    .filter((q) => q.eq(q.field("salarieId"), salarieId))
+    .first();
+  return ligne?.tauxHoraireBrut ?? null;
+}
+
+// Amorçage one-shot des données historiques réelles (2023-24 → 2025-26).
 // À lancer une fois via la CLI : `npx convex run paie:seedHistorique`
 // Idempotent : ne recrée pas une ligne déjà présente pour une saison donnée.
+// Le taux est dérivé saison par saison (base 2023-24 + chaîne d'augmentation).
 export const seedHistorique = internalMutation({
   args: {},
   handler: async (ctx) => {
     const results: string[] = [];
-    const saisons = [...new Set(SEED_LIGNES.map((l) => l.saison))];
 
     // Paramètres de paie par défaut, par saison (si absents).
-    for (const saison of saisons) {
+    for (const { saison } of SEED_DATA) {
       const existingParams = await ctx.db
         .query("parametresPaie")
         .withIndex("by_saison", (q) => q.eq("saison", saison))
@@ -194,42 +256,49 @@ export const seedHistorique = internalMutation({
       }
     }
 
-    // Salariés (identité unique) + lignes de saison.
+    // Salariés (identité unique).
     const allSalaries = await ctx.db.query("salaries").collect();
     const salarieIdByNom = new Map<string, Id<"salaries">>(
       allSalaries.map((s) => [s.nom, s._id])
     );
-
     for (const [nom, info] of Object.entries(SEED_MONITEURS)) {
       if (!salarieIdByNom.has(nom)) {
         const id = await ctx.db.insert("salaries", {
-          nom,
-          typeContrat: info.typeContrat,
-          ordre: info.ordre,
+          nom, typeContrat: info.typeContrat, ordre: info.ordre,
         });
         salarieIdByNom.set(nom, id);
       }
     }
 
+    // Lignes de saison, dans l'ordre chronologique, en chaînant les taux.
+    const lastRateByNom = new Map<string, number>();
     let created = 0;
-    for (const l of SEED_LIGNES) {
-      const salarieId = salarieIdByNom.get(l.nom)!;
-      const exists = await ctx.db
-        .query("salairesSaison")
-        .withIndex("by_saison", (q) => q.eq("saison", l.saison))
-        .filter((q) => q.eq(q.field("salarieId"), salarieId))
-        .first();
-      if (exists) continue;
-      await ctx.db.insert("salairesSaison", {
-        salarieId,
-        saison: l.saison,
-        nbHeuresAnnuel: l.nbHeuresAnnuel,
-        nbMois: l.nbMois,
-        tauxHoraireBrut: l.tauxHoraireBrut,
-        augmentationPct: l.augmentationPct ?? undefined,
-        actif: true,
-      });
-      created++;
+    for (const { saison, lignes } of SEED_DATA) {
+      for (const [nom, l] of Object.entries(lignes)) {
+        const taux =
+          l.baseRate !== undefined
+            ? l.baseRate
+            : deriveTaux(lastRateByNom.get(nom) ?? 0, l.augmentationPct ?? 0);
+        lastRateByNom.set(nom, taux);
+
+        const salarieId = salarieIdByNom.get(nom)!;
+        const exists = await ctx.db
+          .query("salairesSaison")
+          .withIndex("by_saison", (q) => q.eq("saison", saison))
+          .filter((q) => q.eq(q.field("salarieId"), salarieId))
+          .first();
+        if (exists) continue;
+        await ctx.db.insert("salairesSaison", {
+          salarieId,
+          saison,
+          nbHeuresAnnuel: l.nbHeuresAnnuel,
+          nbMois: l.nbMois,
+          tauxHoraireBrut: taux,
+          augmentationPct: l.augmentationPct,
+          actif: true,
+        });
+        created++;
+      }
     }
     results.push(`${created} lignes de salaire créées.`);
     return results;
@@ -257,12 +326,18 @@ export const addSalarie = mutation({
       typeContrat: args.typeContrat,
       ordre: count,
     });
+    // Taux dérivé si le moniteur existait la saison précédente, sinon taux d'entrée saisi.
+    const prevRate = await tauxSaisonPrecedente(ctx, salarieId, args.saison);
+    const taux =
+      prevRate != null && args.augmentationPct !== undefined
+        ? deriveTaux(prevRate, args.augmentationPct)
+        : args.tauxHoraireBrut;
     await ctx.db.insert("salairesSaison", {
       salarieId,
       saison: args.saison,
       nbHeuresAnnuel: args.nbHeuresAnnuel,
       nbMois: args.nbMois,
-      tauxHoraireBrut: args.tauxHoraireBrut,
+      tauxHoraireBrut: taux,
       augmentationPct: args.augmentationPct,
       actif: true,
     });
@@ -296,12 +371,27 @@ export const updateSalarie = mutation({
       await ctx.db.patch(args.salarieId, salarieUpdates);
     }
 
+    const ligne = await ctx.db.get(args.ligneId);
+    if (!ligne) throw new Error("Ligne de salaire introuvable.");
+
     const ligneUpdates: Record<string, unknown> = {};
     if (args.nbHeuresAnnuel !== undefined) ligneUpdates.nbHeuresAnnuel = args.nbHeuresAnnuel;
     if (args.nbMois !== undefined) ligneUpdates.nbMois = args.nbMois;
-    if (args.tauxHoraireBrut !== undefined) ligneUpdates.tauxHoraireBrut = args.tauxHoraireBrut;
-    if (args.augmentationPct !== undefined) ligneUpdates.augmentationPct = args.augmentationPct;
     if (args.actif !== undefined) ligneUpdates.actif = args.actif;
+
+    // Le taux est DÉRIVÉ de l'augmentation si le moniteur existait la saison
+    // précédente ; sinon (saison de référence / nouvel arrivant) le taux saisi fait foi.
+    const prevRate = await tauxSaisonPrecedente(ctx, args.salarieId, ligne.saison);
+    if (prevRate != null) {
+      if (args.augmentationPct !== undefined) {
+        ligneUpdates.augmentationPct = args.augmentationPct;
+        ligneUpdates.tauxHoraireBrut = deriveTaux(prevRate, args.augmentationPct);
+      }
+    } else {
+      if (args.augmentationPct !== undefined) ligneUpdates.augmentationPct = args.augmentationPct;
+      if (args.tauxHoraireBrut !== undefined) ligneUpdates.tauxHoraireBrut = args.tauxHoraireBrut;
+    }
+
     if (Object.keys(ligneUpdates).length > 0) {
       await ctx.db.patch(args.ligneId, ligneUpdates);
     }

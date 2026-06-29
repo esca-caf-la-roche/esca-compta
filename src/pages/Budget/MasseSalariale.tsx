@@ -50,38 +50,34 @@ export default function MasseSalariale() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [isSalarieModalOpen, setIsSalarieModalOpen] = useState(false);
   const [salarieToEdit, setSalarieToEdit] = useState<SalarieRow | null>(null);
-  const [simulationPct, setSimulationPct] = useState("");
 
   const params = data?.params;
   const salaries = useMemo(() => data?.salaries ?? [], [data]);
   const prevSalaries = useMemo(() => data?.prevSalaries ?? [], [data]);
 
-  const simPct = simulationPct ? parseFloat(simulationPct) || 0 : 0;
-
   const toInput = (s: { nom: string; typeContrat: "CDII" | "CDI"; nbHeuresAnnuel: number; nbMois: number; tauxHoraireBrut: number }): SalaireInput => ({
     nom: s.nom, typeContrat: s.typeContrat, nbHeuresAnnuel: s.nbHeuresAnnuel, nbMois: s.nbMois, tauxHoraireBrut: s.tauxHoraireBrut,
   });
 
-  // Calcul de paie (base + simulé) par salarié, via la fonction pure partagée.
+  // Calcul de paie par salarié, via la fonction pure partagée.
   const rows = useMemo(() => {
     if (!params) return [];
     const p = toParametresPaie(params);
-    return salaries.map((s) => ({
-      s,
-      base: computePaie(toInput(s), p),
-      sim: simPct ? computePaie(toInput(s), p, { simulationPct: simPct }) : null,
-    }));
-  }, [salaries, params, simPct]);
+    return salaries.map((s) => ({ s, base: computePaie(toInput(s), p) }));
+  }, [salaries, params]);
 
   const totaux = params ? computeTotaux(rows.map((r) => r.base), params.margeSecurite) : null;
-  const totauxSim =
-    params && simPct ? computeTotaux(rows.map((r) => r.sim ?? r.base), params.margeSecurite) : null;
-  const surcout = totaux && totauxSim ? totauxSim.coutAnnuel - totaux.coutAnnuel : 0;
+
+  // Saison « de référence » : taux renseignés mais heures inconnues (ex: 2023-24,
+  // base des augmentations). On masque alors les coûts qui ne seraient pas fiables.
+  const seasonHasHours = salaries.some((s) => s.nbHeuresAnnuel > 0);
 
   // Comparaison avec la saison précédente (effet augmentation + variation d'heures
   // + arrivées/départs). Coût N-1 calculé avec les paramètres de la saison N-1.
+  // Ignorée si la saison précédente n'a pas d'heures (comparaison non significative).
   const comparaison = useMemo(() => {
     if (!params || prevSalaries.length === 0) return null;
+    if (!prevSalaries.some((s) => s.nbHeuresAnnuel > 0)) return null;
     const pN = toParametresPaie(params);
     const pN1 = data?.prevParams ? toParametresPaie(data.prevParams) : pN;
 
@@ -195,6 +191,44 @@ export default function MasseSalariale() {
             )}
           </div>
         </section>
+      ) : !seasonHasHours ? (
+        <>
+          <section className="card glass-card" style={{ marginBottom: "1.5rem", borderLeft: "4px solid #f59e0b" }}>
+            <p style={{ margin: 0 }}>
+              <strong>Saison de référence.</strong> Les heures ne sont pas renseignées pour
+              la saison <strong>{season}</strong> : seuls les taux horaires servent de base
+              au calcul des augmentations. Le coût employeur n'est donc pas affiché.
+            </p>
+          </section>
+          <section className="card glass-card" style={{ overflowX: "auto" }}>
+            <h2 style={{ marginBottom: "1rem" }}>Taux horaires de référence</h2>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "420px" }}>
+              <thead>
+                <tr style={{ borderBottom: "2px solid #e5e7eb", textAlign: "left" }}>
+                  <th style={{ padding: "0.6rem 0.5rem" }}>Salarié</th>
+                  <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Taux horaire brut</th>
+                  {isAdmin && <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Actions</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {salaries.map((s) => (
+                  <tr key={s.ligneId} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                    <td style={{ padding: "0.6rem 0.5rem" }}>
+                      <strong>{s.nom}</strong>
+                      <span className="badge" style={{ marginLeft: "0.5rem", fontSize: "0.7rem", backgroundColor: "#e0f2fe", color: "#075985" }}>{s.typeContrat}</span>
+                    </td>
+                    <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">{eur(s.tauxHoraireBrut)}</td>
+                    {isAdmin && (
+                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>
+                        <button className="btn-icon info" onClick={() => openEdit(s)} title="Modifier"><Edit2 size={16} /></button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        </>
       ) : (
         <>
           {/* Cartes de synthèse */}
@@ -221,50 +255,6 @@ export default function MasseSalariale() {
             </div>
           </div>
 
-          {/* Simulation d'augmentation */}
-          <section className="card glass-card" style={{ marginBottom: "2rem" }}>
-            <h2 style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
-              <TrendingUp size={20} /> Simulation d'augmentation
-            </h2>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "1.5rem", alignItems: "center" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <label className="form-label" htmlFor="sim" style={{ margin: 0 }}>Augmentation globale</label>
-                <input
-                  id="sim"
-                  type="number"
-                  step="0.5"
-                  className="input-field"
-                  value={simulationPct}
-                  onChange={(e) => setSimulationPct(e.target.value)}
-                  placeholder="0"
-                  style={{ width: "90px" }}
-                />
-                <span>%</span>
-              </div>
-              {simPct ? (
-                <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap" }}>
-                  <div>
-                    <p style={{ fontSize: "0.75rem", color: "#6b7280", textTransform: "uppercase" }}>Nouveau coût annuel</p>
-                    <strong className="font-mono" style={{ fontSize: "1.2rem" }}>{eur0(totauxSim!.coutAnnuel)}</strong>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: "0.75rem", color: "#6b7280", textTransform: "uppercase" }}>Surcoût annuel</p>
-                    <strong className="font-mono" style={{ fontSize: "1.2rem", color: surcout >= 0 ? "#b91c1c" : "#15803d" }}>
-                      {surcout >= 0 ? "+ " : "- "}{eur(Math.abs(surcout))}
-                    </strong>
-                    <span style={{ color: "#6b7280", marginLeft: "0.5rem" }}>
-                      ({totaux!.coutAnnuel > 0 ? ((surcout / totaux!.coutAnnuel) * 100).toFixed(1) : "0"} %)
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <span style={{ color: "#9ca3af", fontStyle: "italic" }}>
-                  Saisissez un pourcentage pour estimer le surcoût.
-                </span>
-              )}
-            </div>
-          </section>
-
           {/* Tableau par salarié */}
           <section className="card glass-card" style={{ overflowX: "auto" }}>
             <h2 style={{ marginBottom: "1rem" }}>Détail par salarié</h2>
@@ -281,7 +271,7 @@ export default function MasseSalariale() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map(({ s, base, sim }) => {
+                {rows.map(({ s, base }) => {
                   const id = s.ligneId;
                   const isOpen = expanded.has(id);
                   const aug = augmentationLabel(s);
@@ -319,17 +309,12 @@ export default function MasseSalariale() {
                               {aug}
                             </span>
                           )}
-                          {sim && (
-                            <div style={{ fontSize: "0.75rem", color: "#b45309" }}>→ {eur(sim.tauxEffectif)}</div>
-                          )}
                         </td>
                         <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">
                           {eur(base.netMensuel)}
-                          {sim && <div style={{ fontSize: "0.75rem", color: "#b45309" }}>→ {eur(sim.netMensuel)}</div>}
                         </td>
                         <td style={{ padding: "0.6rem 0.5rem", textAlign: "right", fontWeight: "bold" }} className="font-mono">
                           {eur0(base.coutAnnuel)}
-                          {sim && <div style={{ fontSize: "0.75rem", color: "#b45309", fontWeight: "normal" }}>→ {eur0(sim.coutAnnuel)}</div>}
                         </td>
                         {isAdmin && (
                           <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>

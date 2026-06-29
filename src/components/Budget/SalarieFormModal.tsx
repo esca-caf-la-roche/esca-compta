@@ -59,18 +59,17 @@ export default function SalarieFormModal({ isOpen, onClose, salarieToEdit }: Pro
 
   if (!isOpen) return null;
 
-  // Applique l'augmentation saisie au taux de la saison précédente (aide à la saisie).
-  const applyAugmentation = () => {
-    const base = salarieToEdit?.tauxPrecedent;
-    const pct = parseFloat(augmentationPct);
-    if (base && !Number.isNaN(pct)) {
-      setTauxHoraireBrut((base * (1 + pct / 100)).toFixed(2));
-    }
-  };
+  // Le taux est dérivé de l'augmentation dès qu'il existe une saison précédente
+  // pour ce moniteur : taux = taux(N-1) × (1 + augmentation). Sinon (nouvel arrivant /
+  // saison de référence), on saisit un taux d'entrée.
+  const hasPrev = salarieToEdit?.tauxPrecedent != null;
+  const tauxCalcule = hasPrev
+    ? salarieToEdit!.tauxPrecedent! * (1 + (parseFloat(augmentationPct) || 0) / 100)
+    : parseFloat(tauxHoraireBrut) || 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nom.trim() || !nbHeuresAnnuel || !nbMois || !tauxHoraireBrut) {
+    if (!nom.trim() || !nbHeuresAnnuel || !nbMois || (!hasPrev && !tauxHoraireBrut)) {
       alert("Veuillez remplir tous les champs obligatoires.");
       return;
     }
@@ -79,8 +78,11 @@ export default function SalarieFormModal({ isOpen, onClose, salarieToEdit }: Pro
       const payload = {
         nbHeuresAnnuel: parseFloat(nbHeuresAnnuel),
         nbMois: parseFloat(nbMois),
-        tauxHoraireBrut: parseFloat(tauxHoraireBrut),
-        augmentationPct: augmentationPct ? parseFloat(augmentationPct) : undefined,
+        // Quand il y a une saison précédente, le serveur recalcule le taux depuis
+        // l'augmentation ; sinon on envoie le taux d'entrée saisi.
+        tauxHoraireBrut: hasPrev ? tauxCalcule : parseFloat(tauxHoraireBrut),
+        augmentationPct:
+          hasPrev ? (parseFloat(augmentationPct) || 0) : (augmentationPct ? parseFloat(augmentationPct) : undefined),
       };
       if (salarieToEdit) {
         await updateSalarie({
@@ -181,10 +183,39 @@ export default function SalarieFormModal({ isOpen, onClose, salarieToEdit }: Pro
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "flex-end" }}>
-            <div className="form-group" style={{ flex: "1 1 140px" }}>
+          {hasPrev ? (
+            <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "flex-end" }}>
+              <div className="form-group" style={{ flex: "1 1 140px" }}>
+                <label className="form-label" htmlFor="aug">
+                  Augmentation vs N-1 (%) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="aug"
+                  type="number"
+                  step="0.01"
+                  className="input-field"
+                  value={augmentationPct}
+                  onChange={(e) => setAugmentationPct(e.target.value)}
+                  placeholder="Ex: 3"
+                />
+              </div>
+              <div className="form-group" style={{ flex: "1 1 140px" }}>
+                <label className="form-label">Taux horaire brut (€) — calculé</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  value={`${tauxCalcule.toFixed(4)} €`}
+                  readOnly
+                  disabled
+                  title="Calculé automatiquement à partir du taux N-1 et de l'augmentation"
+                  style={{ background: "#f3f4f6" }}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="form-group">
               <label className="form-label" htmlFor="taux">
-                Taux horaire brut (€) <span className="text-red-500">*</span>
+                Taux horaire brut d'entrée (€) <span className="text-red-500">*</span>
               </label>
               <input
                 id="taux"
@@ -197,29 +228,13 @@ export default function SalarieFormModal({ isOpen, onClose, salarieToEdit }: Pro
                 placeholder="Ex: 20.25"
               />
             </div>
-            <div className="form-group" style={{ flex: "1 1 140px" }}>
-              <label className="form-label" htmlFor="aug">Augmentation vs N-1 (%)</label>
-              <input
-                id="aug"
-                type="number"
-                step="0.01"
-                className="input-field"
-                value={augmentationPct}
-                onChange={(e) => setAugmentationPct(e.target.value)}
-                placeholder="Ex: 3"
-              />
-            </div>
-          </div>
+          )}
 
-          {salarieToEdit?.tauxPrecedent != null && (
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={applyAugmentation}
-              style={{ width: "auto", fontSize: "0.85rem", padding: "0.4rem 0.75rem" }}
-            >
-              Appliquer l'augmentation sur le taux N-1 ({salarieToEdit.tauxPrecedent.toFixed(2)} €)
-            </button>
+          {hasPrev && (
+            <p style={{ fontSize: "0.8rem", color: "#6b7280", marginTop: "-0.5rem" }}>
+              Taux saison précédente : <strong>{salarieToEdit!.tauxPrecedent!.toFixed(4)} €</strong> →
+              avec +{parseFloat(augmentationPct) || 0} % : <strong>{tauxCalcule.toFixed(4)} €</strong>
+            </p>
           )}
 
           <div className="form-actions" style={{ marginTop: "2rem" }}>
