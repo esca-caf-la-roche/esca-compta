@@ -141,6 +141,7 @@ export default function Configurations() {
   const TILE_OPTIONS = [
     { id: "compta", label: "Comptabilité" },
     { id: "paiements", label: "Paiements Escalade" },
+    { id: "budget", label: "Budget prévisionnel" },
   ];
 
   return (

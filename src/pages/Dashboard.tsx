@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import Tile from "../components/Tile";
-import { Calculator, Settings, CreditCard } from "lucide-react";
+import { Calculator, Settings, CreditCard, PiggyBank } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 
@@ -50,6 +50,16 @@ export default function Dashboard() {
             />
           )}
           
+          {(userSettings.role === "admin" || userSettings.allowedTiles?.includes("budget")) && (
+            <Tile
+              title="Budget prévisionnel"
+              description="Masse salariale et simulation d'augmentations."
+              icon={PiggyBank}
+              to="/budget"
+              colorClass="bg-warning"
+            />
+          )}
+
           {userSettings.role !== "admin" && (!userSettings.allowedTiles || userSettings.allowedTiles.length === 0) && (
             <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "2rem", backgroundColor: "#f9fafb", borderRadius: "8px", border: "1px solid #e5e7eb" }}>
               <p>Vous n'avez accès à aucun module. Veuillez contacter un administrateur.</p>

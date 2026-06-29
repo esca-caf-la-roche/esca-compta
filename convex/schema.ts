@@ -31,6 +31,44 @@ export default defineSchema({
     saison: v.string(),
   }).index("by_saison", ["saison"]),
 
+  // --- BUDGET PRÉVISIONNEL : MASSE SALARIALE ---
+  // Identité d'un salarié (indépendante de la saison).
+  salaries: defineTable({
+    nom: v.string(),
+    typeContrat: v.union(v.literal("CDII"), v.literal("CDI")),
+    ordre: v.optional(v.number()),
+  }),
+
+  // Paramètres de paie d'un salarié pour une saison donnée.
+  salairesSaison: defineTable({
+    salarieId: v.id("salaries"),
+    saison: v.string(),
+    nbHeuresAnnuel: v.number(),
+    nbMois: v.number(),
+    tauxHoraireBrut: v.number(), // taux brut effectif de la saison
+    augmentationPct: v.optional(v.number()), // informatif : hausse vs N-1
+    actif: v.optional(v.boolean()),
+  })
+    .index("by_saison", ["saison"])
+    .index("by_salarie", ["salarieId"]),
+
+  // Paramètres globaux de paie (cotisations, marges…) par saison.
+  parametresPaie: defineTable({
+    saison: v.string(),
+    margeSecurite: v.number(), // 1.02
+    indemniteCpPct: v.number(), // 10 (CDII uniquement)
+    mutuelleSalarie: v.number(), // 20
+    mutuelleEmployeur: v.number(), // 20
+    primeEquipementAnnuelle: v.number(), // 210
+    fraisBulletin: v.number(), // 14
+    cotisationsSalariales: v.array(
+      v.object({ label: v.string(), taux: v.number(), base: v.string() })
+    ),
+    cotisationsPatronales: v.array(
+      v.object({ label: v.string(), taux: v.number() })
+    ),
+  }).index("by_saison", ["saison"]),
+
   transactions: defineTable({
     nom: v.string(),
     date: v.string(), // ISO format (ex: '2025-08-19')
