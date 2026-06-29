@@ -53,29 +53,34 @@ export const getCurrentUserSettings = authenticatedQuery({
 });
 
 export const addUser = authenticatedMutation({
-  args: { email: v.string(), name: v.optional(v.string()) },
+  args: { email: v.string(), name: v.string() },
   handler: async (ctx, args) => {
     const callerSettings = await ctx.db
       .query("userSettings")
       .withIndex("by_userId", (q) => q.eq("userId", ctx.userId))
       .first();
-      
+
     if (callerSettings?.role !== "admin") {
       throw new Error("Seul un administrateur peut ajouter un utilisateur.");
     }
-    
+
+    const name = args.name.trim();
+    if (!name) {
+      throw new Error("Le nom est obligatoire.");
+    }
+
     const existingUser = await ctx.db
       .query("users")
       .withIndex("email", (q) => q.eq("email", args.email))
       .first();
-      
+
     if (existingUser) {
       throw new Error("Un utilisateur avec cet email existe déjà.");
     }
-    
-    const newUserId = await ctx.db.insert("users", { 
+
+    const newUserId = await ctx.db.insert("users", {
       email: args.email,
-      name: args.name 
+      name
     });
     
     await ctx.db.insert("userSettings", {
@@ -114,21 +119,29 @@ export const removeUser = authenticatedMutation({
 });
 
 export const updateUserSettings = authenticatedMutation({
-  args: { 
-    userId: v.id("users"), 
-    allowedTiles: v.array(v.string()), 
-    role: v.string() 
+  args: {
+    userId: v.id("users"),
+    allowedTiles: v.array(v.string()),
+    role: v.string(),
+    name: v.string()
   },
   handler: async (ctx, args) => {
     const callerSettings = await ctx.db
       .query("userSettings")
       .withIndex("by_userId", (q) => q.eq("userId", ctx.userId))
       .first();
-      
+
     if (callerSettings?.role !== "admin") {
       throw new Error("Seul un administrateur peut modifier les accès.");
     }
-    
+
+    const name = args.name.trim();
+    if (!name) {
+      throw new Error("Le nom est obligatoire.");
+    }
+
+    await ctx.db.patch(args.userId, { name });
+
     const settings = await ctx.db
       .query("userSettings")
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))

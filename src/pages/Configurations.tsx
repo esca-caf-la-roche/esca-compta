@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Save, Star, Trash2, Users, Calendar, Shield, Edit2, X, Check } from "lucide-react";
+import { Save, Star, Trash2, Users, Calendar, Shield, Edit2, X, Check, ArrowLeft } from "lucide-react";
 import type { Id } from "../../convex/_generated/dataModel";
 
 export default function Configurations() {
@@ -26,6 +27,7 @@ export default function Configurations() {
   const [isSubmittingUser, setIsSubmittingUser] = useState(false);
   
   const [editingUserId, setEditingUserId] = useState<Id<"users"> | null>(null);
+  const [editName, setEditName] = useState<string>("");
   const [editRole, setEditRole] = useState<string>("user");
   const [editTiles, setEditTiles] = useState<string[]>([]);
 
@@ -76,11 +78,12 @@ export default function Configurations() {
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     const email = newUserEmail.trim();
-    if (!email) return;
+    const name = newUserName.trim();
+    if (!email || !name) return;
 
     setIsSubmittingUser(true);
     try {
-      await addUser({ email, name: newUserName.trim() || undefined });
+      await addUser({ email, name });
       setNewUserEmail("");
       setNewUserName("");
     } catch (err: any) {
@@ -104,14 +107,21 @@ export default function Configurations() {
 
   const startEditingUser = (user: any) => {
     setEditingUserId(user._id);
+    setEditName(user.name || "");
     setEditRole(user.settings?.role || "user");
     setEditTiles(user.settings?.allowedTiles || []);
   };
 
   const saveUserEdit = async (userId: Id<"users">) => {
+    const name = editName.trim();
+    if (!name) {
+      alert("Le nom est obligatoire.");
+      return;
+    }
     try {
       await updateUserSettings({
         userId,
+        name,
         role: editRole,
         allowedTiles: editTiles,
       });
@@ -136,6 +146,9 @@ export default function Configurations() {
   return (
     <div className="configurations-page fade-in" style={{ padding: "2rem", maxWidth: "1000px", margin: "0 auto" }}>
       <header className="page-header" style={{ marginBottom: "2rem" }}>
+        <Link to="/" className="back-link">
+          <ArrowLeft size={16} /> Retour au tableau de bord
+        </Link>
         <h1>Configurations</h1>
         <p className="subtitle">Gérez les paramètres globaux de l'application.</p>
       </header>
@@ -264,13 +277,14 @@ export default function Configurations() {
                   />
                 </div>
                 <div style={{ flex: "1 1 200px" }}>
-                  <label className="form-label">Nom (Optionnel)</label>
+                  <label className="form-label">Nom</label>
                   <input
                     type="text"
                     className="input-field"
                     placeholder="Jean Dupont"
                     value={newUserName}
                     onChange={e => setNewUserName(e.target.value)}
+                    required
                     style={{ width: "100%" }}
                   />
                 </div>
@@ -300,12 +314,21 @@ export default function Configurations() {
                   {users.map(user => (
                     <tr key={user._id} style={{ borderBottom: "1px solid #e5e7eb" }}>
                       <td style={{ padding: "0.75rem 0.5rem" }}>{user.email}</td>
-                      <td style={{ padding: "0.75rem 0.5rem" }}>{user.name || "-"}</td>
-                      
+
                       {editingUserId === user._id ? (
                         <>
                           <td style={{ padding: "0.75rem 0.5rem" }}>
-                            <select 
+                            <input
+                              type="text"
+                              className="input-field"
+                              value={editName}
+                              onChange={e => setEditName(e.target.value)}
+                              required
+                              style={{ padding: "0.25rem", width: "100%", minWidth: "120px" }}
+                            />
+                          </td>
+                          <td style={{ padding: "0.75rem 0.5rem" }}>
+                            <select
                               className="input-field" 
                               value={editRole} 
                               onChange={e => setEditRole(e.target.value)}
@@ -342,6 +365,7 @@ export default function Configurations() {
                         </>
                       ) : (
                         <>
+                          <td style={{ padding: "0.75rem 0.5rem" }}>{user.name || "-"}</td>
                           <td style={{ padding: "0.75rem 0.5rem" }}>
                             <span className="badge" style={{ backgroundColor: user.settings?.role === "admin" ? "#dcfce7" : "#f3f4f6", color: user.settings?.role === "admin" ? "#166534" : "#374151" }}>
                               {user.settings?.role === "admin" ? "Admin" : "Utilisateur"}
