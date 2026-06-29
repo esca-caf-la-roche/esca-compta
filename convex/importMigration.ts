@@ -374,7 +374,7 @@ export const runImport = internalAction({
     };
 
     // Diagnostic du mapping responsables
-    const responsibleReport = Object.entries(RESPONSIBLE_EMAIL).map(([uuid, email]) => ({
+    const responsibleReport = Object.values(RESPONSIBLE_EMAIL).map((email) => ({
       email,
       matched: emailToUser.has(email.toLowerCase()),
     }));
