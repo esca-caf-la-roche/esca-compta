@@ -35,3 +35,9 @@ audit_convex.md
 .agents/
 .claude/
 skills-lock.json
+
+# Projet de référence (suivi paiement - source Supabase)
+suivi-paiement-cours/
+
+# Sauvegardes Convex (exports de données)
+backups/

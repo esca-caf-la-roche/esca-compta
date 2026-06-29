@@ -6,8 +6,11 @@ import Dashboard from "./pages/Dashboard";
 import Compta from "./pages/Compta";
 import Previsionnel from "./pages/Previsionnel";
 import Configurations from "./pages/Configurations";
+import PaiementsLayout from "./pages/Paiements/Layout";
 import ValidationPaiements from "./pages/Paiements/Validation";
 import ConfigPaiements from "./pages/Paiements/Configurations";
+import ApprobationsPaiements from "./pages/Paiements/Approbations";
+import AttentePaiements from "./pages/Paiements/Attente";
 
 // Composant temporaire pour les routes non implémentées
 const Placeholder = ({ title }: { title: string }) => (
@@ -32,8 +35,12 @@ function App() {
               <Route path="/configurations" element={<Configurations />} />
               
               {/* Routes Paiements */}
-              <Route path="/paiements" element={<ValidationPaiements />} />
-              <Route path="/paiements/config" element={<ConfigPaiements />} />
+              <Route path="/paiements" element={<PaiementsLayout />}>
+                <Route index element={<ValidationPaiements />} />
+                <Route path="config" element={<ConfigPaiements />} />
+                <Route path="approbations" element={<ApprobationsPaiements />} />
+                <Route path="attente" element={<AttentePaiements />} />
+              </Route>
 
               <Route path="/adherents" element={<Placeholder title="Module Adhérents" />} />
               <Route path="/evenements" element={<Placeholder title="Module Événements" />} />
