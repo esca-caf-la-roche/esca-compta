@@ -322,7 +322,7 @@ async function fetchTable(
 
 export const runImport = internalAction({
   args: { dryRun: v.optional(v.boolean()) },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<any> => {
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const baseUrl = process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL;
     if (!key) {
