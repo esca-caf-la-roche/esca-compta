@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { Link } from "react-router-dom";
 import { api } from "../../../convex/_generated/api";
@@ -48,15 +48,16 @@ export default function MasseSalariale() {
 
   const isAdmin = userSettings?.role === "admin";
   const [reprise, setReprise] = useState(false);
+  const [autoSeason, setAutoSeason] = useState<string | null>(null);
 
-  const handleReprise = async () => {
+  const handleReprise = async (silent = false) => {
     setReprise(true);
     try {
       const res = await reprendreSaisonPrecedente({ saison: season });
-      alert(res.message);
+      if (!silent) alert(res.message);
     } catch (err: any) {
       console.error(err);
-      alert(err.message || "Erreur lors de la reprise de la saison précédente.");
+      if (!silent) alert(err.message || "Erreur lors de la reprise de la saison précédente.");
     } finally {
       setReprise(false);
     }
@@ -69,6 +70,23 @@ export default function MasseSalariale() {
   const params = data?.params;
   const salaries = useMemo(() => data?.salaries ?? [], [data]);
   const prevSalaries = useMemo(() => data?.prevSalaries ?? [], [data]);
+
+  // Saison dynamique : si la saison courante est vide mais que la précédente
+  // contient des moniteurs, on la peuple automatiquement (reprise silencieuse).
+  useEffect(() => {
+    if (
+      isAdmin &&
+      data !== undefined &&
+      salaries.length === 0 &&
+      prevSalaries.length > 0 &&
+      !reprise &&
+      autoSeason !== season
+    ) {
+      setAutoSeason(season);
+      void handleReprise(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, data, salaries.length, prevSalaries.length, season]);
 
   const toInput = (s: { nom: string; typeContrat: "CDII" | "CDI"; nbHeuresAnnuel: number; nbMois: number; tauxHoraireBrut: number }): SalaireInput => ({
     nom: s.nom, typeContrat: s.typeContrat, nbHeuresAnnuel: s.nbHeuresAnnuel, nbMois: s.nbMois, tauxHoraireBrut: s.tauxHoraireBrut,
@@ -182,6 +200,8 @@ export default function MasseSalariale() {
 
       {data === undefined ? (
         <div className="loading">Chargement des données...</div>
+      ) : reprise && salaries.length === 0 ? (
+        <div className="loading">Initialisation de la saison {season} depuis la précédente…</div>
       ) : salaries.length === 0 ? (
         <section className="card glass-card">
           <div className="empty-state" style={{ textAlign: "center" }}>
@@ -195,7 +215,7 @@ export default function MasseSalariale() {
                   ajustez les augmentations, ou ajoutez un moniteur manuellement.
                 </p>
                 <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
-                  <button className="btn-primary" style={{ width: "auto" }} onClick={handleReprise} disabled={reprise}>
+                  <button className="btn-primary" style={{ width: "auto" }} onClick={() => handleReprise()} disabled={reprise}>
                     <Plus size={16} style={{ verticalAlign: "middle", marginRight: "0.4rem" }} />
                     {reprise ? "Reprise..." : "Reprendre la saison précédente"}
                   </button>
