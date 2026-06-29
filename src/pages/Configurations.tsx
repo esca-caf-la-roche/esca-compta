@@ -2,8 +2,16 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Save, Star, Trash2, Users, Calendar, Shield, Edit2, X, Check, ArrowLeft } from "lucide-react";
+import { Save, Star, Trash2, Users, Calendar, Shield, Edit2, X, Check, ArrowLeft, Plus } from "lucide-react";
 import type { Id } from "../../convex/_generated/dataModel";
+
+/** Saison suivante au format "YYYY-YY" (ex: "2026-27" -> "2027-28"). */
+function nextSaisonLabel(noms: string[]): string | null {
+  const latest = noms.filter((n) => /^\d{4}-\d{2}$/.test(n)).sort((a, b) => b.localeCompare(a))[0];
+  if (!latest) return null;
+  const start = parseInt(latest.slice(0, 4), 10) + 1;
+  return `${start}-${((start + 1) % 100).toString().padStart(2, "0")}`;
+}
 
 export default function Configurations() {
   const [activeTab, setActiveTab] = useState<"saisons" | "utilisateurs">("saisons");
@@ -11,6 +19,7 @@ export default function Configurations() {
   // Saisons
   const saisons = useQuery(api.saisons.get);
   const createSaison = useMutation(api.saisons.create);
+  const createNextSaison = useMutation(api.saisons.createNext);
   const updateSaison = useMutation(api.saisons.update);
   const removeSaison = useMutation(api.saisons.remove);
   const [newSaisonName, setNewSaisonName] = useState("");
@@ -32,6 +41,19 @@ export default function Configurations() {
   const [editTiles, setEditTiles] = useState<string[]>([]);
 
   // Saisons handlers
+  const handleCreateNext = async () => {
+    setIsSubmittingSaison(true);
+    try {
+      const res = await createNextSaison({});
+      alert(`Saison ${res.nom} créée (${res.lignesReprises} moniteurs repris de la saison précédente).`);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Erreur lors de la création.");
+    } finally {
+      setIsSubmittingSaison(false);
+    }
+  };
+
   const handleAddSaison = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = newSaisonName.trim();
@@ -193,25 +215,48 @@ export default function Configurations() {
         <div className="tab-content fade-in">
           <div className="card glass-card" style={{ marginBottom: "2rem" }}>
             <h2 style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
-              <Calendar size={20} /> Ajouter une saison
+              <Calendar size={20} /> Ajouter la saison suivante
             </h2>
-            <form onSubmit={handleAddSaison} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              <div style={{ width: "100%" }}>
-                <label className="form-label">Nom de la saison (ex: 2027-28)</label>
-                <input
-                  type="text"
-                  className="input-field"
-                  placeholder="Ex: 2027-28"
-                  value={newSaisonName}
-                  onChange={e => setNewSaisonName(e.target.value)}
-                  required
-                  style={{ width: "100%" }}
-                />
-              </div>
-              <button type="submit" className="btn-primary" disabled={isSubmittingSaison} style={{ whiteSpace: "nowrap", alignSelf: "flex-start" }}>
-                <Save size={16} style={{ marginRight: "0.5rem" }} /> Ajouter
-              </button>
-            </form>
+            <p style={{ color: "#6b7280", marginBottom: "1rem", fontSize: "0.95rem" }}>
+              La nouvelle saison suit automatiquement la dernière (ex&nbsp;:
+              {saisons && nextSaisonLabel(saisons.map(s => s.nom)) ? ` ${nextSaisonLabel(saisons.map(s => s.nom))}` : ""})
+              et reprend les paramètres de paie et les moniteurs de la saison précédente
+              (vous ajusterez ensuite les augmentations dans le Budget).
+            </p>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={isSubmittingSaison || !saisons || saisons.length === 0}
+              onClick={handleCreateNext}
+              style={{ whiteSpace: "nowrap", alignSelf: "flex-start" }}
+            >
+              <Plus size={16} style={{ marginRight: "0.5rem" }} />
+              {saisons && nextSaisonLabel(saisons.map(s => s.nom))
+                ? `Créer la saison ${nextSaisonLabel(saisons.map(s => s.nom))}`
+                : "Créer la saison suivante"}
+            </button>
+
+            <details style={{ marginTop: "1.25rem" }}>
+              <summary style={{ cursor: "pointer", color: "#6b7280", fontSize: "0.9rem" }}>
+                Ajouter une saison avec un nom personnalisé
+              </summary>
+              <form onSubmit={handleAddSaison} style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "1rem" }}>
+                <div style={{ width: "100%" }}>
+                  <label className="form-label">Nom de la saison (ex: 2027-28)</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Ex: 2027-28"
+                    value={newSaisonName}
+                    onChange={e => setNewSaisonName(e.target.value)}
+                    style={{ width: "100%" }}
+                  />
+                </div>
+                <button type="submit" className="btn-secondary" disabled={isSubmittingSaison} style={{ whiteSpace: "nowrap", alignSelf: "flex-start" }}>
+                  <Save size={16} style={{ marginRight: "0.5rem" }} /> Ajouter
+                </button>
+              </form>
+            </details>
           </div>
 
           <div className="card glass-card">
