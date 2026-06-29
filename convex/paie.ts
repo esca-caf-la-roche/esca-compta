@@ -1,7 +1,9 @@
 import { authenticatedQuery as query, authenticatedMutation as mutation } from "./customFunctions";
+import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
+import { previousSaison } from "./saisonUtils";
 
 const typeContratValidator = v.union(v.literal("CDII"), v.literal("CDI"));
 
@@ -70,32 +72,46 @@ const DEFAULT_PARAMS = {
   cotisationsPatronales: DEFAULT_COTIS_PATRONALES,
 };
 
-// Salariés issus de l'Excel (valeurs vérifiées) pour l'initialisation.
-const SEED_SALARIES: Array<{
+// --- Données historiques réelles (source : Budget_Escalade / Salaire be.csv) ---
+// Pour les CDI, nbHeuresAnnuel = heures « budget » saisies ; la conversion en
+// heures réelles est faite au calcul (cf. heuresAnnuellesEffectives).
+
+const SEED_MONITEURS: Record<string, { typeContrat: "CDII" | "CDI"; ordre: number }> = {
+  "Clémentine": { typeContrat: "CDII", ordre: 0 },
+  "David": { typeContrat: "CDII", ordre: 1 },
+  "Raphaël": { typeContrat: "CDII", ordre: 2 },
+  "Stéphane": { typeContrat: "CDII", ordre: 3 },
+  "Nicolas": { typeContrat: "CDII", ordre: 4 },
+  "Jérôme": { typeContrat: "CDI", ordre: 5 },
+  "Hugo": { typeContrat: "CDI", ordre: 6 },
+  "Gael": { typeContrat: "CDI", ordre: 7 },
+};
+
+const SEED_LIGNES: Array<{
+  saison: string;
   nom: string;
-  typeContrat: "CDII" | "CDI";
   nbHeuresAnnuel: number;
   nbMois: number;
   tauxHoraireBrut: number;
-  augmentationPct: number;
+  augmentationPct: number | null;
 }> = [
-  { nom: "Clémentine", typeContrat: "CDII", nbHeuresAnnuel: 740, nbMois: 12, tauxHoraireBrut: 20.25, augmentationPct: 3 },
-  { nom: "David", typeContrat: "CDII", nbHeuresAnnuel: 280, nbMois: 12, tauxHoraireBrut: 22.61, augmentationPct: 3 },
-  { nom: "Raphaël", typeContrat: "CDII", nbHeuresAnnuel: 760, nbMois: 10, tauxHoraireBrut: 22.76, augmentationPct: 3 },
-  { nom: "Stéphane", typeContrat: "CDII", nbHeuresAnnuel: 280, nbMois: 12, tauxHoraireBrut: 20.25, augmentationPct: 3 },
-  { nom: "Nicolas", typeContrat: "CDII", nbHeuresAnnuel: 180, nbMois: 12, tauxHoraireBrut: 21.32, augmentationPct: 3 },
-  { nom: "Jérôme", typeContrat: "CDI", nbHeuresAnnuel: 1426.58, nbMois: 12, tauxHoraireBrut: 21.6, augmentationPct: 9.65 },
-  { nom: "Gael", typeContrat: "CDI", nbHeuresAnnuel: 1071.09, nbMois: 12, tauxHoraireBrut: 21.6, augmentationPct: 0 },
+  // Saison 2024-25 (augmentation vs 2023-24)
+  { saison: "2024-25", nom: "Clémentine", nbHeuresAnnuel: 740, nbMois: 12, tauxHoraireBrut: 19.665, augmentationPct: 3.5 },
+  { saison: "2024-25", nom: "David", nbHeuresAnnuel: 280, nbMois: 12, tauxHoraireBrut: 21.95235, augmentationPct: 3.5 },
+  { saison: "2024-25", nom: "Raphaël", nbHeuresAnnuel: 760, nbMois: 10, tauxHoraireBrut: 22.10082, augmentationPct: 4.2 },
+  { saison: "2024-25", nom: "Stéphane", nbHeuresAnnuel: 280, nbMois: 12, tauxHoraireBrut: 19.665, augmentationPct: 3.5 },
+  { saison: "2024-25", nom: "Nicolas", nbHeuresAnnuel: 180, nbMois: 12, tauxHoraireBrut: 20.7, augmentationPct: 3.5 },
+  { saison: "2024-25", nom: "Jérôme", nbHeuresAnnuel: 925, nbMois: 12, tauxHoraireBrut: 19.703, augmentationPct: 3.7 },
+  { saison: "2024-25", nom: "Hugo", nbHeuresAnnuel: 931, nbMois: 12, tauxHoraireBrut: 19.703, augmentationPct: 3.7 },
+  // Saison 2025-26 (augmentation vs 2024-25 ; Hugo parti, Gael arrivé)
+  { saison: "2025-26", nom: "Clémentine", nbHeuresAnnuel: 740, nbMois: 12, tauxHoraireBrut: 20.25, augmentationPct: 3 },
+  { saison: "2025-26", nom: "David", nbHeuresAnnuel: 280, nbMois: 12, tauxHoraireBrut: 22.61, augmentationPct: 3 },
+  { saison: "2025-26", nom: "Raphaël", nbHeuresAnnuel: 760, nbMois: 10, tauxHoraireBrut: 22.76, augmentationPct: 3 },
+  { saison: "2025-26", nom: "Stéphane", nbHeuresAnnuel: 280, nbMois: 12, tauxHoraireBrut: 20.25, augmentationPct: 3 },
+  { saison: "2025-26", nom: "Nicolas", nbHeuresAnnuel: 180, nbMois: 12, tauxHoraireBrut: 21.32, augmentationPct: 3 },
+  { saison: "2025-26", nom: "Jérôme", nbHeuresAnnuel: 1150, nbMois: 12, tauxHoraireBrut: 21.6, augmentationPct: 9.65 },
+  { saison: "2025-26", nom: "Gael", nbHeuresAnnuel: 515, nbMois: 12, tauxHoraireBrut: 21.6, augmentationPct: null },
 ];
-
-/** Saison précédente au format "YYYY-YY" (ex: "2025-26" -> "2024-25"). */
-function previousSaison(saison: string): string | null {
-  const m = saison.match(/^(\d{4})-(\d{2})$/);
-  if (!m) return null;
-  const start = parseInt(m[1], 10) - 1;
-  const end = (start + 1) % 100;
-  return `${start}-${end.toString().padStart(2, "0")}`;
-}
 
 export const getMasseSalariale = query({
   args: { saison: v.string() },
@@ -110,7 +126,7 @@ export const getMasseSalariale = query({
       .withIndex("by_saison", (q) => q.eq("saison", args.saison))
       .collect();
 
-    // Lignes de la saison précédente (pour calculer l'augmentation vs N-1).
+    // Saison précédente (augmentation vs N-1 + comparaison de coût) : lignes + paramètres.
     const prevSaison = previousSaison(args.saison);
     const prevLignes = prevSaison
       ? await ctx.db
@@ -118,85 +134,105 @@ export const getMasseSalariale = query({
           .withIndex("by_saison", (q) => q.eq("saison", prevSaison))
           .collect()
       : [];
-    const prevTauxBySalarie = new Map<string, number>();
-    for (const l of prevLignes) prevTauxBySalarie.set(l.salarieId, l.tauxHoraireBrut);
+    const prevParams = prevSaison
+      ? await ctx.db
+          .query("parametresPaie")
+          .withIndex("by_saison", (q) => q.eq("saison", prevSaison))
+          .first()
+      : null;
 
-    const salaries = await Promise.all(
-      lignes.map(async (ligne) => {
-        const salarie = await ctx.db.get(ligne.salarieId);
-        const tauxPrecedent = prevTauxBySalarie.get(ligne.salarieId) ?? null;
-        return {
-          ligneId: ligne._id,
-          salarieId: ligne.salarieId,
-          nom: salarie?.nom ?? "Inconnu",
-          typeContrat: salarie?.typeContrat ?? "CDII",
-          ordre: salarie?.ordre ?? 0,
-          nbHeuresAnnuel: ligne.nbHeuresAnnuel,
-          nbMois: ligne.nbMois,
-          tauxHoraireBrut: ligne.tauxHoraireBrut,
-          augmentationPct: ligne.augmentationPct ?? null,
-          actif: ligne.actif ?? true,
-          tauxPrecedent,
-        };
-      })
-    );
+    // Construit une ligne enrichie (avec les infos du salarié) réutilisable.
+    const toRow = async (ligne: (typeof lignes)[number]) => {
+      const salarie = await ctx.db.get(ligne.salarieId);
+      return {
+        ligneId: ligne._id,
+        salarieId: ligne.salarieId,
+        nom: salarie?.nom ?? "Inconnu",
+        typeContrat: salarie?.typeContrat ?? "CDII",
+        ordre: salarie?.ordre ?? 0,
+        nbHeuresAnnuel: ligne.nbHeuresAnnuel,
+        nbMois: ligne.nbMois,
+        tauxHoraireBrut: ligne.tauxHoraireBrut,
+        augmentationPct: ligne.augmentationPct ?? null,
+        actif: ligne.actif ?? true,
+      };
+    };
+
+    const prevSalaries = await Promise.all(prevLignes.map(toRow));
+    const prevBySalarie = new Map(prevSalaries.map((p) => [p.salarieId, p]));
+
+    const salaries = (await Promise.all(lignes.map(toRow))).map((row) => ({
+      ...row,
+      tauxPrecedent: prevBySalarie.get(row.salarieId)?.tauxHoraireBrut ?? null,
+    }));
 
     salaries.sort((a, b) => a.ordre - b.ordre || a.nom.localeCompare(b.nom));
+    prevSalaries.sort((a, b) => a.ordre - b.ordre || a.nom.localeCompare(b.nom));
 
-    return { params, salaries, prevSaison };
+    return { params, salaries, prevSalaries, prevParams, prevSaison };
   },
 });
 
-export const seedMasseSalariale = mutation({
-  args: { saison: v.string() },
-  handler: async (ctx, args) => {
-    await requireAdmin(ctx, ctx.userId);
+// Amorçage one-shot des données historiques réelles (2024-25 et 2025-26).
+// À lancer une fois via la CLI : `npx convex run paie:seedHistorique`
+// Idempotent : ne recrée pas une ligne déjà présente pour une saison donnée.
+export const seedHistorique = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const results: string[] = [];
+    const saisons = [...new Set(SEED_LIGNES.map((l) => l.saison))];
 
-    // Paramètres : créés seulement s'ils n'existent pas pour la saison.
-    const existingParams = await ctx.db
-      .query("parametresPaie")
-      .withIndex("by_saison", (q) => q.eq("saison", args.saison))
-      .first();
-    if (!existingParams) {
-      await ctx.db.insert("parametresPaie", { saison: args.saison, ...DEFAULT_PARAMS });
-    }
-
-    // Salariés + lignes de saison : on ne crée que ceux qui manquent.
-    const existingLignes = await ctx.db
-      .query("salairesSaison")
-      .withIndex("by_saison", (q) => q.eq("saison", args.saison))
-      .collect();
-    if (existingLignes.length > 0) {
-      return { created: 0, message: "Données déjà présentes pour cette saison." };
-    }
-
-    const allSalaries = await ctx.db.query("salaries").collect();
-    let created = 0;
-    for (let i = 0; i < SEED_SALARIES.length; i++) {
-      const s = SEED_SALARIES[i];
-      let salarie = allSalaries.find((x) => x.nom === s.nom);
-      let salarieId: Id<"salaries">;
-      if (salarie) {
-        salarieId = salarie._id;
-      } else {
-        salarieId = await ctx.db.insert("salaries", {
-          nom: s.nom,
-          typeContrat: s.typeContrat,
-          ordre: i,
-        });
+    // Paramètres de paie par défaut, par saison (si absents).
+    for (const saison of saisons) {
+      const existingParams = await ctx.db
+        .query("parametresPaie")
+        .withIndex("by_saison", (q) => q.eq("saison", saison))
+        .first();
+      if (!existingParams) {
+        await ctx.db.insert("parametresPaie", { saison, ...DEFAULT_PARAMS });
+        results.push(`Paramètres créés : ${saison}`);
       }
+    }
+
+    // Salariés (identité unique) + lignes de saison.
+    const allSalaries = await ctx.db.query("salaries").collect();
+    const salarieIdByNom = new Map<string, Id<"salaries">>(
+      allSalaries.map((s) => [s.nom, s._id])
+    );
+
+    for (const [nom, info] of Object.entries(SEED_MONITEURS)) {
+      if (!salarieIdByNom.has(nom)) {
+        const id = await ctx.db.insert("salaries", {
+          nom,
+          typeContrat: info.typeContrat,
+          ordre: info.ordre,
+        });
+        salarieIdByNom.set(nom, id);
+      }
+    }
+
+    let created = 0;
+    for (const l of SEED_LIGNES) {
+      const salarieId = salarieIdByNom.get(l.nom)!;
+      const exists = await ctx.db
+        .query("salairesSaison")
+        .withIndex("by_saison", (q) => q.eq("saison", l.saison))
+        .filter((q) => q.eq(q.field("salarieId"), salarieId))
+        .first();
+      if (exists) continue;
       await ctx.db.insert("salairesSaison", {
         salarieId,
-        saison: args.saison,
-        nbHeuresAnnuel: s.nbHeuresAnnuel,
-        nbMois: s.nbMois,
-        tauxHoraireBrut: s.tauxHoraireBrut,
-        augmentationPct: s.augmentationPct,
+        saison: l.saison,
+        nbHeuresAnnuel: l.nbHeuresAnnuel,
+        nbMois: l.nbMois,
+        tauxHoraireBrut: l.tauxHoraireBrut,
+        augmentationPct: l.augmentationPct ?? undefined,
         actif: true,
       });
       created++;
     }
-    return { created, message: `${created} salariés initialisés.` };
+    results.push(`${created} lignes de salaire créées.`);
+    return results;
   },
 });
 

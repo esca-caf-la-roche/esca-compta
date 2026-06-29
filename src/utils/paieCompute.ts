@@ -44,6 +44,7 @@ export interface LigneCotisation {
 
 export interface PaieResult {
   // Heures & taux
+  heuresAnnuelEffectif: number; // heures annuelles réelles (CDI : converties)
   heuresMensuel: number;
   tauxEffectif: number;
   // Construction du brut
@@ -66,6 +67,26 @@ export interface PaieResult {
 /** Arrondi à 2 décimales (comportement ROUND() d'Excel). */
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+// Pour les CDI, le nombre d'heures saisi (heures « budget ») est converti en
+// heures annuelles réelles via la formule de l'Excel :
+//   heures réelles = 151,67 × 12 × (heures saisies / 1582)
+// Les CDII utilisent les heures saisies telles quelles.
+const HEURES_MENSUELLES_LEGALES = 151.67;
+const HEURES_ANNUELLES_REFERENCE = 1582;
+
+/** Heures annuelles effectives utilisées pour le calcul de paie. */
+export function heuresAnnuellesEffectives(
+  typeContrat: TypeContrat,
+  nbHeuresAnnuel: number
+): number {
+  if (typeContrat === "CDI") {
+    return round2(
+      (HEURES_MENSUELLES_LEGALES * 12 * nbHeuresAnnuel) / HEURES_ANNUELLES_REFERENCE
+    );
+  }
+  return nbHeuresAnnuel;
 }
 
 function baseValue(base: BaseCotisation, brut: number): number {
@@ -93,7 +114,8 @@ export function computePaie(
   const simulationPct = opts.simulationPct ?? 0;
   const nbMois = input.nbMois || 1;
 
-  const heuresMensuel = round2(input.nbHeuresAnnuel / nbMois);
+  const heuresAnnuel = heuresAnnuellesEffectives(input.typeContrat, input.nbHeuresAnnuel);
+  const heuresMensuel = round2(heuresAnnuel / nbMois);
   const tauxEffectif = input.tauxHoraireBrut * (1 + simulationPct / 100);
   const salaire = round2(heuresMensuel * tauxEffectif);
 
@@ -139,6 +161,7 @@ export function computePaie(
   const coutAnnuel = round2(coutMensuel * nbMois);
 
   return {
+    heuresAnnuelEffectif: heuresAnnuel,
     heuresMensuel,
     tauxEffectif: round2(tauxEffectif),
     salaire,

@@ -41,3 +41,9 @@ suivi-paiement-cours/
 
 # Sauvegardes Convex (exports de données)
 backups/
+
+# Fichiers sources de données (budget / salaires)
+Salaire be.csv
+Budget_Escalade_2024-25.xlsx
+*.xlsx
+.~lock.*#

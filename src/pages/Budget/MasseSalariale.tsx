@@ -4,15 +4,35 @@ import { Link } from "react-router-dom";
 import { api } from "../../../convex/_generated/api";
 import {
   ArrowLeft, Plus, Edit2, Trash2, ChevronDown, ChevronRight,
-  Settings2, Database, TrendingUp,
+  Settings2, TrendingUp, ArrowUpRight, ArrowDownRight,
 } from "lucide-react";
 import { useSeason } from "../../contexts/SeasonContext";
 import {
   computePaie, computeTotaux,
-  type ParametresPaie, type SalaireInput,
+  type ParametresPaie, type SalaireInput, type PaieResult,
 } from "../../utils/paieCompute";
 import SalarieFormModal, { type SalarieRow } from "../../components/Budget/SalarieFormModal";
-import ParametresPaieModal from "../../components/Budget/ParametresPaieModal";
+
+/** Convertit les paramètres bruts (Convex) vers le type de calcul. */
+function toParametresPaie(params: {
+  margeSecurite: number; indemniteCpPct: number; mutuelleSalarie: number;
+  mutuelleEmployeur: number; primeEquipementAnnuelle: number; fraisBulletin: number;
+  cotisationsSalariales: Array<{ label: string; taux: number; base: string }>;
+  cotisationsPatronales: Array<{ label: string; taux: number }>;
+}): ParametresPaie {
+  return {
+    margeSecurite: params.margeSecurite,
+    indemniteCpPct: params.indemniteCpPct,
+    mutuelleSalarie: params.mutuelleSalarie,
+    mutuelleEmployeur: params.mutuelleEmployeur,
+    primeEquipementAnnuelle: params.primeEquipementAnnuelle,
+    fraisBulletin: params.fraisBulletin,
+    cotisationsSalariales: params.cotisationsSalariales.map((c) => ({
+      label: c.label, taux: c.taux, base: c.base as ParametresPaie["cotisationsSalariales"][number]["base"],
+    })),
+    cotisationsPatronales: params.cotisationsPatronales,
+  };
+}
 
 const eur = (n: number) =>
   n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
@@ -23,7 +43,6 @@ export default function MasseSalariale() {
   const { season } = useSeason();
   const data = useQuery(api.paie.getMasseSalariale, { saison: season });
   const userSettings = useQuery(api.users.getCurrentUserSettings);
-  const seed = useMutation(api.paie.seedMasseSalariale);
   const removeSalarie = useMutation(api.paie.removeSalarie);
 
   const isAdmin = userSettings?.role === "admin";
@@ -31,44 +50,27 @@ export default function MasseSalariale() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [isSalarieModalOpen, setIsSalarieModalOpen] = useState(false);
   const [salarieToEdit, setSalarieToEdit] = useState<SalarieRow | null>(null);
-  const [isParamsModalOpen, setIsParamsModalOpen] = useState(false);
-  const [seeding, setSeeding] = useState(false);
   const [simulationPct, setSimulationPct] = useState("");
 
   const params = data?.params;
   const salaries = useMemo(() => data?.salaries ?? [], [data]);
+  const prevSalaries = useMemo(() => data?.prevSalaries ?? [], [data]);
 
   const simPct = simulationPct ? parseFloat(simulationPct) || 0 : 0;
+
+  const toInput = (s: { nom: string; typeContrat: "CDII" | "CDI"; nbHeuresAnnuel: number; nbMois: number; tauxHoraireBrut: number }): SalaireInput => ({
+    nom: s.nom, typeContrat: s.typeContrat, nbHeuresAnnuel: s.nbHeuresAnnuel, nbMois: s.nbMois, tauxHoraireBrut: s.tauxHoraireBrut,
+  });
 
   // Calcul de paie (base + simulé) par salarié, via la fonction pure partagée.
   const rows = useMemo(() => {
     if (!params) return [];
-    const p: ParametresPaie = {
-      margeSecurite: params.margeSecurite,
-      indemniteCpPct: params.indemniteCpPct,
-      mutuelleSalarie: params.mutuelleSalarie,
-      mutuelleEmployeur: params.mutuelleEmployeur,
-      primeEquipementAnnuelle: params.primeEquipementAnnuelle,
-      fraisBulletin: params.fraisBulletin,
-      cotisationsSalariales: params.cotisationsSalariales.map((c) => ({
-        label: c.label, taux: c.taux, base: c.base as ParametresPaie["cotisationsSalariales"][number]["base"],
-      })),
-      cotisationsPatronales: params.cotisationsPatronales,
-    };
-    return salaries.map((s) => {
-      const input: SalaireInput = {
-        nom: s.nom,
-        typeContrat: s.typeContrat,
-        nbHeuresAnnuel: s.nbHeuresAnnuel,
-        nbMois: s.nbMois,
-        tauxHoraireBrut: s.tauxHoraireBrut,
-      };
-      return {
-        s,
-        base: computePaie(input, p),
-        sim: simPct ? computePaie(input, p, { simulationPct: simPct }) : null,
-      };
-    });
+    const p = toParametresPaie(params);
+    return salaries.map((s) => ({
+      s,
+      base: computePaie(toInput(s), p),
+      sim: simPct ? computePaie(toInput(s), p, { simulationPct: simPct }) : null,
+    }));
   }, [salaries, params, simPct]);
 
   const totaux = params ? computeTotaux(rows.map((r) => r.base), params.margeSecurite) : null;
@@ -76,25 +78,44 @@ export default function MasseSalariale() {
     params && simPct ? computeTotaux(rows.map((r) => r.sim ?? r.base), params.margeSecurite) : null;
   const surcout = totaux && totauxSim ? totauxSim.coutAnnuel - totaux.coutAnnuel : 0;
 
+  // Comparaison avec la saison précédente (effet augmentation + variation d'heures
+  // + arrivées/départs). Coût N-1 calculé avec les paramètres de la saison N-1.
+  const comparaison = useMemo(() => {
+    if (!params || prevSalaries.length === 0) return null;
+    const pN = toParametresPaie(params);
+    const pN1 = data?.prevParams ? toParametresPaie(data.prevParams) : pN;
+
+    const coutN = new Map<string, PaieResult>(
+      salaries.map((s) => [s.salarieId, computePaie(toInput(s), pN)])
+    );
+    const coutN1 = new Map<string, PaieResult>(
+      prevSalaries.map((s) => [s.salarieId, computePaie(toInput(s), pN1)])
+    );
+
+    const byId = new Map<string, { nom: string; typeContrat: "CDII" | "CDI"; ordre: number }>();
+    for (const s of prevSalaries) byId.set(s.salarieId, s);
+    for (const s of salaries) byId.set(s.salarieId, s);
+
+    const lignes = [...byId.entries()].map(([id, s]) => {
+      const cN = coutN.get(id)?.coutAnnuel ?? null;
+      const cN1 = coutN1.get(id)?.coutAnnuel ?? null;
+      const statut = cN1 == null ? "arrivee" : cN == null ? "depart" : "present";
+      const delta = (cN ?? 0) - (cN1 ?? 0);
+      return { id, nom: s.nom, typeContrat: s.typeContrat, ordre: s.ordre, coutN: cN, coutN1: cN1, delta, statut };
+    });
+    lignes.sort((a, b) => a.ordre - b.ordre || a.nom.localeCompare(b.nom));
+
+    const totalN = lignes.reduce((acc, l) => acc + (l.coutN ?? 0), 0);
+    const totalN1 = lignes.reduce((acc, l) => acc + (l.coutN1 ?? 0), 0);
+    return { lignes, totalN, totalN1, totalDelta: totalN - totalN1 };
+  }, [salaries, prevSalaries, params, data]);
+
   const toggleExpanded = (id: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-  };
-
-  const handleSeed = async () => {
-    setSeeding(true);
-    try {
-      const res = await seed({ saison: season });
-      alert(res.message);
-    } catch (err: any) {
-      console.error(err);
-      alert(err.message || "Erreur lors de l'initialisation.");
-    } finally {
-      setSeeding(false);
-    }
   };
 
   const handleDelete = async (s: SalarieRow) => {
@@ -136,10 +157,10 @@ export default function MasseSalariale() {
         </div>
         {isAdmin && salaries.length > 0 && (
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-            <button className="btn-secondary" style={{ width: "auto" }} onClick={() => setIsParamsModalOpen(true)}>
+            <Link to="/configurations" className="btn-secondary" style={{ width: "auto", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
               <Settings2 size={16} style={{ verticalAlign: "middle", marginRight: "0.4rem" }} />
               Paramètres
-            </button>
+            </Link>
             <button className="btn-primary" style={{ width: "auto" }} onClick={openNew}>
               <Plus size={18} style={{ verticalAlign: "middle", marginRight: "0.4rem" }} />
               Salarié
@@ -157,11 +178,11 @@ export default function MasseSalariale() {
               Aucune donnée de masse salariale pour la saison <strong>{season}</strong>.
             </p>
             {isAdmin ? (
-              <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
-                <button className="btn-primary" style={{ width: "auto" }} onClick={handleSeed} disabled={seeding}>
-                  <Database size={16} style={{ verticalAlign: "middle", marginRight: "0.4rem" }} />
-                  {seeding ? "Initialisation..." : "Initialiser depuis l'Excel"}
-                </button>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", alignItems: "center" }}>
+                <p style={{ color: "#6b7280", maxWidth: "520px" }}>
+                  Créez cette saison depuis <Link to="/configurations">Configurations → Saisons</Link>{" "}
+                  (elle reprendra les moniteurs de la saison précédente), ou ajoutez un moniteur manuellement.
+                </p>
                 <button className="btn-secondary" style={{ width: "auto" }} onClick={openNew}>
                   <Plus size={16} style={{ verticalAlign: "middle", marginRight: "0.4rem" }} />
                   Ajouter manuellement
@@ -284,6 +305,11 @@ export default function MasseSalariale() {
                         </td>
                         <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">
                           {s.nbHeuresAnnuel.toLocaleString("fr-FR")}
+                          {s.typeContrat === "CDI" && (
+                            <span style={{ color: "#9ca3af", fontSize: "0.8rem" }} title="Heures réelles (151,67 × 12 × h / 1582)">
+                              {" "}→ {base.heuresAnnuelEffectif.toLocaleString("fr-FR")} réelles
+                            </span>
+                          )}
                           <span style={{ color: "#9ca3af", fontSize: "0.8rem" }}> ({base.heuresMensuel.toLocaleString("fr-FR")}/mois)</span>
                         </td>
                         <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">
@@ -357,6 +383,77 @@ export default function MasseSalariale() {
               </tfoot>
             </table>
           </section>
+
+          {/* Évolution vs saison précédente */}
+          {comparaison && (
+            <section className="card glass-card" style={{ marginTop: "2rem", overflowX: "auto" }}>
+              <h2 style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+                <TrendingUp size={20} /> Évolution vs saison {data!.prevSaison}
+              </h2>
+              <p style={{ color: "#6b7280", marginBottom: "1rem", fontSize: "0.9rem" }}>
+                Effet combiné des augmentations de taux, des variations d'heures et des
+                arrivées / départs de moniteurs.
+              </p>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "640px" }}>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid #e5e7eb", textAlign: "left" }}>
+                    <th style={{ padding: "0.6rem 0.5rem" }}>Salarié</th>
+                    <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Coût {data!.prevSaison}</th>
+                    <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Coût {season}</th>
+                    <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Variation</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {comparaison.lignes.map((l) => (
+                    <tr key={l.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                      <td style={{ padding: "0.6rem 0.5rem" }}>
+                        <strong>{l.nom}</strong>
+                        <span className="badge" style={{ marginLeft: "0.5rem", fontSize: "0.7rem", backgroundColor: "#e0f2fe", color: "#075985" }}>
+                          {l.typeContrat}
+                        </span>
+                        {l.statut === "arrivee" && (
+                          <span className="badge" style={{ marginLeft: "0.4rem", fontSize: "0.7rem", backgroundColor: "#dcfce7", color: "#166534", display: "inline-flex", alignItems: "center", gap: "0.2rem" }}>
+                            <ArrowUpRight size={12} /> Arrivée
+                          </span>
+                        )}
+                        {l.statut === "depart" && (
+                          <span className="badge" style={{ marginLeft: "0.4rem", fontSize: "0.7rem", backgroundColor: "#fee2e2", color: "#991b1b", display: "inline-flex", alignItems: "center", gap: "0.2rem" }}>
+                            <ArrowDownRight size={12} /> Départ
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">
+                        {l.coutN1 == null ? "—" : eur0(l.coutN1)}
+                      </td>
+                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">
+                        {l.coutN == null ? "—" : eur0(l.coutN)}
+                      </td>
+                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right", fontWeight: "bold" }} className="font-mono">
+                        <span style={{ color: l.delta >= 0 ? "#b91c1c" : "#15803d" }}>
+                          {l.delta >= 0 ? "+ " : "- "}{eur0(Math.abs(l.delta))}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{ borderTop: "2px solid #e5e7eb", fontWeight: "bold" }}>
+                    <td style={{ padding: "0.75rem 0.5rem" }}>Total</td>
+                    <td style={{ padding: "0.75rem 0.5rem", textAlign: "right" }} className="font-mono">{eur0(comparaison.totalN1)}</td>
+                    <td style={{ padding: "0.75rem 0.5rem", textAlign: "right" }} className="font-mono">{eur0(comparaison.totalN)}</td>
+                    <td style={{ padding: "0.75rem 0.5rem", textAlign: "right" }} className="font-mono">
+                      <span style={{ color: comparaison.totalDelta >= 0 ? "#b91c1c" : "#15803d" }}>
+                        {comparaison.totalDelta >= 0 ? "+ " : "- "}{eur0(Math.abs(comparaison.totalDelta))}
+                        <span style={{ color: "#6b7280", fontWeight: "normal", marginLeft: "0.4rem" }}>
+                          ({comparaison.totalN1 > 0 ? ((comparaison.totalDelta / comparaison.totalN1) * 100).toFixed(1) : "0"} %)
+                        </span>
+                      </span>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </section>
+          )}
         </>
       )}
 
@@ -365,22 +462,6 @@ export default function MasseSalariale() {
         onClose={() => setIsSalarieModalOpen(false)}
         salarieToEdit={salarieToEdit}
       />
-      {params && (
-        <ParametresPaieModal
-          isOpen={isParamsModalOpen}
-          onClose={() => setIsParamsModalOpen(false)}
-          params={{
-            margeSecurite: params.margeSecurite,
-            indemniteCpPct: params.indemniteCpPct,
-            mutuelleSalarie: params.mutuelleSalarie,
-            mutuelleEmployeur: params.mutuelleEmployeur,
-            primeEquipementAnnuelle: params.primeEquipementAnnuelle,
-            fraisBulletin: params.fraisBulletin,
-            cotisationsSalariales: params.cotisationsSalariales,
-            cotisationsPatronales: params.cotisationsPatronales,
-          }}
-        />
-      )}
     </div>
   );
 }
