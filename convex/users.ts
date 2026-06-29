@@ -85,7 +85,7 @@ export const addUser = authenticatedMutation({
     
     await ctx.db.insert("userSettings", {
       userId: newUserId,
-      allowedTiles: ["compta"],
+      allowedTiles: ["compta", "paiements", "budget"],
       role: "user"
     });
     
