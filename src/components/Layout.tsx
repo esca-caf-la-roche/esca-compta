@@ -1,4 +1,4 @@
-import { Outlet, Navigate } from "react-router-dom";
+import { Outlet, Navigate, useLocation } from "react-router-dom";
 import { useConvexAuth } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useSeason } from "../contexts/SeasonContext";
@@ -8,6 +8,11 @@ export default function Layout() {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const { signOut } = useAuthActions();
   const { season, setSeason, availableSeasons } = useSeason();
+  const location = useLocation();
+
+  // La partie Paiements ne fonctionne pas avec les saisons :
+  // on masque le sélecteur de saison sur ces écrans.
+  const showSeasonSelector = !location.pathname.startsWith("/paiements");
 
   if (isLoading) {
     return <div className="loading-screen">Chargement...</div>;
@@ -25,22 +30,24 @@ export default function Layout() {
         </div>
         
         <div className="header-controls">
-          <div className="season-selector">
-            <label htmlFor="season">Saison :</label>
-            <select
-              id="season"
-              value={season}
-              onChange={(e) => setSeason(e.target.value)}
-              className="season-dropdown"
-            >
-              {availableSeasons.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button 
+          {showSeasonSelector && (
+            <div className="season-selector">
+              <label htmlFor="season">Saison :</label>
+              <select
+                id="season"
+                value={season}
+                onChange={(e) => setSeason(e.target.value)}
+                className="season-dropdown"
+              >
+                {availableSeasons.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <button
             onClick={() => void signOut()} className="btn-logout" aria-label="Se déconnecter">
             <LogOut size={20} />
           </button>

@@ -704,6 +704,25 @@ h1, h2, h3 {
 }
 
 @media (max-width: 768px) {
+  .main-header {
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 1rem;
+  }
+  .logo-text {
+    font-size: 1.15rem;
+  }
+  .header-controls {
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .season-selector {
+    flex: 1 1 auto;
+  }
+  .season-dropdown {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
   .tiles-grid {
     grid-template-columns: 1fr !important;
     gap: 1rem !important;

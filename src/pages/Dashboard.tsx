@@ -42,7 +42,7 @@ export default function Dashboard() {
           
           {(userSettings.role === "admin" || userSettings.allowedTiles?.includes("paiements")) && (
             <Tile
-              title="Paiements Escalade"
+              title="Paiement des cours"
               description="Suivi des paiements pour les cours d'escalade."
               icon={CreditCard}
               to="/paiements"
