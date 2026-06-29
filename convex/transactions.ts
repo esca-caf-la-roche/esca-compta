@@ -10,23 +10,57 @@ function normalizeStr(s: string) {
 
 // Lire les statistiques et filtres uniques pour une saison
 export const getStats = query({
-  args: { saison: v.string() },
+  args: {
+    saison: v.string(),
+    filterTiersId: v.optional(v.string()),
+    filterAnalytiqueId: v.optional(v.string()),
+    searchQuery: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const transactions = await ctx.db
       .query("transactions")
       .withIndex("by_saison", (q) => q.eq("saison", args.saison))
       .collect();
 
-    let recettes = 0;
-    let depenses = 0;
+    // Les listes déroulantes restent calculées sur TOUTE la saison
+    // (sinon les options disparaîtraient une fois un filtre appliqué).
     const tiersIds = new Set<Id<"tiers">>();
     const analytiqueIds = new Set<Id<"analytiques">>();
-
     for (const t of transactions) {
-      if (t.realise >= 0) recettes += t.realise;
-      else depenses += Math.abs(t.realise);
       tiersIds.add(t.tiersId as Id<"tiers">);
       analytiqueIds.add(t.analytiqueId as Id<"analytiques">);
+    }
+
+    // Les totaux (recettes / dépenses / solde) sont calculés sur le sous-ensemble filtré.
+    const searchStr =
+      args.searchQuery && args.searchQuery.trim() !== ""
+        ? normalizeStr(args.searchQuery.trim())
+        : null;
+
+    let recettes = 0;
+    let depenses = 0;
+    for (const t of transactions) {
+      if (
+        args.filterTiersId &&
+        args.filterTiersId !== "Tous" &&
+        t.tiersId !== args.filterTiersId
+      )
+        continue;
+      if (
+        args.filterAnalytiqueId &&
+        args.filterAnalytiqueId !== "Tous" &&
+        t.analytiqueId !== args.filterAnalytiqueId
+      )
+        continue;
+      if (
+        searchStr &&
+        !normalizeStr(t.nom).includes(searchStr) &&
+        !(t.commentaires && normalizeStr(t.commentaires).includes(searchStr))
+      )
+        continue;
+
+      if (t.realise >= 0) recettes += t.realise;
+      else depenses += Math.abs(t.realise);
     }
 
     const uniqueTiers = await Promise.all(

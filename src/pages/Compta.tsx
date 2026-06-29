@@ -44,8 +44,13 @@ export default function Compta() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Requête des statistiques serveur
-  const statsQuery = useQuery(api.transactions.getStats, { saison: season });
+  // Requête des statistiques serveur (totaux recalculés selon les filtres)
+  const statsQuery = useQuery(api.transactions.getStats, {
+    saison: season,
+    filterTiersId: filterTiers,
+    filterAnalytiqueId: filterAnalytique,
+    searchQuery: debouncedSearchQuery,
+  });
   
   // Requête paginée avec filtres délégués au backend
   const { results: transactions, status, loadMore } = usePaginatedQuery(
@@ -90,7 +95,7 @@ export default function Compta() {
     }
   };
 
-  // Calcul des statistiques pour les KPI basées sur TOUTES les transactions de la saison (Serveur)
+  // Statistiques KPI calculées côté serveur sur les transactions filtrées
   const stats = statsQuery?.stats || { recettes: 0, depenses: 0, soldeNet: 0 };
   const soldeNet = stats.soldeNet;
 
