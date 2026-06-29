@@ -3,7 +3,7 @@ import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
-import { previousSaison } from "./saisonUtils";
+import { previousSaison, nextSaison } from "./saisonUtils";
 
 const typeContratValidator = v.union(v.literal("CDII"), v.literal("CDI"));
 
@@ -235,6 +235,35 @@ async function tauxSaisonPrecedente(
   return ligne?.tauxHoraireBrut ?? null;
 }
 
+/** Propage un changement de taux aux saisons suivantes du même moniteur :
+ *  taux(N+1) = taux(N) × (1 + augmentation(N+1)). S'arrête dès qu'une saison
+ *  suivante est absente ou a un taux d'entrée (pas d'augmentation). */
+async function cascadeTaux(
+  ctx: MutationCtx,
+  salarieId: Id<"salaries">,
+  saison: string,
+  tauxSaison: number
+): Promise<void> {
+  let currentSaison = saison;
+  let currentTaux = tauxSaison;
+  for (let i = 0; i < 50; i++) {
+    const next = nextSaison(currentSaison);
+    if (!next) break;
+    const ligne = await ctx.db
+      .query("salairesSaison")
+      .withIndex("by_saison", (q) => q.eq("saison", next))
+      .filter((q) => q.eq(q.field("salarieId"), salarieId))
+      .first();
+    if (!ligne || ligne.augmentationPct == null) break; // taux d'entrée / absent → stop
+    const nouveauTaux = deriveTaux(currentTaux, ligne.augmentationPct);
+    if (nouveauTaux !== ligne.tauxHoraireBrut) {
+      await ctx.db.patch(ligne._id, { tauxHoraireBrut: nouveauTaux });
+    }
+    currentSaison = next;
+    currentTaux = nouveauTaux;
+  }
+}
+
 // Amorçage one-shot des données historiques réelles (2023-24 → 2025-26).
 // À lancer une fois via la CLI : `npx convex run paie:seedHistorique`
 // Idempotent : ne recrée pas une ligne déjà présente pour une saison donnée.
@@ -394,6 +423,11 @@ export const updateSalarie = mutation({
 
     if (Object.keys(ligneUpdates).length > 0) {
       await ctx.db.patch(args.ligneId, ligneUpdates);
+    }
+
+    // Si le taux a changé, propage aux saisons suivantes du moniteur.
+    if (ligneUpdates.tauxHoraireBrut !== undefined) {
+      await cascadeTaux(ctx, args.salarieId, ligne.saison, ligneUpdates.tauxHoraireBrut as number);
     }
   },
 });

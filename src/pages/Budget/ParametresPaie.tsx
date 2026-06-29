@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { ArrowLeft, Wallet, Plus, Calendar } from "lucide-react";
+import { useSeason } from "../../contexts/SeasonContext";
 import ParametresPaieForm from "../../components/Budget/ParametresPaieForm";
 
 /** Saison suivante au format "YYYY-YY" (affichage du bouton). */
@@ -13,31 +14,23 @@ function nextSaisonLabel(noms: string[]): string | null {
   return `${start}-${((start + 1) % 100).toString().padStart(2, "0")}`;
 }
 
-/** Page de configuration de la paie, PAR SAISON, propre au module Budget. */
+/** Page de configuration de la paie, propre au module Budget.
+ *  Utilise la saison sélectionnée dans le header (pas de second sélecteur). */
 export default function ParametresPaie() {
-  const saisons = useQuery(api.saisons.get);
+  const { season, setSeason, availableSeasons } = useSeason();
   const userSettings = useQuery(api.users.getCurrentUserSettings);
   const createNext = useMutation(api.saisons.createNext);
   const isAdmin = userSettings?.role === "admin";
 
-  const [saison, setSaison] = useState<string>("");
   const [creating, setCreating] = useState(false);
 
-  const data = useQuery(api.paie.getMasseSalariale, saison ? { saison } : "skip");
-
-  // Saison par défaut = saison "par défaut" (ou la plus récente).
-  useEffect(() => {
-    if (!saison && saisons && saisons.length > 0) {
-      const def = saisons.find((s) => s.isDefault) ?? saisons[0];
-      setSaison(def.nom);
-    }
-  }, [saisons, saison]);
+  const data = useQuery(api.paie.getMasseSalariale, { saison: season });
 
   const handleCreateNext = async () => {
     setCreating(true);
     try {
       const res = await createNext({});
-      setSaison(res.nom);
+      setSeason(res.nom);
       alert(`Saison ${res.nom} ajoutée (${res.lignesReprises} moniteurs repris).`);
     } catch (err: any) {
       console.error(err);
@@ -47,7 +40,7 @@ export default function ParametresPaie() {
     }
   };
 
-  const prochaine = saisons ? nextSaisonLabel(saisons.map((s) => s.nom)) : null;
+  const prochaine = nextSaisonLabel(availableSeasons);
 
   return (
     <div className="compta-page fade-in" style={{ padding: "2rem", maxWidth: "1000px", margin: "0 auto" }}>
@@ -56,9 +49,9 @@ export default function ParametresPaie() {
           <ArrowLeft size={16} /> Retour à la masse salariale
         </Link>
         <h1 style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <Wallet size={24} /> Paramètres de paie
+          <Wallet size={24} /> Paramètres de paie — {season}
         </h1>
-        <p className="subtitle">Cotisations, marges et frais — configurables par saison.</p>
+        <p className="subtitle">Cotisations, marges et frais de la saison {season} (sélectionnée en haut).</p>
       </header>
 
       {!isAdmin ? (
@@ -70,27 +63,16 @@ export default function ParametresPaie() {
       ) : (
         <>
           <section className="card glass-card" style={{ marginBottom: "1.5rem", display: "flex", flexWrap: "wrap", gap: "1rem", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <label className="form-label" htmlFor="saison" style={{ margin: 0 }}>Saison</label>
-              <select
-                id="saison"
-                className="input-field"
-                value={saison}
-                onChange={(e) => setSaison(e.target.value)}
-                style={{ width: "auto" }}
-              >
-                {(saisons ?? []).map((s) => (
-                  <option key={s._id} value={s.nom}>{s.nom}</option>
-                ))}
-              </select>
-            </div>
+            <p style={{ margin: 0, color: "#6b7280" }}>
+              Besoin d'une nouvelle saison ? Elle reprend automatiquement les paramètres
+              et moniteurs de la dernière saison.
+            </p>
             <button
               type="button"
               className="btn-secondary"
-              disabled={creating || !saisons || saisons.length === 0}
+              disabled={creating || availableSeasons.length === 0}
               onClick={handleCreateNext}
               style={{ width: "auto", display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
-              title="Crée la saison suivante en reprenant les paramètres et moniteurs de la dernière saison"
             >
               <Plus size={16} />
               {prochaine ? `Créer la saison ${prochaine}` : "Créer la saison suivante"}
@@ -99,19 +81,19 @@ export default function ParametresPaie() {
 
           <section className="card glass-card">
             <h2 style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1.5rem" }}>
-              <Calendar size={20} /> Saison {saison}
+              <Calendar size={20} /> Saison {season}
             </h2>
-            {!saison || data === undefined ? (
+            {data === undefined ? (
               <div>Chargement...</div>
             ) : !data.params ? (
               <p style={{ color: "#9ca3af", fontStyle: "italic" }}>
-                Aucun paramètre pour la saison {saison}. Crée la saison (bouton ci-dessus)
-                pour reprendre les paramètres de la saison précédente.
+                Aucun paramètre pour la saison {season}. Crée la saison (bouton ci-dessus)
+                ou reprends la saison précédente depuis la masse salariale.
               </p>
             ) : (
               <ParametresPaieForm
-                key={saison}
-                saison={saison}
+                key={season}
+                saison={season}
                 params={{
                   margeSecurite: data.params.margeSecurite,
                   indemniteCpPct: data.params.indemniteCpPct,
