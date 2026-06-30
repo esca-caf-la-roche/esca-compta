@@ -317,10 +317,8 @@ export default function MasseSalariale() {
                 {salaries.map((s) => (
                   <tr key={s.ligneId} style={{ borderBottom: "1px solid #f0f0f0" }}>
                     <td style={{ padding: "0.6rem 0.5rem" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <strong>{s.nom}</strong>
-                        <ContratBadge type={s.typeContrat} />
-                      </div>
+                      <div><strong>{s.nom}</strong></div>
+                      <div style={{ marginTop: "0.2rem" }}><ContratBadge type={s.typeContrat} /></div>
                     </td>
                     <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">{eur(s.tauxHoraireBrut)}</td>
                     {isAdmin && (
@@ -385,10 +383,8 @@ export default function MasseSalariale() {
                           </button>
                         </td>
                         <td style={{ padding: "0.6rem 0.5rem" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                            <strong>{s.nom}</strong>
-                            <ContratBadge type={s.typeContrat} />
-                          </div>
+                          <div><strong>{s.nom}</strong></div>
+                          <div style={{ marginTop: "0.2rem" }}><ContratBadge type={s.typeContrat} /></div>
                         </td>
                         <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>
                           <div className="font-mono">
@@ -501,11 +497,19 @@ export default function MasseSalariale() {
                   {comparaison.lignes.map((l) => (
                     <tr key={l.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
                       <td style={{ padding: "0.6rem 0.5rem" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
-                          <strong>{l.nom}</strong>
+                        <div><strong>{l.nom}</strong></div>
+                        <div style={{ display: "flex", gap: "0.3rem", marginTop: "0.2rem", flexWrap: "wrap" }}>
                           <ContratBadge type={l.typeContrat} />
-                          {l.statut === "arrivee" && <ArrowUpRight size={15} style={{ color: "#16a34a", flexShrink: 0 }} />}
-                          {l.statut === "depart" && <ArrowDownRight size={15} style={{ color: "#dc2626", flexShrink: 0 }} />}
+                          {l.statut === "arrivee" && (
+                            <span className="badge" style={{ fontSize: "0.7rem", backgroundColor: "#dcfce7", color: "#166534", display: "inline-flex", alignItems: "center", gap: "0.2rem" }}>
+                              <ArrowUpRight size={11} /> Arrivée
+                            </span>
+                          )}
+                          {l.statut === "depart" && (
+                            <span className="badge" style={{ fontSize: "0.7rem", backgroundColor: "#fee2e2", color: "#991b1b", display: "inline-flex", alignItems: "center", gap: "0.2rem" }}>
+                              <ArrowDownRight size={11} /> Départ
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">
