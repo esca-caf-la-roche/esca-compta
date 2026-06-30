@@ -2,6 +2,7 @@ import { Migrations } from "@convex-dev/migrations";
 import { components } from "./_generated/api";
 import type { DataModel } from "./_generated/dataModel";
 import { authenticatedMutation as mutation } from "./customFunctions";
+import { internalMutation } from "./_generated/server";
 
 export const migrations = new Migrations<DataModel>(components.migrations);
 
@@ -46,6 +47,46 @@ export const migrateTypesDocuments = migrations.define({
         typeDocumentId: newTypeId,
       });
     }
+  },
+});
+
+/**
+ * Backfill ponctuel : convertit l'ancien champ `categorie` ("loisir"/"competition")
+ * en booléen `competition` (cours + heures supplémentaires des salariés), puis
+ * supprime `categorie`. À exécuter une fois entre le déploiement « widen » (schéma
+ * avec les deux champs) et le « narrow » (schéma sans `categorie`) :
+ *   npx convex run migrations:migrateCompetition --prod
+ */
+export const migrateCompetition = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let cours = 0;
+    let lignes = 0;
+
+    for (const c of await ctx.db.query("cours").collect()) {
+      if (c.categorie !== undefined) {
+        await ctx.db.patch(c._id, {
+          competition: c.categorie === "competition",
+          categorie: undefined,
+        });
+        cours++;
+      }
+    }
+
+    for (const l of await ctx.db.query("salairesSaison").collect()) {
+      if (l.heuresSup && l.heuresSup.some((h) => h.categorie !== undefined)) {
+        await ctx.db.patch(l._id, {
+          heuresSup: l.heuresSup.map((h) => ({
+            designation: h.designation,
+            nbHeures: h.nbHeures,
+            competition: h.competition ?? h.categorie === "competition",
+          })),
+        });
+        lignes++;
+      }
+    }
+
+    return { cours, lignes };
   },
 });
 
