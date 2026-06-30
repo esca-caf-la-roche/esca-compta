@@ -12,6 +12,7 @@ import {
   type ParametresPaie, type SalaireInput, type PaieResult,
 } from "../../utils/paieCompute";
 import SalarieFormModal, { type SalarieRow } from "../../components/Budget/SalarieFormModal";
+import PlanningCours from "./PlanningCours";
 
 /** Convertit les paramètres bruts (Convex) vers le type de calcul. */
 function toParametresPaie(params: {
@@ -66,6 +67,7 @@ export default function MasseSalariale() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [isSalarieModalOpen, setIsSalarieModalOpen] = useState(false);
   const [salarieToEdit, setSalarieToEdit] = useState<SalarieRow | null>(null);
+  const [tab, setTab] = useState<"masse" | "planning">("masse");
 
   const params = data?.params;
   const salaries = useMemo(() => data?.salaries ?? [], [data]);
@@ -181,10 +183,10 @@ export default function MasseSalariale() {
           <Link to="/" className="back-link">
             <ArrowLeft size={16} /> Retour au tableau de bord
           </Link>
-          <h1>Budget prévisionnel — Masse salariale</h1>
-          <p className="subtitle">Coût employeur par salarié · saison {season}</p>
+          <h1>Budget prévisionnel</h1>
+          <p className="subtitle">Masse salariale & planning des cours · saison {season}</p>
         </div>
-        {isAdmin && salaries.length > 0 && (
+        {tab === "masse" && isAdmin && salaries.length > 0 && (
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
             <Link to="/budget/parametres" className="btn-secondary" style={{ width: "auto", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
               <Settings2 size={16} style={{ verticalAlign: "middle", marginRight: "0.4rem" }} />
@@ -198,7 +200,35 @@ export default function MasseSalariale() {
         )}
       </header>
 
-      {data === undefined ? (
+      {/* Onglets : masse salariale / planning des cours */}
+      <div style={{ display: "flex", gap: "0.5rem", borderBottom: "2px solid #e5e7eb", marginBottom: "1.5rem" }}>
+        {([
+          { id: "masse", label: "Masse salariale" },
+          { id: "planning", label: "Planning des cours" },
+        ] as const).map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "0.6rem 1rem",
+              fontSize: "0.95rem",
+              fontWeight: tab === t.id ? 700 : 500,
+              color: tab === t.id ? "#2563eb" : "#6b7280",
+              borderBottom: tab === t.id ? "2px solid #2563eb" : "2px solid transparent",
+              marginBottom: "-2px",
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "planning" ? (
+        <PlanningCours isAdmin={isAdmin} />
+      ) : data === undefined ? (
         <div className="loading">Chargement des données...</div>
       ) : reprise && salaries.length === 0 ? (
         <div className="loading">Initialisation de la saison {season} depuis la précédente…</div>

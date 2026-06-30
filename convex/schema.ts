@@ -52,6 +52,30 @@ export default defineSchema({
     .index("by_saison", ["saison"])
     .index("by_salarie", ["salarieId"]),
 
+  // Cours du club (planning) rattachés à un moniteur de la masse salariale.
+  // Chaque cours contient une ou plusieurs séances hebdomadaires (jour + horaire +
+  // durée propre). Les heures annuelles d'un moniteur sont déduites du planning
+  // (Σ durées × nb semaines) et comparées aux heures saisies dans la masse salariale.
+  cours: defineTable({
+    saison: v.string(),
+    nom: v.string(),
+    tarifAnnuel: v.number(),
+    lienPaiementCB: v.optional(v.string()),
+    nbElevesMax: v.number(),
+    nbSemaines: v.number(),
+    salarieId: v.id("salaries"), // moniteur (masse salariale)
+    seances: v.array(
+      v.object({
+        jour: v.number(), // 0 = Lundi … 6 = Dimanche
+        heureDebut: v.string(), // "18:30"
+        dureeHeures: v.number(), // 1.5
+      })
+    ),
+    ordre: v.optional(v.number()),
+  })
+    .index("by_saison", ["saison"])
+    .index("by_salarie", ["salarieId"]),
+
   // Paramètres globaux de paie (cotisations, marges…) par saison.
   parametresPaie: defineTable({
     saison: v.string(),

@@ -11,6 +11,7 @@
 import type * as analytiques from "../analytiques.js";
 import type * as auth from "../auth.js";
 import type * as bootstrap from "../bootstrap.js";
+import type * as cours from "../cours.js";
 import type * as customFunctions from "../customFunctions.js";
 import type * as drive from "../drive.js";
 import type * as email from "../email.js";
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   analytiques: typeof analytiques;
   auth: typeof auth;
   bootstrap: typeof bootstrap;
+  cours: typeof cours;
   customFunctions: typeof customFunctions;
   drive: typeof drive;
   email: typeof email;
