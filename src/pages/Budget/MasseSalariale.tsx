@@ -231,7 +231,7 @@ export default function MasseSalariale() {
       {tab === "planning" ? (
         <PlanningCours isAdmin={isAdmin} />
       ) : tab === "previsionnel" ? (
-        <Previsionnel />
+        <Previsionnel masseSalarialeCout={seasonHasHours && totaux ? totaux.coutAnnuel : undefined} />
       ) : data === undefined ? (
         <div className="loading">Chargement des données...</div>
       ) : reprise && salaries.length === 0 ? (
@@ -312,14 +312,6 @@ export default function MasseSalariale() {
               <div className="tile-content">
                 <p style={{ fontSize: "0.8rem", color: "#000", textTransform: "uppercase" }}>Budget annuel (coût employeur)</p>
                 <h3 className="font-mono mt-2" style={{ fontSize: "1.6rem" }}>{eur0(totaux!.coutAnnuel)}</h3>
-              </div>
-            </div>
-            <div className="tile-card bg-warning" style={{ padding: "1.5rem" }}>
-              <div className="tile-content">
-                <p style={{ fontSize: "0.8rem", color: "#000", textTransform: "uppercase" }}>
-                  Avec marge de sécurité (×{params!.margeSecurite})
-                </p>
-                <h3 className="font-mono mt-2" style={{ fontSize: "1.6rem" }}>{eur0(totaux!.coutAnnuelAvecMarge)}</h3>
               </div>
             </div>
             <div className="tile-card bg-success" style={{ padding: "1.5rem" }}>

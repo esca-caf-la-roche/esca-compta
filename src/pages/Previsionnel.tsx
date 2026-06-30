@@ -1,11 +1,20 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, usePaginatedQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Plus, Edit2, Trash2, CheckCircle, Circle, Filter } from "lucide-react";
+import { Plus, Edit2, Trash2, CheckCircle, Circle, Filter, Lock } from "lucide-react";
 import PrevisionnelFormModal from "../components/PrevisionnelFormModal";
 import type { Id } from "../../convex/_generated/dataModel";
 import { useSeason } from "../contexts/SeasonContext";
 import { getPastelColor } from "../utils/colors";
+
+/** Nom de l'analytique alimentée automatiquement par la masse salariale. */
+const ANALYTIQUE_SALAIRES = "SAL01 : Salariés";
+
+type PrevisionnelProps = {
+  /** Coût employeur annuel de la masse salariale (sans marge). Injecté en
+   *  ligne automatique sous l'analytique « SAL01 : Salariés » si renseigné. */
+  masseSalarialeCout?: number;
+};
 
 type PrevisionnelRecord = {
   _id: Id<"previsionnels">;
@@ -18,17 +27,22 @@ type PrevisionnelRecord = {
   saison: string;
 };
 
-export default function Previsionnel() {
+export default function Previsionnel({ masseSalarialeCout }: PrevisionnelProps = {}) {
   const { season } = useSeason();
   const deletePrevisionnel = useMutation(api.previsionnels.remove);
   const updatePrevisionnel = useMutation(api.previsionnels.update);
+  const analytiques = useQuery(api.analytiques.get);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [previsionnelToEdit, setPrevisionnelToEdit] = useState<PrevisionnelRecord | null>(null);
   const [filterAnalytique, setFilterAnalytique] = useState<string>("Tous");
   const [filterEtat, setFilterEtat] = useState<string>("Tous");
 
-  const statsQuery = useQuery(api.previsionnels.getStats, { saison: season });
+  const statsQuery = useQuery(api.previsionnels.getStats, {
+    saison: season,
+    filterAnalytiqueId: filterAnalytique,
+    filterEtat: filterEtat,
+  });
   
   const { results: previsionnels, status, loadMore } = usePaginatedQuery(
     api.previsionnels.get, 
@@ -43,6 +57,39 @@ export default function Previsionnel() {
   const uniqueAnalytiques = statsQuery?.uniqueAnalytiques || [];
 
   const stats = statsQuery?.stats || { total: 0, realise: 0, recettes: 0, depenses: 0 };
+
+  // Ligne automatique : la masse salariale (coût employeur) est reportée en
+  // dépense sous l'analytique « SAL01 : Salariés ». Calculée, non modifiable.
+  const autoLine = useMemo(() => {
+    if (masseSalarialeCout == null || masseSalarialeCout <= 0 || !analytiques) return null;
+    const ana =
+      analytiques.find((a) => a.nom === ANALYTIQUE_SALAIRES) ??
+      analytiques.find((a) => a.nom.startsWith("SAL01"));
+    if (!ana) return null;
+    return {
+      _id: "auto-masse-salariale" as const,
+      nom: "Masse salariale (calcul automatique)",
+      montant: -Math.round(masseSalarialeCout),
+      analytiqueId: ana._id,
+      analytiqueNom: ana.nom,
+    };
+  }, [masseSalarialeCout, analytiques]);
+
+  // La ligne auto (état « non réalisé », c'est une dépense prévue) respecte les
+  // filtres actifs avant d'être comptée dans les tuiles et affichée.
+  const autoVisible =
+    !!autoLine &&
+    (filterAnalytique === "Tous" || filterAnalytique === autoLine.analytiqueId) &&
+    (filterEtat === "Tous" || filterEtat === "Non Réalisé");
+
+  const displayStats = autoVisible
+    ? {
+        total: stats.total + autoLine!.montant,
+        depenses: stats.depenses + Math.abs(autoLine!.montant),
+        recettes: stats.recettes,
+        realise: stats.realise,
+      }
+    : stats;
 
 
   const handleDelete = async (id: Id<"previsionnels">) => {
@@ -77,7 +124,7 @@ export default function Previsionnel() {
         </button>
       </div>
 
-      {previsionnels !== undefined && previsionnels.length > 0 && (
+      {uniqueAnalytiques.length > 0 && (
         <div className="filter-bar fade-in" style={{ marginBottom: "2rem" }}>
           <div className="filter-group">
             <Filter size={18} color="#000" />
@@ -117,7 +164,7 @@ export default function Previsionnel() {
             <div className="tile-content">
               <p className="text-sm tracking-widest text-gray-500 uppercase" style={{ fontSize: "0.8rem", color: "#000" }}>Total Recettes</p>
               <h3 className="font-mono mt-2" style={{ fontSize: "1.6rem" }}>
-                {stats.recettes.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+                {displayStats.recettes.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
               </h3>
             </div>
           </div>
@@ -125,7 +172,7 @@ export default function Previsionnel() {
             <div className="tile-content">
               <p className="text-sm tracking-widest text-gray-500 uppercase" style={{ fontSize: "0.8rem", color: "#000" }}>Total Dépenses</p>
               <h3 className="font-mono mt-2" style={{ fontSize: "1.6rem" }}>
-                {stats.depenses.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+                {displayStats.depenses.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
               </h3>
             </div>
           </div>
@@ -133,7 +180,7 @@ export default function Previsionnel() {
             <div className="tile-content">
               <p className="text-sm tracking-widest text-gray-500 uppercase" style={{ fontSize: "0.8rem", color: "#000" }}>Total Budgeté</p>
               <h3 className="font-mono mt-2" style={{ fontSize: "1.6rem" }}>
-                {stats.total.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+                {displayStats.total.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
               </h3>
             </div>
           </div>
@@ -153,13 +200,36 @@ export default function Previsionnel() {
         
         {previsionnels === undefined ? (
           <div className="loading">Chargement des données...</div>
-        ) : previsionnels?.length === 0 ? (
+        ) : previsionnels.length === 0 && !autoVisible ? (
           <div className="empty-state">
             <p>Aucun prévisionnel ne correspond à ce filtre.</p>
           </div>
         ) : (
           <div className="transactions-list">
-            {previsionnels?.map((prev: PrevisionnelRecord) => {
+            {autoVisible && (
+              <div key={autoLine!._id} className="transaction-card" style={{ borderLeft: "4px solid #2563eb" }}>
+                <div className="tc-header">
+                  <div className="tc-header-main">
+                    <div className="tc-title" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                      <Lock size={20} color="#2563eb" aria-label="Ligne automatique (lecture seule)" />
+                      <span>{autoLine!.nom}</span>
+                    </div>
+                  </div>
+                  <div className="tc-amount depense">
+                    - {Math.abs(autoLine!.montant).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+                  </div>
+                </div>
+                <div className="tc-badges" style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <span className="badge facture" style={{ backgroundColor: getPastelColor(autoLine!.analytiqueNom), boxShadow: "2px 2px 0px 0px #000", color: "#1a1a1a", border: "1px solid #1a1a1a" }}>
+                    {autoLine!.analytiqueNom}
+                  </span>
+                  <span className="badge" style={{ backgroundColor: "#dbeafe", color: "#1e40af", border: "1px solid #1e40af" }}>
+                    Auto · masse salariale
+                  </span>
+                </div>
+              </div>
+            )}
+            {previsionnels.map((prev: PrevisionnelRecord) => {
               const isDepense = prev.montant < 0;
               return (
                 <div key={prev._id} className="transaction-card">

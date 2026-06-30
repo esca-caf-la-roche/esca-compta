@@ -5,22 +5,40 @@ import type { Id } from "./_generated/dataModel";
 import { paginationOptsValidator } from "convex/server";
 
 export const getStats = query({
-  args: { saison: v.string() },
+  args: {
+    saison: v.string(),
+    filterAnalytiqueId: v.optional(v.string()),
+    filterEtat: v.optional(v.string()), // "Tous", "Réalisé", "Non Réalisé"
+  },
   handler: async (ctx, args) => {
     const previsionnels = await ctx.db
       .query("previsionnels")
       .withIndex("by_saison", (q) => q.eq("saison", args.saison))
       .collect();
 
-    let total = 0, recettes = 0, depenses = 0, realise = 0;
+    // Le menu déroulant liste toujours toutes les analytiques de la saison,
+    // indépendamment des filtres actifs.
     const analytiqueIds = new Set<Id<"analytiques">>();
-
     for (const p of previsionnels) {
+      analytiqueIds.add(p.analytiqueId as Id<"analytiques">);
+    }
+
+    // Les totaux, eux, sont recalculés sur le sous-ensemble filtré.
+    const filtreAna = args.filterAnalytiqueId && args.filterAnalytiqueId !== "Tous"
+      ? args.filterAnalytiqueId
+      : null;
+    const filtreEtat = args.filterEtat && args.filterEtat !== "Tous"
+      ? args.filterEtat === "Réalisé"
+      : null;
+
+    let total = 0, recettes = 0, depenses = 0, realise = 0;
+    for (const p of previsionnels) {
+      if (filtreAna && p.analytiqueId !== filtreAna) continue;
+      if (filtreEtat !== null && p.etat !== filtreEtat) continue;
       total += p.montant;
       if (p.montant >= 0) recettes += p.montant;
       else depenses += Math.abs(p.montant);
       if (p.etat) realise += p.montant;
-      analytiqueIds.add(p.analytiqueId as Id<"analytiques">);
     }
 
     const uniqueAnalytiques = await Promise.all(
