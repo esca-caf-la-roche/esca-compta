@@ -2,10 +2,18 @@ import { authenticatedQuery as query, authenticatedMutation as mutation } from "
 import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import type { MutationCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { previousSaison, nextSaison } from "./saisonUtils";
 
 const typeContratValidator = v.union(v.literal("CDII"), v.literal("CDI"));
+
+const heuresSupValidator = v.array(
+  v.object({
+    designation: v.string(),
+    nbHeures: v.number(),
+    categorie: v.union(v.literal("loisir"), v.literal("competition")),
+  })
+);
 
 const cotisSalarialeValidator = v.object({
   label: v.string(),
@@ -140,6 +148,35 @@ const SEED_DATA: Array<{ saison: string; lignes: Record<string, SeedLigne> }> = 
   },
 ];
 
+/** Heures de réunion ajoutées chaque saison à tout moniteur (catégorie loisir). */
+const HEURES_REUNION = 5;
+
+type HeuresCat = { loisir: number; competition: number };
+
+/** Heures de cours annuelles par moniteur, ventilées loisir/compétition, déduites du
+ *  planning : Σ (durée hebdo du cours × semaines couvertes) selon la catégorie du cours.
+ *  `hasCours` indique si la saison a un planning (sinon on retombe sur les heures saisies). */
+async function heuresCoursParMoniteur(
+  ctx: QueryCtx,
+  saison: string
+): Promise<{ map: Map<Id<"salaries">, HeuresCat>; hasCours: boolean }> {
+  const cours = await ctx.db
+    .query("cours")
+    .withIndex("by_saison", (q) => q.eq("saison", saison))
+    .collect();
+  const map = new Map<Id<"salaries">, HeuresCat>();
+  for (const c of cours) {
+    const cat = (c.categorie ?? "loisir") as keyof HeuresCat;
+    const heuresSemaine = c.seances.reduce((a, s) => a + s.dureeHeures, 0);
+    for (const m of c.moniteurs) {
+      const cur = map.get(m.salarieId) ?? { loisir: 0, competition: 0 };
+      cur[cat] += heuresSemaine * m.nbSemaines;
+      map.set(m.salarieId, cur);
+    }
+  }
+  return { map, hasCours: cours.length > 0 };
+}
+
 export const getMasseSalariale = query({
   args: { saison: v.string() },
   handler: async (ctx, args) => {
@@ -168,24 +205,64 @@ export const getMasseSalariale = query({
           .first()
       : null;
 
-    // Construit une ligne enrichie (avec les infos du salarié) réutilisable.
-    const toRow = async (ligne: (typeof lignes)[number]) => {
-      const salarie = await ctx.db.get(ligne.salarieId);
-      return {
-        ligneId: ligne._id,
-        salarieId: ligne.salarieId,
-        nom: salarie?.nom ?? "Inconnu",
-        typeContrat: salarie?.typeContrat ?? "CDII",
-        ordre: salarie?.ordre ?? 0,
-        nbHeuresAnnuel: ligne.nbHeuresAnnuel,
-        nbMois: ligne.nbMois,
-        tauxHoraireBrut: ligne.tauxHoraireBrut,
-        augmentationPct: ligne.augmentationPct ?? null,
-        actif: ligne.actif ?? true,
-      };
-    };
+    // Heures de cours par moniteur (saison courante + précédente). Quand un planning
+    // existe, les heures sont calculées (cours + 5h réunion + heures sup déclarées) ;
+    // sinon on conserve les heures saisies (saisons historiques / de référence).
+    const heuresCours = await heuresCoursParMoniteur(ctx, args.saison);
+    const prevHeuresCours = prevSaison
+      ? await heuresCoursParMoniteur(ctx, prevSaison)
+      : { map: new Map<Id<"salaries">, HeuresCat>(), hasCours: false };
 
-    const prevSalaries = await Promise.all(prevLignes.map(toRow));
+    // Construit une ligne enrichie (avec les infos du salarié + ventilation horaire).
+    const makeToRow =
+      (heures: { map: Map<Id<"salaries">, HeuresCat>; hasCours: boolean }) =>
+      async (ligne: (typeof lignes)[number]) => {
+        const salarie = await ctx.db.get(ligne.salarieId);
+        const base = heures.map.get(ligne.salarieId) ?? { loisir: 0, competition: 0 };
+        const heuresSup = ligne.heuresSup ?? [];
+
+        let heuresLoisir: number;
+        let heuresCompetition: number;
+        let nbHeuresAnnuel: number;
+        if (heures.hasCours) {
+          // Cours (par catégorie) + 5h de réunion (loisir) + heures sup déclarées.
+          let loisir = base.loisir + HEURES_REUNION;
+          let competition = base.competition;
+          for (const hs of heuresSup) {
+            if (hs.categorie === "competition") competition += hs.nbHeures;
+            else loisir += hs.nbHeures;
+          }
+          heuresLoisir = loisir;
+          heuresCompetition = competition;
+          nbHeuresAnnuel = loisir + competition;
+        } else {
+          nbHeuresAnnuel = ligne.nbHeuresAnnuel;
+          heuresLoisir = ligne.nbHeuresAnnuel;
+          heuresCompetition = 0;
+        }
+
+        return {
+          ligneId: ligne._id,
+          salarieId: ligne.salarieId,
+          nom: salarie?.nom ?? "Inconnu",
+          typeContrat: salarie?.typeContrat ?? "CDII",
+          ordre: salarie?.ordre ?? 0,
+          nbHeuresAnnuel,
+          heuresLoisir,
+          heuresCompetition,
+          heuresSup,
+          heuresAuto: heures.hasCours,
+          nbMois: ligne.nbMois,
+          tauxHoraireBrut: ligne.tauxHoraireBrut,
+          augmentationPct: ligne.augmentationPct ?? null,
+          actif: ligne.actif ?? true,
+        };
+      };
+
+    const toRow = makeToRow(heuresCours);
+    const prevToRow = makeToRow(prevHeuresCours);
+
+    const prevSalaries = await Promise.all(prevLignes.map(prevToRow));
     const prevBySalarie = new Map(prevSalaries.map((p) => [p.salarieId, p]));
 
     const salaries = (await Promise.all(lignes.map(toRow))).map((row) => ({
@@ -339,10 +416,11 @@ export const addSalarie = mutation({
     nom: v.string(),
     typeContrat: typeContratValidator,
     saison: v.string(),
-    nbHeuresAnnuel: v.number(),
+    nbHeuresAnnuel: v.optional(v.number()),
     nbMois: v.number(),
     tauxHoraireBrut: v.number(),
     augmentationPct: v.optional(v.number()),
+    heuresSup: v.optional(heuresSupValidator),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx, ctx.userId);
@@ -364,11 +442,12 @@ export const addSalarie = mutation({
     await ctx.db.insert("salairesSaison", {
       salarieId,
       saison: args.saison,
-      nbHeuresAnnuel: args.nbHeuresAnnuel,
+      nbHeuresAnnuel: args.nbHeuresAnnuel ?? 0,
       nbMois: args.nbMois,
       tauxHoraireBrut: taux,
       augmentationPct: args.augmentationPct,
       actif: true,
+      heuresSup: args.heuresSup ?? [],
     });
     return salarieId;
   },
@@ -385,6 +464,7 @@ export const updateSalarie = mutation({
     tauxHoraireBrut: v.optional(v.number()),
     augmentationPct: v.optional(v.number()),
     actif: v.optional(v.boolean()),
+    heuresSup: v.optional(heuresSupValidator),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx, ctx.userId);
@@ -407,6 +487,7 @@ export const updateSalarie = mutation({
     if (args.nbHeuresAnnuel !== undefined) ligneUpdates.nbHeuresAnnuel = args.nbHeuresAnnuel;
     if (args.nbMois !== undefined) ligneUpdates.nbMois = args.nbMois;
     if (args.actif !== undefined) ligneUpdates.actif = args.actif;
+    if (args.heuresSup !== undefined) ligneUpdates.heuresSup = args.heuresSup;
 
     // Le taux est DÉRIVÉ de l'augmentation si le moniteur existait la saison
     // précédente ; sinon (saison de référence / nouvel arrivant) le taux saisi fait foi.
@@ -500,6 +581,7 @@ export const reprendreSaisonPrecedente = mutation({
         tauxHoraireBrut: l.tauxHoraireBrut, // 0 % d'augmentation -> taux identique
         augmentationPct: 0,
         actif: l.actif ?? true,
+        heuresSup: l.heuresSup ?? [],
       });
     }
     return { copiees: prevLignes.length, message: `${prevLignes.length} moniteurs repris de ${prev}.` };

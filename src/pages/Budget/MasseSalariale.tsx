@@ -108,6 +108,24 @@ export default function MasseSalariale() {
   // base des augmentations). On masque alors les coûts qui ne seraient pas fiables.
   const seasonHasHours = salaries.some((s) => s.nbHeuresAnnuel > 0);
 
+  // Ventilation du coût employeur entre loisir et compétition, au prorata des
+  // heures de chaque moniteur. Alimente les deux lignes auto du prévisionnel.
+  const masseSalarialeSplit = useMemo(() => {
+    if (!seasonHasHours) return null;
+    let loisir = 0;
+    let competition = 0;
+    for (const { s, base } of rows) {
+      const total = s.heuresLoisir + s.heuresCompetition;
+      if (total > 0) {
+        loisir += base.coutAnnuel * (s.heuresLoisir / total);
+        competition += base.coutAnnuel * (s.heuresCompetition / total);
+      } else {
+        loisir += base.coutAnnuel;
+      }
+    }
+    return { loisir, competition };
+  }, [rows, seasonHasHours]);
+
   // Comparaison avec la saison précédente (effet augmentation + variation d'heures
   // + arrivées/départs). Coût N-1 calculé avec les paramètres de la saison N-1.
   // Ignorée si la saison précédente n'a pas d'heures (comparaison non significative).
@@ -231,7 +249,10 @@ export default function MasseSalariale() {
       {tab === "planning" ? (
         <PlanningCours isAdmin={isAdmin} />
       ) : tab === "previsionnel" ? (
-        <Previsionnel masseSalarialeCout={seasonHasHours && totaux ? totaux.coutAnnuel : undefined} />
+        <Previsionnel
+          masseSalarialeLoisir={masseSalarialeSplit?.loisir}
+          masseSalarialeCompetition={masseSalarialeSplit?.competition}
+        />
       ) : data === undefined ? (
         <div className="loading">Chargement des données...</div>
       ) : reprise && salaries.length === 0 ? (
@@ -368,6 +389,11 @@ export default function MasseSalariale() {
                             </span>
                           )}
                           <span style={{ color: "#9ca3af", fontSize: "0.8rem" }}> ({base.heuresMensuel.toLocaleString("fr-FR")}/mois)</span>
+                          {s.heuresAuto && (
+                            <div style={{ color: "#9ca3af", fontSize: "0.75rem" }}>
+                              Loisir {s.heuresLoisir.toLocaleString("fr-FR")} · Compét. {s.heuresCompetition.toLocaleString("fr-FR")}
+                            </div>
+                          )}
                         </td>
                         <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">
                           {eur(s.tauxHoraireBrut)}

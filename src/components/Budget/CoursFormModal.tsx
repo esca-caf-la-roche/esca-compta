@@ -17,6 +17,8 @@ export interface CoursMoniteur {
   nbSemaines: number;
 }
 
+export type CoursCategorie = "loisir" | "competition";
+
 export interface CoursRow {
   _id: Id<"cours">;
   nom: string;
@@ -24,6 +26,7 @@ export interface CoursRow {
   lienPaiementCB?: string;
   nbElevesMax: number;
   nbSemaines: number;
+  categorie: CoursCategorie;
   moniteurs: CoursMoniteur[];
   seances: Seance[];
 }
@@ -34,6 +37,7 @@ export interface CoursType {
   tarifAnnuel: number;
   nbElevesMax: number;
   nbSemaines: number;
+  categorie: CoursCategorie;
   seances: Seance[];
 }
 
@@ -73,6 +77,7 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
   const [lienPaiementCB, setLienPaiementCB] = useState("");
   const [nbElevesMax, setNbElevesMax] = useState("");
   const [nbSemaines, setNbSemaines] = useState("");
+  const [categorie, setCategorie] = useState<CoursCategorie>("loisir");
   const [moniteurIds, setMoniteurIds] = useState<string[]>([]);
   const [seances, setSeances] = useState<SeanceForm[]>([emptySeance()]);
   const [saving, setSaving] = useState(false);
@@ -87,6 +92,7 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
       setLienPaiementCB(coursToEdit.lienPaiementCB ?? "");
       setNbElevesMax(String(coursToEdit.nbElevesMax));
       setNbSemaines(String(coursToEdit.nbSemaines));
+      setCategorie(coursToEdit.categorie);
       setMoniteurIds(coursToEdit.moniteurs.map((m) => m.salarieId));
       setSeances(
         coursToEdit.seances.map((s) => ({ jour: s.jour, heureDebut: s.heureDebut, dureeHeures: String(s.dureeHeures) }))
@@ -98,6 +104,7 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
       setLienPaiementCB("");
       setNbElevesMax("");
       setNbSemaines("");
+      setCategorie("loisir");
       setMoniteurIds(
         prefill?.moniteurIds && prefill.moniteurIds.length > 0
           ? prefill.moniteurIds
@@ -119,6 +126,7 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
       setTarifAnnuel(String(t.tarifAnnuel));
       setNbElevesMax(String(t.nbElevesMax));
       setNbSemaines(String(t.nbSemaines));
+      setCategorie(t.categorie);
       setSeances(
         t.seances.map((s) => ({ jour: s.jour, heureDebut: s.heureDebut, dureeHeures: String(s.dureeHeures) }))
       );
@@ -168,6 +176,7 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
         lienPaiementCB: lienPaiementCB.trim() || undefined,
         nbElevesMax: parseInt(nbElevesMax, 10),
         nbSemaines: nbSemainesNum,
+        categorie,
         moniteurs: moniteursValides as Id<"salaries">[],
         seances: parsedSeances,
       };
@@ -244,6 +253,13 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
             <div className="form-group" style={{ flex: "1 1 120px" }}>
               <label className="form-label" htmlFor="cours-semaines">Nb semaines <span className="text-red-500">*</span></label>
               <input id="cours-semaines" type="number" step="1" className="input-field" value={nbSemaines} onChange={(e) => setNbSemaines(e.target.value)} required placeholder="Ex: 34" />
+            </div>
+            <div className="form-group" style={{ flex: "1 1 120px" }}>
+              <label className="form-label" htmlFor="cours-categorie">Catégorie <span className="text-red-500">*</span></label>
+              <select id="cours-categorie" className="input-field" value={categorie} onChange={(e) => setCategorie(e.target.value as CoursCategorie)}>
+                <option value="loisir">Loisir</option>
+                <option value="competition">Compétition</option>
+              </select>
             </div>
           </div>
 

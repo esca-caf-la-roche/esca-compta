@@ -11,9 +11,11 @@ import { getPastelColor } from "../utils/colors";
 const ANALYTIQUE_SALAIRES = "SAL01 : Salariés";
 
 type PrevisionnelProps = {
-  /** Coût employeur annuel de la masse salariale (sans marge). Injecté en
-   *  ligne automatique sous l'analytique « SAL01 : Salariés » si renseigné. */
-  masseSalarialeCout?: number;
+  /** Coût employeur annuel de la masse salariale ventilé par catégorie (sans
+   *  marge). Injecté en deux lignes automatiques sous l'analytique
+   *  « SAL01 : Salariés » si renseigné (loisir / compétition). */
+  masseSalarialeLoisir?: number;
+  masseSalarialeCompetition?: number;
 };
 
 type PrevisionnelRecord = {
@@ -27,7 +29,10 @@ type PrevisionnelRecord = {
   saison: string;
 };
 
-export default function Previsionnel({ masseSalarialeCout }: PrevisionnelProps = {}) {
+export default function Previsionnel({
+  masseSalarialeLoisir,
+  masseSalarialeCompetition,
+}: PrevisionnelProps = {}) {
   const { season } = useSeason();
   const deletePrevisionnel = useMutation(api.previsionnels.remove);
   const updatePrevisionnel = useMutation(api.previsionnels.update);
@@ -58,34 +63,56 @@ export default function Previsionnel({ masseSalarialeCout }: PrevisionnelProps =
 
   const stats = statsQuery?.stats || { total: 0, realise: 0, recettes: 0, depenses: 0 };
 
-  // Ligne automatique : la masse salariale (coût employeur) est reportée en
-  // dépense sous l'analytique « SAL01 : Salariés ». Calculée, non modifiable.
-  const autoLine = useMemo(() => {
-    if (masseSalarialeCout == null || masseSalarialeCout <= 0 || !analytiques) return null;
+  // Lignes automatiques : la masse salariale (coût employeur) est reportée en
+  // dépense sous l'analytique « SAL01 : Salariés », ventilée loisir / compétition.
+  // Calculées, non modifiables.
+  const autoLines = useMemo(() => {
+    if (!analytiques) return [];
     const ana =
       analytiques.find((a) => a.nom === ANALYTIQUE_SALAIRES) ??
       analytiques.find((a) => a.nom.startsWith("SAL01"));
-    if (!ana) return null;
-    return {
-      _id: "auto-masse-salariale" as const,
-      nom: "Masse salariale (calcul automatique)",
-      montant: -Math.round(masseSalarialeCout),
-      analytiqueId: ana._id,
-      analytiqueNom: ana.nom,
-    };
-  }, [masseSalarialeCout, analytiques]);
+    if (!ana) return [];
+    const lines: {
+      _id: string;
+      nom: string;
+      montant: number;
+      analytiqueId: Id<"analytiques">;
+      analytiqueNom: string;
+    }[] = [];
+    if (masseSalarialeLoisir != null && masseSalarialeLoisir > 0) {
+      lines.push({
+        _id: "auto-masse-salariale-loisir",
+        nom: "Masse salariale loisir (calcul automatique)",
+        montant: -Math.round(masseSalarialeLoisir),
+        analytiqueId: ana._id,
+        analytiqueNom: ana.nom,
+      });
+    }
+    if (masseSalarialeCompetition != null && masseSalarialeCompetition > 0) {
+      lines.push({
+        _id: "auto-masse-salariale-competition",
+        nom: "Masse salariale compétition (calcul automatique)",
+        montant: -Math.round(masseSalarialeCompetition),
+        analytiqueId: ana._id,
+        analytiqueNom: ana.nom,
+      });
+    }
+    return lines;
+  }, [masseSalarialeLoisir, masseSalarialeCompetition, analytiques]);
 
-  // La ligne auto (état « non réalisé », c'est une dépense prévue) respecte les
-  // filtres actifs avant d'être comptée dans les tuiles et affichée.
-  const autoVisible =
-    !!autoLine &&
-    (filterAnalytique === "Tous" || filterAnalytique === autoLine.analytiqueId) &&
-    (filterEtat === "Tous" || filterEtat === "Non Réalisé");
+  // Les lignes auto (état « non réalisé », ce sont des dépenses prévues) respectent
+  // les filtres actifs avant d'être comptées dans les tuiles et affichées.
+  const visibleAutoLines = autoLines.filter(
+    (l) =>
+      (filterAnalytique === "Tous" || filterAnalytique === l.analytiqueId) &&
+      (filterEtat === "Tous" || filterEtat === "Non Réalisé")
+  );
 
-  const displayStats = autoVisible
+  const autoTotal = visibleAutoLines.reduce((a, l) => a + l.montant, 0);
+  const displayStats = visibleAutoLines.length
     ? {
-        total: stats.total + autoLine!.montant,
-        depenses: stats.depenses + Math.abs(autoLine!.montant),
+        total: stats.total + autoTotal,
+        depenses: stats.depenses + Math.abs(autoTotal),
         recettes: stats.recettes,
         realise: stats.realise,
       }
@@ -200,35 +227,35 @@ export default function Previsionnel({ masseSalarialeCout }: PrevisionnelProps =
         
         {previsionnels === undefined ? (
           <div className="loading">Chargement des données...</div>
-        ) : previsionnels.length === 0 && !autoVisible ? (
+        ) : previsionnels.length === 0 && visibleAutoLines.length === 0 ? (
           <div className="empty-state">
             <p>Aucun prévisionnel ne correspond à ce filtre.</p>
           </div>
         ) : (
           <div className="transactions-list">
-            {autoVisible && (
-              <div key={autoLine!._id} className="transaction-card" style={{ borderLeft: "4px solid #2563eb" }}>
+            {visibleAutoLines.map((line) => (
+              <div key={line._id} className="transaction-card" style={{ borderLeft: "4px solid #2563eb" }}>
                 <div className="tc-header">
                   <div className="tc-header-main">
                     <div className="tc-title" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                       <Lock size={20} color="#2563eb" aria-label="Ligne automatique (lecture seule)" />
-                      <span>{autoLine!.nom}</span>
+                      <span>{line.nom}</span>
                     </div>
                   </div>
                   <div className="tc-amount depense">
-                    - {Math.abs(autoLine!.montant).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+                    - {Math.abs(line.montant).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
                   </div>
                 </div>
                 <div className="tc-badges" style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                  <span className="badge facture" style={{ backgroundColor: getPastelColor(autoLine!.analytiqueNom), boxShadow: "2px 2px 0px 0px #000", color: "#1a1a1a", border: "1px solid #1a1a1a" }}>
-                    {autoLine!.analytiqueNom}
+                  <span className="badge facture" style={{ backgroundColor: getPastelColor(line.analytiqueNom), boxShadow: "2px 2px 0px 0px #000", color: "#1a1a1a", border: "1px solid #1a1a1a" }}>
+                    {line.analytiqueNom}
                   </span>
                   <span className="badge" style={{ backgroundColor: "#dbeafe", color: "#1e40af", border: "1px solid #1e40af" }}>
                     Auto · masse salariale
                   </span>
                 </div>
               </div>
-            )}
+            ))}
             {previsionnels.map((prev: PrevisionnelRecord) => {
               const isDepense = prev.montant < 0;
               return (

@@ -5,12 +5,22 @@ import { X, Save } from "lucide-react";
 import { useSeason } from "../../contexts/SeasonContext";
 import type { Id } from "../../../convex/_generated/dataModel";
 
+export type HeureSup = {
+  designation: string;
+  nbHeures: number;
+  categorie: "loisir" | "competition";
+};
+
 export interface SalarieRow {
   ligneId: Id<"salairesSaison">;
   salarieId: Id<"salaries">;
   nom: string;
   typeContrat: "CDII" | "CDI";
-  nbHeuresAnnuel: number;
+  nbHeuresAnnuel: number; // total auto (cours + 5h réunion + heures sup)
+  heuresLoisir: number;
+  heuresCompetition: number;
+  heuresSup: HeureSup[];
+  heuresAuto: boolean; // true si un planning existe pour la saison
   nbMois: number;
   tauxHoraireBrut: number;
   augmentationPct: number | null;
@@ -28,12 +38,14 @@ export default function SalarieFormModal({ isOpen, onClose, salarieToEdit }: Pro
   const addSalarie = useMutation(api.paie.addSalarie);
   const updateSalarie = useMutation(api.paie.updateSalarie);
 
+  type HeureSupForm = { designation: string; nbHeures: string; categorie: "loisir" | "competition" };
+
   const [nom, setNom] = useState("");
   const [typeContrat, setTypeContrat] = useState<"CDII" | "CDI">("CDII");
-  const [nbHeuresAnnuel, setNbHeuresAnnuel] = useState("");
   const [nbMois, setNbMois] = useState("12");
   const [tauxHoraireBrut, setTauxHoraireBrut] = useState("");
   const [augmentationPct, setAugmentationPct] = useState("");
+  const [heuresSup, setHeuresSup] = useState<HeureSupForm[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -41,21 +53,34 @@ export default function SalarieFormModal({ isOpen, onClose, salarieToEdit }: Pro
     if (salarieToEdit) {
       setNom(salarieToEdit.nom);
       setTypeContrat(salarieToEdit.typeContrat);
-      setNbHeuresAnnuel(String(salarieToEdit.nbHeuresAnnuel));
       setNbMois(String(salarieToEdit.nbMois));
       setTauxHoraireBrut(String(salarieToEdit.tauxHoraireBrut));
       setAugmentationPct(
         salarieToEdit.augmentationPct != null ? String(salarieToEdit.augmentationPct) : ""
       );
+      setHeuresSup(
+        (salarieToEdit.heuresSup ?? []).map((h) => ({
+          designation: h.designation,
+          nbHeures: String(h.nbHeures),
+          categorie: h.categorie,
+        }))
+      );
     } else {
       setNom("");
       setTypeContrat("CDII");
-      setNbHeuresAnnuel("");
       setNbMois("12");
       setTauxHoraireBrut("");
       setAugmentationPct("");
+      setHeuresSup([]);
     }
   }, [isOpen, salarieToEdit]);
+
+  const addHeureSup = () =>
+    setHeuresSup((prev) => [...prev, { designation: "", nbHeures: "", categorie: "loisir" }]);
+  const updateHeureSup = (idx: number, patch: Partial<HeureSupForm>) =>
+    setHeuresSup((prev) => prev.map((h, i) => (i === idx ? { ...h, ...patch } : h)));
+  const removeHeureSup = (idx: number) =>
+    setHeuresSup((prev) => prev.filter((_, i) => i !== idx));
 
   if (!isOpen) return null;
 
@@ -69,14 +94,21 @@ export default function SalarieFormModal({ isOpen, onClose, salarieToEdit }: Pro
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nom.trim() || !nbHeuresAnnuel || !nbMois || (!hasPrev && !tauxHoraireBrut)) {
+    if (!nom.trim() || !nbMois || (!hasPrev && !tauxHoraireBrut)) {
       alert("Veuillez remplir tous les champs obligatoires.");
       return;
     }
+    const heuresSupClean = heuresSup
+      .filter((h) => h.designation.trim() && parseFloat(h.nbHeures) > 0)
+      .map((h) => ({
+        designation: h.designation.trim(),
+        nbHeures: parseFloat(h.nbHeures),
+        categorie: h.categorie,
+      }));
     setSaving(true);
     try {
       const payload = {
-        nbHeuresAnnuel: parseFloat(nbHeuresAnnuel),
+        heuresSup: heuresSupClean,
         nbMois: parseFloat(nbMois),
         // Quand il y a une saison précédente, le serveur recalcule le taux depuis
         // l'augmentation ; sinon on envoie le taux d'entrée saisi.
@@ -150,37 +182,107 @@ export default function SalarieFormModal({ isOpen, onClose, salarieToEdit }: Pro
             </select>
           </div>
 
-          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-            <div className="form-group" style={{ flex: "1 1 140px" }}>
-              <label className="form-label" htmlFor="heures">
-                Nb heures / an <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="heures"
-                type="number"
-                step="0.01"
-                className="input-field"
-                value={nbHeuresAnnuel}
-                onChange={(e) => setNbHeuresAnnuel(e.target.value)}
-                required
-                placeholder="Ex: 740"
-              />
+          {salarieToEdit && salarieToEdit.heuresAuto && (
+            <div className="form-group">
+              <label className="form-label">Nb heures / an — calculé automatiquement</label>
+              <div
+                style={{
+                  background: "#f3f4f6",
+                  borderRadius: "0.5rem",
+                  padding: "0.75rem 1rem",
+                  fontSize: "0.9rem",
+                  color: "#374151",
+                }}
+              >
+                <strong>{salarieToEdit.nbHeuresAnnuel.toFixed(1)} h</strong> au total
+                <span style={{ color: "#6b7280" }}>
+                  {" "}— Loisir {salarieToEdit.heuresLoisir.toFixed(1)} h · Compétition{" "}
+                  {salarieToEdit.heuresCompetition.toFixed(1)} h
+                </span>
+                <div style={{ fontSize: "0.78rem", color: "#9ca3af", marginTop: "0.25rem" }}>
+                  Heures de cours du planning + 5 h de réunion (loisir) + heures supplémentaires
+                  ci-dessous.
+                </div>
+              </div>
             </div>
-            <div className="form-group" style={{ flex: "1 1 100px" }}>
-              <label className="form-label" htmlFor="mois">
-                Nb mois <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="mois"
-                type="number"
-                step="1"
-                className="input-field"
-                value={nbMois}
-                onChange={(e) => setNbMois(e.target.value)}
-                required
-                placeholder="12"
-              />
-            </div>
+          )}
+
+          <div className="form-group">
+            <label className="form-label">Heures supplémentaires</label>
+            {heuresSup.length === 0 && (
+              <p style={{ fontSize: "0.8rem", color: "#9ca3af", margin: "0 0 0.5rem" }}>
+                Aucune. Ajoutez des heures (réunions, événements…) avec une désignation et une
+                catégorie.
+              </p>
+            )}
+            {heuresSup.map((h, idx) => (
+              <div
+                key={idx}
+                style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}
+              >
+                <input
+                  type="text"
+                  className="input-field"
+                  style={{ flex: "2 1 160px" }}
+                  value={h.designation}
+                  onChange={(e) => updateHeureSup(idx, { designation: e.target.value })}
+                  placeholder="Désignation (ex: Stage été)"
+                />
+                <input
+                  type="number"
+                  step="0.5"
+                  className="input-field"
+                  style={{ flex: "1 1 90px" }}
+                  value={h.nbHeures}
+                  onChange={(e) => updateHeureSup(idx, { nbHeures: e.target.value })}
+                  placeholder="Heures"
+                />
+                <select
+                  className="input-field"
+                  style={{ flex: "1 1 120px" }}
+                  value={h.categorie}
+                  onChange={(e) =>
+                    updateHeureSup(idx, { categorie: e.target.value as "loisir" | "competition" })
+                  }
+                >
+                  <option value="loisir">Loisir</option>
+                  <option value="competition">Compétition</option>
+                </select>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => removeHeureSup(idx)}
+                  style={{ width: "auto", padding: "0 0.75rem" }}
+                  aria-label="Supprimer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={addHeureSup}
+              style={{ width: "auto" }}
+            >
+              + Ajouter des heures
+            </button>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="mois">
+              Nb mois <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="mois"
+              type="number"
+              step="1"
+              className="input-field"
+              value={nbMois}
+              onChange={(e) => setNbMois(e.target.value)}
+              required
+              placeholder="12"
+            />
           </div>
 
           {hasPrev ? (
