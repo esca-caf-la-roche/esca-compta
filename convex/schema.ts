@@ -110,6 +110,14 @@ export default defineSchema({
     ordre: v.optional(v.number()),
   }).index("by_saison", ["saison"]),
 
+  // Effectifs saisis pour la synthèse « coût par membre » du budget prévisionnel.
+  // Le nombre de membres loisir (élèves en cours + abonnements) est saisi à la main ;
+  // le nombre de membres compétition est calculé depuis les types de cours.
+  budgetEffectifs: defineTable({
+    saison: v.string(),
+    nbMembresLoisir: v.number(),
+  }).index("by_saison", ["saison"]),
+
   // Paramètres globaux de paie (cotisations, marges…) par saison.
   parametresPaie: defineTable({
     saison: v.string(),

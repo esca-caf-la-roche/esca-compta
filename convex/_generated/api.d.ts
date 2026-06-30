@@ -14,6 +14,7 @@ import type * as bootstrap from "../bootstrap.js";
 import type * as cours from "../cours.js";
 import type * as customFunctions from "../customFunctions.js";
 import type * as drive from "../drive.js";
+import type * as effectifs from "../effectifs.js";
 import type * as email from "../email.js";
 import type * as helloasso from "../helloasso.js";
 import type * as http from "../http.js";
@@ -42,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   cours: typeof cours;
   customFunctions: typeof customFunctions;
   drive: typeof drive;
+  effectifs: typeof effectifs;
   email: typeof email;
   helloasso: typeof helloasso;
   http: typeof http;

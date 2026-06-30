@@ -14,6 +14,7 @@ import {
 import SalarieFormModal, { type SalarieRow } from "../../components/Budget/SalarieFormModal";
 import PlanningCours from "./PlanningCours";
 import Previsionnel from "../Previsionnel";
+import SyntheseCouts from "./SyntheseCouts";
 
 /** Convertit les paramètres bruts (Convex) vers le type de calcul. */
 function toParametresPaie(params: {
@@ -68,7 +69,7 @@ export default function MasseSalariale() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [isSalarieModalOpen, setIsSalarieModalOpen] = useState(false);
   const [salarieToEdit, setSalarieToEdit] = useState<SalarieRow | null>(null);
-  const [tab, setTab] = useState<"masse" | "planning" | "previsionnel">("masse");
+  const [tab, setTab] = useState<"masse" | "planning" | "previsionnel" | "synthese">("masse");
 
   const params = data?.params;
   const salaries = useMemo(() => data?.salaries ?? [], [data]);
@@ -225,6 +226,7 @@ export default function MasseSalariale() {
           { id: "masse", label: "Masse salariale" },
           { id: "planning", label: "Planning des cours" },
           { id: "previsionnel", label: "Prévisionnel" },
+          { id: "synthese", label: "Coût par membre" },
         ] as const).map((t) => (
           <button
             key={t.id}
@@ -252,6 +254,12 @@ export default function MasseSalariale() {
         <Previsionnel
           masseSalarialeLoisir={masseSalarialeSplit?.loisir}
           masseSalarialeCompetition={masseSalarialeSplit?.competition}
+        />
+      ) : tab === "synthese" ? (
+        <SyntheseCouts
+          masseSalarialeLoisir={masseSalarialeSplit?.loisir}
+          masseSalarialeCompetition={masseSalarialeSplit?.competition}
+          isAdmin={isAdmin}
         />
       ) : data === undefined ? (
         <div className="loading">Chargement des données...</div>
