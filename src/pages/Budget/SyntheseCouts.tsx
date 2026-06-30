@@ -68,10 +68,6 @@ export default function SyntheseCouts({
 
   return (
     <div className="fade-in">
-      <p className="subtitle" style={{ marginTop: 0, marginBottom: "1.5rem" }}>
-        Coût par membre & répartition loisir / compétition · saison {season}
-      </p>
-
       {/* Effectifs */}
       <section className="card glass-card" style={{ marginBottom: "1.5rem" }}>
         <h2 style={{ marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>

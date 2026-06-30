@@ -204,7 +204,6 @@ export default function MasseSalariale() {
             <ArrowLeft size={16} /> Retour au tableau de bord
           </Link>
           <h1>Budget prévisionnel</h1>
-          <p className="subtitle">Masse salariale, planning des cours & prévisionnel · saison {season}</p>
         </div>
         {tab === "masse" && isAdmin && salaries.length > 0 && (
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>

@@ -219,14 +219,13 @@ export default function PlanningCours({ isAdmin }: Props) {
 
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem", marginBottom: "1.5rem" }}>
-        <p className="subtitle" style={{ margin: 0 }}>Planning des cours · saison {season}</p>
-        {isAdmin && moniteurs.length > 0 && (
+      {isAdmin && moniteurs.length > 0 && (
+        <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", marginBottom: "1.5rem" }}>
           <button className="btn-primary" style={{ width: "auto" }} onClick={() => openNew()}>
             <Plus size={18} style={{ verticalAlign: "middle", marginRight: "0.4rem" }} /> Créneau
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {moniteurs.length === 0 ? (
         <section className="card glass-card">

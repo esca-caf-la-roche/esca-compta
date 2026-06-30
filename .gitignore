@@ -48,3 +48,7 @@ planning_cours.csv
 Budget_Escalade_2024-25.xlsx
 *.xlsx
 .~lock.*#
+
+# Bulletins de salaire / documents avec données personnelles (RGPD)
+BS.pdf
+*.pdf
