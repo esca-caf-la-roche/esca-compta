@@ -4,7 +4,10 @@ import { v } from "convex/values";
 export const get = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("analytiques").collect();
+    const analytiques = await ctx.db.query("analytiques").collect();
+    // Tri alphabétique (sensible aux accents/locale FR) pour toutes les listes
+    // déroulantes de l'app (prévisionnel, type de cours…).
+    return analytiques.sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
   },
 });
 
