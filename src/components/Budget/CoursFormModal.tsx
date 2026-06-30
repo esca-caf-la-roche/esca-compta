@@ -28,9 +28,23 @@ export interface CoursRow {
   seances: Seance[];
 }
 
+/** Gabarit partagé d'un type de cours (pour le menu déroulant + préremplissage). */
+export interface CoursType {
+  nom: string;
+  tarifAnnuel: number;
+  nbElevesMax: number;
+  nbSemaines: number;
+  seances: Seance[];
+}
+
 interface MoniteurOption {
   salarieId: Id<"salaries">;
   nom: string;
+}
+
+export interface CoursPrefill {
+  jour?: number;
+  moniteurIds?: Id<"salaries">[];
 }
 
 interface Props {
@@ -38,24 +52,28 @@ interface Props {
   onClose: () => void;
   coursToEdit?: CoursRow | null;
   moniteurs: MoniteurOption[];
+  coursTypes: CoursType[];
+  prefill?: CoursPrefill | null;
 }
 
 type SeanceForm = { jour: number; heureDebut: string; dureeHeures: string };
-type MoniteurForm = { salarieId: string; nbSemaines: string };
 
-const emptySeance = (): SeanceForm => ({ jour: 0, heureDebut: "18:00", dureeHeures: "1.5" });
+const NEW_TYPE = "__new__";
+const emptySeance = (jour = 0): SeanceForm => ({ jour, heureDebut: "18:00", dureeHeures: "1.5" });
 
-export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs }: Props) {
+export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs, coursTypes, prefill }: Props) {
   const { season } = useSeason();
   const addCours = useMutation(api.cours.addCours);
   const updateCours = useMutation(api.cours.updateCours);
+  const removeCours = useMutation(api.cours.removeCours);
 
-  const [nom, setNom] = useState("");
+  const [nomChoice, setNomChoice] = useState(""); // nom de type sélectionné, "" ou NEW_TYPE
+  const [nomNew, setNomNew] = useState(""); // nom saisi quand "Nouveau type"
   const [tarifAnnuel, setTarifAnnuel] = useState("");
   const [lienPaiementCB, setLienPaiementCB] = useState("");
   const [nbElevesMax, setNbElevesMax] = useState("");
   const [nbSemaines, setNbSemaines] = useState("");
-  const [moniteurLignes, setMoniteurLignes] = useState<MoniteurForm[]>([]);
+  const [moniteurIds, setMoniteurIds] = useState<string[]>([]);
   const [seances, setSeances] = useState<SeanceForm[]>([emptySeance()]);
   const [saving, setSaving] = useState(false);
 
@@ -63,60 +81,73 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
   useEffect(() => {
     if (!isOpen) return;
     if (coursToEdit) {
-      setNom(coursToEdit.nom);
+      setNomChoice(coursToEdit.nom);
+      setNomNew("");
       setTarifAnnuel(String(coursToEdit.tarifAnnuel));
       setLienPaiementCB(coursToEdit.lienPaiementCB ?? "");
       setNbElevesMax(String(coursToEdit.nbElevesMax));
       setNbSemaines(String(coursToEdit.nbSemaines));
-      setMoniteurLignes(
-        coursToEdit.moniteurs.map((m) => ({
-          salarieId: m.salarieId,
-          nbSemaines: String(m.nbSemaines),
-        }))
-      );
+      setMoniteurIds(coursToEdit.moniteurs.map((m) => m.salarieId));
       setSeances(
-        coursToEdit.seances.map((s) => ({
-          jour: s.jour,
-          heureDebut: s.heureDebut,
-          dureeHeures: String(s.dureeHeures),
-        }))
+        coursToEdit.seances.map((s) => ({ jour: s.jour, heureDebut: s.heureDebut, dureeHeures: String(s.dureeHeures) }))
       );
     } else {
-      setNom("");
+      setNomChoice("");
+      setNomNew("");
       setTarifAnnuel("");
       setLienPaiementCB("");
       setNbElevesMax("");
-      setNbSemaines("30");
-      setMoniteurLignes([{ salarieId: moniteurs[0]?.salarieId ?? "", nbSemaines: "30" }]);
-      setSeances([emptySeance()]);
+      setNbSemaines("");
+      setMoniteurIds(
+        prefill?.moniteurIds && prefill.moniteurIds.length > 0
+          ? prefill.moniteurIds
+          : [moniteurs[0]?.salarieId ?? ""]
+      );
+      setSeances([emptySeance(prefill?.jour ?? 0)]);
     }
-  }, [isOpen, coursToEdit, moniteurs]);
+  }, [isOpen, coursToEdit, moniteurs, prefill]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!isOpen) return null;
 
-  const updateSeance = (idx: number, patch: Partial<SeanceForm>) => {
-    setSeances((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
+  // Sélection d'un type existant => préremplit tarif / élèves / semaines / séances.
+  const onSelectType = (value: string) => {
+    setNomChoice(value);
+    if (value === NEW_TYPE || value === "") return;
+    const t = coursTypes.find((c) => c.nom === value);
+    if (t) {
+      setTarifAnnuel(String(t.tarifAnnuel));
+      setNbElevesMax(String(t.nbElevesMax));
+      setNbSemaines(String(t.nbSemaines));
+      setSeances(
+        t.seances.map((s) => ({ jour: s.jour, heureDebut: s.heureDebut, dureeHeures: String(s.dureeHeures) }))
+      );
+    }
   };
+
+  const updateSeance = (idx: number, patch: Partial<SeanceForm>) =>
+    setSeances((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
   const addSeance = () => setSeances((prev) => [...prev, emptySeance()]);
   const removeSeance = (idx: number) =>
     setSeances((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev));
 
-  const updateMoniteur = (idx: number, patch: Partial<MoniteurForm>) => {
-    setMoniteurLignes((prev) => prev.map((m, i) => (i === idx ? { ...m, ...patch } : m)));
-  };
-  const addMoniteur = () =>
-    setMoniteurLignes((prev) => [...prev, { salarieId: moniteurs[0]?.salarieId ?? "", nbSemaines: "30" }]);
+  const updateMoniteur = (idx: number, value: string) =>
+    setMoniteurIds((prev) => prev.map((m, i) => (i === idx ? value : m)));
+  const addMoniteur = () => setMoniteurIds((prev) => [...prev, moniteurs[0]?.salarieId ?? ""]);
   const removeMoniteur = (idx: number) =>
-    setMoniteurLignes((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev));
+    setMoniteurIds((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev));
+
+  const nomEffectif = nomChoice === NEW_TYPE ? nomNew.trim() : nomChoice;
+  const moniteursValides = moniteurIds.filter(Boolean);
+  const nbSemainesNum = parseInt(nbSemaines, 10) || 0;
+  const partSemaines = moniteursValides.length > 0 ? nbSemainesNum / moniteursValides.length : 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nom.trim() || !nbElevesMax || !tarifAnnuel || !nbSemaines) {
-      alert("Veuillez remplir tous les champs obligatoires.");
+    if (!nomEffectif || !nbElevesMax || !tarifAnnuel || !nbSemaines) {
+      alert("Veuillez remplir le nom, le tarif, le nombre d'élèves et de semaines.");
       return;
     }
-    const nbSemainesNum = parseInt(nbSemaines, 10);
     const parsedSeances = seances
       .filter((s) => s.heureDebut && s.dureeHeures)
       .map((s) => ({ jour: s.jour, heureDebut: s.heureDebut, dureeHeures: parseFloat(s.dureeHeures) }));
@@ -124,15 +155,7 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
       alert("Ajoutez au moins une séance valide (jour, heure, durée).");
       return;
     }
-    const moniteursValides = moniteurLignes.filter((m) => m.salarieId);
-    // Un seul moniteur : il couvre toutes les semaines du cours. Plusieurs : on
-    // utilise la répartition saisie (ex. 12 / 11 / 11).
-    const unSeulMoniteur = moniteursValides.length === 1;
-    const parsedMoniteurs = moniteursValides.map((m) => ({
-      salarieId: m.salarieId as Id<"salaries">,
-      nbSemaines: unSeulMoniteur ? nbSemainesNum : parseInt(m.nbSemaines, 10) || 0,
-    }));
-    if (parsedMoniteurs.length === 0) {
+    if (moniteursValides.length === 0) {
       alert("Ajoutez au moins un moniteur.");
       return;
     }
@@ -140,12 +163,12 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
     setSaving(true);
     try {
       const payload = {
-        nom: nom.trim(),
+        nom: nomEffectif,
         tarifAnnuel: parseFloat(tarifAnnuel),
         lienPaiementCB: lienPaiementCB.trim() || undefined,
         nbElevesMax: parseInt(nbElevesMax, 10),
         nbSemaines: nbSemainesNum,
-        moniteurs: parsedMoniteurs,
+        moniteurs: moniteursValides as Id<"salaries">[],
         seances: parsedSeances,
       };
       if (coursToEdit) {
@@ -162,160 +185,104 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
     }
   };
 
-  const totalSemaines = moniteurLignes.reduce((a, m) => a + (parseInt(m.nbSemaines, 10) || 0), 0);
-
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content fade-in" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2 className="modal-title">{coursToEdit ? "Modifier le cours" : "Nouveau cours"}</h2>
+          <h2 className="modal-title">{coursToEdit ? "Modifier le créneau" : "Nouveau créneau"}</h2>
           <button className="modal-close" onClick={onClose} aria-label="Fermer">
             <X size={24} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit}>
+          {/* Nom = type de cours (liste déroulante + nouveau) */}
           <div className="form-group">
             <label className="form-label" htmlFor="cours-nom">
-              Nom <span className="text-red-500">*</span>
+              Type de cours <span className="text-red-500">*</span>
             </label>
-            <input
+            <select
               id="cours-nom"
-              type="text"
               className="input-field"
-              value={nom}
-              onChange={(e) => setNom(e.target.value)}
+              value={nomChoice}
+              onChange={(e) => onSelectType(e.target.value)}
               required
-              placeholder="Ex: Primaires (débutants)"
-            />
+            >
+              <option value="" disabled>Sélectionner un type…</option>
+              {coursTypes.map((t) => (
+                <option key={t.nom} value={t.nom}>{t.nom}</option>
+              ))}
+              <option value={NEW_TYPE}>➕ Nouveau type…</option>
+            </select>
+            {nomChoice === NEW_TYPE && (
+              <input
+                type="text"
+                className="input-field"
+                style={{ marginTop: "0.5rem" }}
+                value={nomNew}
+                onChange={(e) => setNomNew(e.target.value)}
+                placeholder="Nom du nouveau type de cours"
+                autoFocus
+              />
+            )}
+            {nomChoice && nomChoice !== NEW_TYPE && (
+              <p style={{ fontSize: "0.78rem", color: "#6b7280", marginTop: "0.4rem", marginBottom: 0 }}>
+                Tarif, élèves max, semaines et séances sont communs à ce type (cascade).
+              </p>
+            )}
           </div>
 
           <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-            <div className="form-group" style={{ flex: "1 1 140px" }}>
-              <label className="form-label" htmlFor="cours-tarif">
-                Tarif annuel (€) <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="cours-tarif"
-                type="number"
-                step="0.01"
-                className="input-field"
-                value={tarifAnnuel}
-                onChange={(e) => setTarifAnnuel(e.target.value)}
-                required
-                placeholder="Ex: 280"
-              />
+            <div className="form-group" style={{ flex: "1 1 120px" }}>
+              <label className="form-label" htmlFor="cours-tarif">Tarif annuel (€) <span className="text-red-500">*</span></label>
+              <input id="cours-tarif" type="number" step="0.01" className="input-field" value={tarifAnnuel} onChange={(e) => setTarifAnnuel(e.target.value)} required placeholder="Ex: 280" />
             </div>
             <div className="form-group" style={{ flex: "1 1 120px" }}>
-              <label className="form-label" htmlFor="cours-eleves">
-                Nb élèves max <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="cours-eleves"
-                type="number"
-                step="1"
-                className="input-field"
-                value={nbElevesMax}
-                onChange={(e) => setNbElevesMax(e.target.value)}
-                required
-                placeholder="Ex: 12"
-              />
+              <label className="form-label" htmlFor="cours-eleves">Nb élèves max <span className="text-red-500">*</span></label>
+              <input id="cours-eleves" type="number" step="1" className="input-field" value={nbElevesMax} onChange={(e) => setNbElevesMax(e.target.value)} required placeholder="Ex: 12" />
             </div>
             <div className="form-group" style={{ flex: "1 1 120px" }}>
-              <label className="form-label" htmlFor="cours-semaines">
-                Nb semaines <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="cours-semaines"
-                type="number"
-                step="1"
-                className="input-field"
-                value={nbSemaines}
-                onChange={(e) => setNbSemaines(e.target.value)}
-                required
-                placeholder="Ex: 34"
-              />
+              <label className="form-label" htmlFor="cours-semaines">Nb semaines <span className="text-red-500">*</span></label>
+              <input id="cours-semaines" type="number" step="1" className="input-field" value={nbSemaines} onChange={(e) => setNbSemaines(e.target.value)} required placeholder="Ex: 34" />
             </div>
           </div>
 
           <div className="form-group">
-            <label className="form-label" htmlFor="cours-lien">
-              Lien paiement CB
-            </label>
-            <input
-              id="cours-lien"
-              type="url"
-              className="input-field"
-              value={lienPaiementCB}
-              onChange={(e) => setLienPaiementCB(e.target.value)}
-              placeholder="https://…"
-            />
+            <label className="form-label" htmlFor="cours-lien">Lien paiement CB</label>
+            <input id="cours-lien" type="url" className="input-field" value={lienPaiementCB} onChange={(e) => setLienPaiementCB(e.target.value)} placeholder="https://…" />
           </div>
 
-          {/* Moniteurs : un ou plusieurs, chacun avec le nb de semaines couvertes */}
+          {/* Moniteurs : liste de moniteurs ; semaines réparties automatiquement */}
           <div className="form-group">
             <label className="form-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span>
                 Moniteurs <span className="text-red-500">*</span>{" "}
                 <span style={{ color: "#6b7280", fontWeight: "normal" }}>
-                  ({moniteurLignes.length}
-                  {moniteurLignes.length > 1 ? ` · ${totalSemaines} sem. réparties` : ""})
+                  ({moniteursValides.length}
+                  {moniteursValides.length > 1 ? ` · ≈ ${partSemaines.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} sem./moniteur` : ""})
                 </span>
               </span>
-              <button
-                type="button"
-                className="btn-secondary"
-                style={{ width: "auto", padding: "0.25rem 0.6rem", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
-                onClick={addMoniteur}
-              >
+              <button type="button" className="btn-secondary" style={{ width: "auto", padding: "0.25rem 0.6rem", display: "inline-flex", alignItems: "center", gap: "0.3rem" }} onClick={addMoniteur}>
                 <Plus size={14} /> Moniteur
               </button>
             </label>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.5rem" }}>
-              {moniteurLignes.map((m, idx) => (
-                <div key={idx} style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
-                  <select
-                    className="input-field"
-                    style={{ flex: "1 1 160px", margin: 0 }}
-                    value={m.salarieId}
-                    onChange={(e) => updateMoniteur(idx, { salarieId: e.target.value })}
-                  >
-                    <option value="" disabled>
-                      {moniteurs.length === 0 ? "Aucun moniteur" : "Sélectionner…"}
-                    </option>
+              {moniteurIds.map((id, idx) => (
+                <div key={idx} style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                  <select className="input-field" style={{ flex: 1, margin: 0 }} value={id} onChange={(e) => updateMoniteur(idx, e.target.value)}>
+                    <option value="" disabled>{moniteurs.length === 0 ? "Aucun moniteur" : "Sélectionner…"}</option>
                     {moniteurs.map((opt) => (
-                      <option key={opt.salarieId} value={opt.salarieId}>
-                        {opt.nom}
-                      </option>
+                      <option key={opt.salarieId} value={opt.salarieId}>{opt.nom}</option>
                     ))}
                   </select>
-                  {moniteurLignes.length > 1 && (
-                    <input
-                      type="number"
-                      step="1"
-                      min="1"
-                      className="input-field"
-                      style={{ flex: "1 1 110px", margin: 0 }}
-                      value={m.nbSemaines}
-                      onChange={(e) => updateMoniteur(idx, { nbSemaines: e.target.value })}
-                      title="Nombre de semaines couvertes par ce moniteur"
-                      placeholder="Semaines"
-                    />
-                  )}
-                  <button
-                    type="button"
-                    className="btn-icon danger"
-                    onClick={() => removeMoniteur(idx)}
-                    title="Retirer le moniteur"
-                    disabled={moniteurLignes.length <= 1}
-                  >
+                  <button type="button" className="btn-icon danger" onClick={() => removeMoniteur(idx)} title="Retirer le moniteur" disabled={moniteurIds.length <= 1}>
                     <Trash2 size={16} />
                   </button>
                 </div>
               ))}
             </div>
             <p style={{ fontSize: "0.78rem", color: "#6b7280", marginTop: "0.4rem", marginBottom: 0 }}>
-              Plusieurs moniteurs = répartition de l'année (ex. 11 / 11 / 12 semaines).
+              Plusieurs moniteurs = répartition de l'année (semaines ÷ nombre de moniteurs).
             </p>
           </div>
 
@@ -326,56 +293,19 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
                 Séances par semaine <span className="text-red-500">*</span>{" "}
                 <span style={{ color: "#6b7280", fontWeight: "normal" }}>({seances.length})</span>
               </span>
-              <button
-                type="button"
-                className="btn-secondary"
-                style={{ width: "auto", padding: "0.25rem 0.6rem", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
-                onClick={addSeance}
-              >
+              <button type="button" className="btn-secondary" style={{ width: "auto", padding: "0.25rem 0.6rem", display: "inline-flex", alignItems: "center", gap: "0.3rem" }} onClick={addSeance}>
                 <Plus size={14} /> Séance
               </button>
             </label>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.5rem" }}>
               {seances.map((s, idx) => (
                 <div key={idx} style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
-                  <select
-                    className="input-field"
-                    style={{ flex: "1 1 120px", margin: 0 }}
-                    value={s.jour}
-                    onChange={(e) => updateSeance(idx, { jour: parseInt(e.target.value, 10) })}
-                  >
-                    {JOURS.map((j, ji) => (
-                      <option key={ji} value={ji}>
-                        {j}
-                      </option>
-                    ))}
+                  <select className="input-field" style={{ flex: "1 1 120px", margin: 0 }} value={s.jour} onChange={(e) => updateSeance(idx, { jour: parseInt(e.target.value, 10) })}>
+                    {JOURS.map((j, ji) => (<option key={ji} value={ji}>{j}</option>))}
                   </select>
-                  <input
-                    type="time"
-                    className="input-field"
-                    style={{ flex: "1 1 110px", margin: 0 }}
-                    value={s.heureDebut}
-                    onChange={(e) => updateSeance(idx, { heureDebut: e.target.value })}
-                    title="Heure de début"
-                  />
-                  <input
-                    type="number"
-                    step="0.25"
-                    min="0.25"
-                    className="input-field"
-                    style={{ flex: "1 1 90px", margin: 0 }}
-                    value={s.dureeHeures}
-                    onChange={(e) => updateSeance(idx, { dureeHeures: e.target.value })}
-                    title="Durée (heures)"
-                    placeholder="Durée (h)"
-                  />
-                  <button
-                    type="button"
-                    className="btn-icon danger"
-                    onClick={() => removeSeance(idx)}
-                    title="Retirer la séance"
-                    disabled={seances.length <= 1}
-                  >
+                  <input type="time" className="input-field" style={{ flex: "1 1 110px", margin: 0 }} value={s.heureDebut} onChange={(e) => updateSeance(idx, { heureDebut: e.target.value })} title="Heure de début" />
+                  <input type="number" step="0.25" min="0.25" className="input-field" style={{ flex: "1 1 90px", margin: 0 }} value={s.dureeHeures} onChange={(e) => updateSeance(idx, { dureeHeures: e.target.value })} title="Durée (heures)" placeholder="Durée (h)" />
+                  <button type="button" className="btn-icon danger" onClick={() => removeSeance(idx)} title="Retirer la séance" disabled={seances.length <= 1}>
                     <Trash2 size={16} />
                   </button>
                 </div>
@@ -383,19 +313,38 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
             </div>
           </div>
 
-          <div className="form-actions" style={{ marginTop: "2rem" }}>
-            <button type="button" className="btn-secondary" onClick={onClose}>
-              Annuler
-            </button>
-            <button
-              type="submit"
-              className="btn-primary"
-              disabled={saving}
-              style={{ display: "flex", alignItems: "center", gap: "0.5rem", width: "auto" }}
-            >
-              <Save size={18} />
-              Enregistrer
-            </button>
+          <div className="form-actions" style={{ marginTop: "2rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              {coursToEdit && (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  style={{ width: "auto", color: "#b91c1c", display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+                  disabled={saving}
+                  onClick={async () => {
+                    if (!window.confirm(`Supprimer ce créneau de « ${coursToEdit.nom} » ?`)) return;
+                    setSaving(true);
+                    try {
+                      await removeCours({ coursId: coursToEdit._id });
+                      onClose();
+                    } catch (err) {
+                      console.error(err);
+                      alert("Erreur lors de la suppression.");
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                >
+                  <Trash2 size={16} /> Supprimer
+                </button>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: "0.75rem" }}>
+              <button type="button" className="btn-secondary" onClick={onClose}>Annuler</button>
+              <button type="submit" className="btn-primary" disabled={saving} style={{ display: "flex", alignItems: "center", gap: "0.5rem", width: "auto" }}>
+                <Save size={18} /> Enregistrer
+              </button>
+            </div>
           </div>
         </form>
       </div>

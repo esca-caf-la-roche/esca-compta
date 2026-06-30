@@ -11,10 +11,16 @@ const seanceValidator = v.object({
   dureeHeures: v.number(),
 });
 
-const moniteurValidator = v.object({
-  salarieId: v.id("salaries"),
-  nbSemaines: v.number(), // semaines couvertes par ce moniteur dans l'année
-});
+/** Répartit les semaines du cours entre ses moniteurs : nbSemaines / nb moniteurs.
+ *  La virgule est admise (prévisionnel). Pour un seul moniteur => toutes les semaines. */
+function repartirMoniteurs(
+  salarieIds: Id<"salaries">[],
+  nbSemaines: number
+): Array<{ salarieId: Id<"salaries">; nbSemaines: number }> {
+  const n = salarieIds.length;
+  const part = n > 0 ? nbSemaines / n : 0;
+  return salarieIds.map((salarieId) => ({ salarieId, nbSemaines: part }));
+}
 
 async function requireAdmin(ctx: MutationCtx, userId: Id<"users">) {
   const settings = await ctx.db
@@ -65,6 +71,8 @@ async function cascadeTypeCours(
       nbElevesMax: shared.nbElevesMax,
       nbSemaines: shared.nbSemaines,
       seances: alignerSeances(shared.seances, sib.seances),
+      // Le nb de semaines a pu changer => on redistribue entre les moniteurs du créneau.
+      moniteurs: repartirMoniteurs(sib.moniteurs.map((m) => m.salarieId), shared.nbSemaines),
     });
   }
   return siblings.length;
@@ -153,7 +161,7 @@ export const addCours = mutation({
     lienPaiementCB: v.optional(v.string()),
     nbElevesMax: v.number(),
     nbSemaines: v.number(),
-    moniteurs: v.array(moniteurValidator),
+    moniteurs: v.array(v.id("salaries")), // liste de moniteurs ; semaines réparties auto
     seances: v.array(seanceValidator),
   },
   handler: async (ctx, args) => {
@@ -189,7 +197,7 @@ export const addCours = mutation({
       lienPaiementCB: args.lienPaiementCB?.trim() || undefined,
       nbElevesMax,
       nbSemaines,
-      moniteurs: args.moniteurs,
+      moniteurs: repartirMoniteurs(args.moniteurs, nbSemaines),
       seances,
       ordre: tousCours.length,
     });
@@ -204,7 +212,7 @@ export const updateCours = mutation({
     lienPaiementCB: v.optional(v.string()),
     nbElevesMax: v.optional(v.number()),
     nbSemaines: v.optional(v.number()),
-    moniteurs: v.optional(v.array(moniteurValidator)),
+    moniteurs: v.optional(v.array(v.id("salaries"))),
     seances: v.optional(v.array(seanceValidator)),
   },
   handler: async (ctx, args) => {
@@ -223,17 +231,24 @@ export const updateCours = mutation({
       updates.lienPaiementCB = args.lienPaiementCB.trim() || undefined;
     if (args.nbElevesMax !== undefined) updates.nbElevesMax = args.nbElevesMax;
     if (args.nbSemaines !== undefined) updates.nbSemaines = args.nbSemaines;
-    if (args.moniteurs !== undefined) {
-      if (args.moniteurs.length === 0) {
-        throw new Error("Un cours doit avoir au moins un moniteur.");
-      }
-      updates.moniteurs = args.moniteurs;
-    }
     if (args.seances !== undefined) {
       if (args.seances.length === 0) {
         throw new Error("Un cours doit comporter au moins une séance.");
       }
       updates.seances = args.seances;
+    }
+
+    // Moniteurs : nouvelle liste fournie, ou liste existante si seul le nb de semaines
+    // change. Dans les deux cas on redistribue les semaines (auto).
+    const nbSemainesFinal =
+      args.nbSemaines ?? cours.nbSemaines ?? cours.moniteurs.reduce((a, m) => a + m.nbSemaines, 0);
+    const salarieIds =
+      args.moniteurs !== undefined ? args.moniteurs : cours.moniteurs.map((m) => m.salarieId);
+    if (args.moniteurs !== undefined && args.moniteurs.length === 0) {
+      throw new Error("Un cours doit avoir au moins un moniteur.");
+    }
+    if (args.moniteurs !== undefined || args.nbSemaines !== undefined) {
+      updates.moniteurs = repartirMoniteurs(salarieIds, nbSemainesFinal);
     }
 
     if (Object.keys(updates).length > 0) {
@@ -261,6 +276,37 @@ export const removeCours = mutation({
   handler: async (ctx, args) => {
     await requireAdmin(ctx, ctx.userId);
     await ctx.db.delete(args.coursId);
+  },
+});
+
+// Modifie les attributs d'un TYPE de cours (tous les créneaux de même nom dans la
+// saison) : tarif, élèves max, nb semaines. Le nb de semaines est redistribué entre
+// les moniteurs de chaque créneau. C'est le « vrai » système de cascade du tableau
+// par type de cours.
+export const updateTypeCours = mutation({
+  args: {
+    saison: v.string(),
+    nom: v.string(),
+    tarifAnnuel: v.number(),
+    nbElevesMax: v.number(),
+    nbSemaines: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx, ctx.userId);
+    const creneaux = (await ctx.db
+      .query("cours")
+      .withIndex("by_saison", (q) => q.eq("saison", args.saison))
+      .collect()).filter((c) => c.nom === args.nom);
+
+    for (const c of creneaux) {
+      await ctx.db.patch(c._id, {
+        tarifAnnuel: args.tarifAnnuel,
+        nbElevesMax: args.nbElevesMax,
+        nbSemaines: args.nbSemaines,
+        moniteurs: repartirMoniteurs(c.moniteurs.map((m) => m.salarieId), args.nbSemaines),
+      });
+    }
+    return { modifies: creneaux.length };
   },
 });
 
@@ -333,9 +379,8 @@ export const importPlanning = internalMutation({
         nbElevesMax: v.number(),
         nbSemaines: v.number(),
         seances: v.array(seanceValidator),
-        moniteurs: v.array(
-          v.object({ prenom: v.string(), nbSemaines: v.number() })
-        ),
+        // Liste de prénoms ; les semaines sont réparties automatiquement.
+        moniteurs: v.array(v.object({ prenom: v.string() })),
       })
     ),
   },
@@ -383,10 +428,10 @@ export const importPlanning = internalMutation({
         lienPaiementCB: c.lienPaiementCB,
         nbElevesMax: c.nbElevesMax,
         nbSemaines: c.nbSemaines,
-        moniteurs: c.moniteurs.map((m) => ({
-          salarieId: resolve(m.prenom),
-          nbSemaines: m.nbSemaines,
-        })),
+        moniteurs: repartirMoniteurs(
+          c.moniteurs.map((m) => resolve(m.prenom)),
+          c.nbSemaines
+        ),
         seances: c.seances,
         ordre: baseOrdre + i,
       });

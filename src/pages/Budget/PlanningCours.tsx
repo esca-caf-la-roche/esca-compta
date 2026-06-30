@@ -1,20 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "convex/react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Plus, Edit2, Trash2, CalendarDays, AlertTriangle } from "lucide-react";
-import { useMutation } from "convex/react";
+import { Plus, CalendarDays, AlertTriangle, Save } from "lucide-react";
 import { useSeason } from "../../contexts/SeasonContext";
-import CoursFormModal, { type CoursRow } from "../../components/Budget/CoursFormModal";
+import CoursFormModal, {
+  type CoursRow,
+  type CoursType,
+  type CoursPrefill,
+} from "../../components/Budget/CoursFormModal";
 import { JOURS } from "../../utils/planning";
 import type { Id } from "../../../convex/_generated/dataModel";
 
 const eur0 = (n: number) =>
   n.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
-// Palette stable assignée par cours (index) pour colorer les barres du Gantt.
+// Palette stable assignée par TYPE de cours (nom) pour colorer les barres du Gantt.
 const PALETTE = [
   "#2563eb", "#16a34a", "#db2777", "#d97706", "#7c3aed",
   "#0891b2", "#dc2626", "#65a30d", "#9333ea", "#0d9488",
+  "#ca8a04", "#be123c", "#4f46e5", "#0369a1", "#15803d",
 ];
 
 /** "18:30" -> 18.5 (heures décimales). */
@@ -48,22 +52,27 @@ type CoursDisplay = {
 export default function PlanningCours({ isAdmin }: Props) {
   const { season } = useSeason();
   const data = useQuery(api.cours.getPlanning, { saison: season });
-  const removeCours = useMutation(api.cours.removeCours);
   const reprendrePlanning = useMutation(api.cours.reprendrePlanningSaisonPrecedente);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [coursToEdit, setCoursToEdit] = useState<CoursRow | null>(null);
+  const [prefill, setPrefill] = useState<CoursPrefill | null>(null);
   const [reprise, setReprise] = useState(false);
   const [autoSeason, setAutoSeason] = useState<string | null>(null);
 
-  const cours = useMemo(() => data?.cours ?? [], [data]);
+  const cours = useMemo(() => (data?.cours ?? []) as CoursDisplay[], [data]);
   const moniteurs = useMemo(
     () => (data?.salaries ?? []).map((s) => ({ salarieId: s.salarieId, nom: s.nom })),
     [data]
   );
+  // Ordre d'affichage des moniteurs (issu de la masse salariale).
+  const ordreById = useMemo(() => {
+    const map = new Map<string, number>();
+    (data?.salaries ?? []).forEach((s, i) => map.set(s.salarieId, i));
+    return map;
+  }, [data]);
 
-  // Règle de saison (comme la masse salariale) : si la saison courante n'a pas de
-  // cours mais que la précédente en contient, on reprend automatiquement le planning.
+  // Reprise automatique du planning si la saison est vide (comme la masse salariale).
   useEffect(() => {
     if (
       isAdmin &&
@@ -83,74 +92,106 @@ export default function PlanningCours({ isAdmin }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, data, season]);
 
-  // Couleur par cours (index dans la liste triée).
-  const colorByCours = useMemo(() => {
+  // Couleur par type de cours (nom).
+  const colorByNom = useMemo(() => {
     const map = new Map<string, string>();
-    cours.forEach((c, i) => map.set(c._id, PALETTE[i % PALETTE.length]));
+    let i = 0;
+    for (const c of cours) {
+      if (!map.has(c.nom)) map.set(c.nom, PALETTE[i++ % PALETTE.length]);
+    }
     return map;
   }, [cours]);
 
-  // Construction des séances par jour (0=Lundi … 6=Dimanche) pour le Gantt.
-  // Une séance partagée par plusieurs moniteurs apparaît sur la ligne de chacun.
+  // Types de cours distincts (gabarit) pour le menu déroulant du modal et le tableau.
+  const coursTypes = useMemo<CoursType[]>(() => {
+    const map = new Map<string, CoursType>();
+    for (const c of cours) {
+      if (!map.has(c.nom)) {
+        map.set(c.nom, {
+          nom: c.nom,
+          tarifAnnuel: c.tarifAnnuel,
+          nbElevesMax: c.nbElevesMax,
+          nbSemaines: c.nbSemaines,
+          seances: c.seances,
+        });
+      }
+    }
+    return [...map.values()].sort((a, b) => a.nom.localeCompare(b.nom));
+  }, [cours]);
+
+  // Agrégat par type pour le tableau (gabarit + nb de créneaux).
+  const typeRows = useMemo(() => {
+    const map = new Map<string, { type: CoursType; nbCreneaux: number }>();
+    for (const c of cours) {
+      const ex = map.get(c.nom);
+      if (ex) ex.nbCreneaux += 1;
+      else
+        map.set(c.nom, {
+          type: { nom: c.nom, tarifAnnuel: c.tarifAnnuel, nbElevesMax: c.nbElevesMax, nbSemaines: c.nbSemaines, seances: c.seances },
+          nbCreneaux: 1,
+        });
+    }
+    return [...map.values()].sort((a, b) => a.type.nom.localeCompare(b.type.nom));
+  }, [cours]);
+
+  const coursById = useMemo(() => {
+    const map = new Map<string, CoursDisplay>();
+    for (const c of cours) map.set(c._id, c);
+    return map;
+  }, [cours]);
+
+  // Construction du Gantt par jour. Une LIGNE = un ensemble de moniteurs (un moniteur
+  // seul, ou le groupe pour un cours co-encadré → une seule ligne pour les co-moniteurs).
   const planningParJour = useMemo(() => {
-    type Item = {
-      coursId: string;
-      coursNom: string;
-      salarieId: Id<"salaries">;
-      jour: number;
-      debut: number;
-      fin: number;
-      color: string;
-    };
-    const jours: Array<{
-      jour: number;
-      items: Item[];
-      moniteurs: Array<{ salarieId: Id<"salaries">; nom: string }>;
-      min: number;
-      max: number;
-    }> = [];
+    const jours: JourData[] = [];
 
     for (let j = 0; j < 7; j++) {
-      const items: Item[] = [];
+      const items: GanttItem[] = [];
       for (const c of cours) {
+        const salarieIds = c.moniteurs.map((m) => m.salarieId);
+        const rowKey = [...salarieIds].sort().join("|");
+        const label = c.moniteurs.map((m) => m.nom).join(" / ");
         for (const s of c.seances) {
           if (s.jour !== j) continue;
           const debut = toDecimal(s.heureDebut);
-          for (const m of c.moniteurs) {
-            items.push({
-              coursId: c._id,
-              coursNom: c.nom,
-              salarieId: m.salarieId,
-              jour: j,
-              debut,
-              fin: debut + s.dureeHeures,
-              color: colorByCours.get(c._id) ?? PALETTE[0],
-            });
-          }
+          items.push({
+            coursId: c._id,
+            coursNom: c.nom,
+            rowKey,
+            rowLabel: label,
+            salarieIds,
+            jour: j,
+            debut,
+            fin: debut + s.dureeHeures,
+            color: colorByNom.get(c.nom) ?? PALETTE[0],
+          });
         }
       }
       if (items.length === 0) continue;
 
-      // Moniteurs présents ce jour-là, dans l'ordre de la masse salariale.
-      const presentIds = new Set(items.map((it) => it.salarieId));
-      const monitsJour = moniteurs.filter((m) => presentIds.has(m.salarieId));
+      // Lignes distinctes (par ensemble de moniteurs), triées via l'ordre masse salariale.
+      const rowsMap = new Map<string, GanttRow>();
+      for (const it of items) {
+        if (!rowsMap.has(it.rowKey)) {
+          const minOrdre = Math.min(...it.salarieIds.map((id) => ordreById.get(id) ?? 999));
+          rowsMap.set(it.rowKey, { key: it.rowKey, label: it.rowLabel, salarieIds: it.salarieIds, minOrdre });
+        }
+      }
+      const rows = [...rowsMap.values()].sort((a, b) => a.minOrdre - b.minOrdre || a.label.localeCompare(b.label));
 
       const min = Math.floor(Math.min(...items.map((it) => it.debut)));
       const max = Math.ceil(Math.max(...items.map((it) => it.fin)));
-      jours.push({ jour: j, items, moniteurs: monitsJour, min, max });
+      jours.push({ jour: j, items, rows, min, max });
     }
     return jours;
-  }, [cours, moniteurs, colorByCours]);
+  }, [cours, ordreById, colorByNom]);
 
-  const handleDelete = async (c: { _id: Id<"cours">; nom: string }) => {
-    if (window.confirm(`Supprimer le cours « ${c.nom} » ?`)) {
-      await removeCours({ coursId: c._id });
-    }
-  };
-
-  const openEdit = (c: (typeof cours)[number]) => {
+  const openEditById = (coursId: string) => {
+    const c = coursById.get(coursId);
+    if (!c) return;
+    setPrefill(null);
     setCoursToEdit({
-      _id: c._id,
+      _id: c._id as Id<"cours">,
       nom: c.nom,
       tarifAnnuel: c.tarifAnnuel,
       lienPaiementCB: c.lienPaiementCB,
@@ -161,47 +202,22 @@ export default function PlanningCours({ isAdmin }: Props) {
     });
     setIsModalOpen(true);
   };
-  const openEditById = (coursId: string) => {
-    const c = cours.find((x) => x._id === coursId);
-    if (c) openEdit(c);
-  };
 
-  // Index cours pour l'info-bulle du Gantt (toutes les infos d'un créneau).
-  const coursById = useMemo(() => {
-    const map = new Map<string, CoursDisplay>();
-    for (const c of cours) {
-      map.set(c._id, {
-        _id: c._id,
-        nom: c.nom,
-        tarifAnnuel: c.tarifAnnuel,
-        lienPaiementCB: c.lienPaiementCB,
-        nbElevesMax: c.nbElevesMax,
-        nbSemaines: c.nbSemaines,
-        moniteurs: c.moniteurs,
-        seances: c.seances,
-      });
-    }
-    return map;
-  }, [cours]);
-  const openNew = () => {
+  const openNew = (pf?: CoursPrefill) => {
     setCoursToEdit(null);
+    setPrefill(pf ?? null);
     setIsModalOpen(true);
   };
 
-  if (data === undefined) {
-    return <div className="loading">Chargement du planning…</div>;
-  }
+  if (data === undefined) return <div className="loading">Chargement du planning…</div>;
 
   return (
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem", marginBottom: "1.5rem" }}>
-        <p className="subtitle" style={{ margin: 0 }}>
-          Planning des cours · saison {season}
-        </p>
+        <p className="subtitle" style={{ margin: 0 }}>Planning des cours · saison {season}</p>
         {isAdmin && moniteurs.length > 0 && (
-          <button className="btn-primary" style={{ width: "auto" }} onClick={openNew}>
-            <Plus size={18} style={{ verticalAlign: "middle", marginRight: "0.4rem" }} />
-            Cours
+          <button className="btn-primary" style={{ width: "auto" }} onClick={() => openNew()}>
+            <Plus size={18} style={{ verticalAlign: "middle", marginRight: "0.4rem" }} /> Créneau
           </button>
         )}
       </div>
@@ -239,13 +255,11 @@ export default function PlanningCours({ isAdmin }: Props) {
                       }
                     }}
                   >
-                    <Plus size={16} style={{ verticalAlign: "middle", marginRight: "0.4rem" }} />
-                    Reprendre la saison précédente
+                    <Plus size={16} style={{ verticalAlign: "middle", marginRight: "0.4rem" }} /> Reprendre la saison précédente
                   </button>
                 )}
-                <button className="btn-secondary" style={{ width: "auto" }} onClick={openNew}>
-                  <Plus size={16} style={{ verticalAlign: "middle", marginRight: "0.4rem" }} />
-                  Ajouter un cours
+                <button className="btn-secondary" style={{ width: "auto" }} onClick={() => openNew()}>
+                  <Plus size={16} style={{ verticalAlign: "middle", marginRight: "0.4rem" }} /> Ajouter un créneau
                 </button>
               </div>
             )}
@@ -253,10 +267,9 @@ export default function PlanningCours({ isAdmin }: Props) {
         </section>
       ) : (
         <>
-          {/* Diagramme de Gantt par jour de semaine */}
           {isAdmin && (
             <p style={{ color: "#6b7280", fontSize: "0.85rem", margin: "0 0 0.75rem" }}>
-              Survolez un créneau pour le détail · cliquez dessus pour le modifier.
+              Survolez un créneau pour le détail · cliquez pour le modifier · utilisez les « + » pour ajouter.
             </p>
           )}
           {planningParJour.map((jourData) => (
@@ -266,8 +279,45 @@ export default function PlanningCours({ isAdmin }: Props) {
               coursById={coursById}
               isAdmin={isAdmin}
               onEdit={openEditById}
+              onAdd={openNew}
             />
           ))}
+
+          {/* Tableau par TYPE de cours (cascade) */}
+          <section className="card glass-card" style={{ marginTop: "2rem", overflowX: "auto" }}>
+            <h2 style={{ marginBottom: "1rem" }}>Types de cours</h2>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "720px" }}>
+              <thead>
+                <tr style={{ borderBottom: "2px solid #e5e7eb", textAlign: "left" }}>
+                  <th style={{ padding: "0.6rem 0.5rem" }}>Type de cours</th>
+                  <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Tarif/an (€)</th>
+                  <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Élèves max</th>
+                  <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Semaines</th>
+                  <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Séances/sem</th>
+                  <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>h/sem</th>
+                  <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Créneaux</th>
+                  {isAdmin && <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}></th>}
+                </tr>
+              </thead>
+              <tbody>
+                {typeRows.map(({ type, nbCreneaux }) => (
+                  <TypeRow
+                    key={type.nom}
+                    saison={season}
+                    type={type}
+                    nbCreneaux={nbCreneaux}
+                    color={colorByNom.get(type.nom)}
+                    isAdmin={isAdmin}
+                  />
+                ))}
+              </tbody>
+            </table>
+            <p style={{ color: "#6b7280", fontSize: "0.85rem", marginTop: "0.75rem", marginBottom: 0 }}>
+              Le tarif, le nombre d'élèves et de semaines sont communs à tous les créneaux d'un même
+              type (cascade). Les jours/horaires, durées et moniteurs se modifient sur chaque créneau
+              (clic dans le diagramme).
+            </p>
+          </section>
 
           {/* Cohérence des heures : planning vs masse salariale */}
           <section className="card glass-card" style={{ marginTop: "2rem", overflowX: "auto" }}>
@@ -289,9 +339,7 @@ export default function PlanningCours({ isAdmin }: Props) {
                     <tr key={h.salarieId} style={{ borderBottom: "1px solid #f0f0f0" }}>
                       <td style={{ padding: "0.6rem 0.5rem" }}>
                         <strong>{h.nom}</strong>
-                        <span className="badge" style={{ marginLeft: "0.5rem", fontSize: "0.7rem", backgroundColor: "#e0f2fe", color: "#075985" }}>
-                          {h.typeContrat}
-                        </span>
+                        <span className="badge" style={{ marginLeft: "0.5rem", fontSize: "0.7rem", backgroundColor: "#e0f2fe", color: "#075985" }}>{h.typeContrat}</span>
                       </td>
                       <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">
                         {h.calculees.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} h
@@ -313,74 +361,8 @@ export default function PlanningCours({ isAdmin }: Props) {
             </table>
             <p style={{ color: "#6b7280", fontSize: "0.85rem", marginTop: "0.75rem", marginBottom: 0 }}>
               Heures planning = Σ (durée hebdo du cours × semaines couvertes par le moniteur).
-              Cet écart est informatif et ne modifie pas la masse salariale.
+              Pour un cours co-encadré, les semaines sont réparties entre les moniteurs.
             </p>
-          </section>
-
-          {/* Tableau des cours (CRUD) */}
-          <section className="card glass-card" style={{ marginTop: "2rem", overflowX: "auto" }}>
-            <h2 style={{ marginBottom: "1rem" }}>Liste des cours</h2>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "880px" }}>
-              <thead>
-                <tr style={{ borderBottom: "2px solid #e5e7eb", textAlign: "left" }}>
-                  <th style={{ padding: "0.6rem 0.5rem" }}>Cours</th>
-                  <th style={{ padding: "0.6rem 0.5rem" }}>Moniteur(s)</th>
-                  <th style={{ padding: "0.6rem 0.5rem" }}>Séances</th>
-                  <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Tarif/an</th>
-                  <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Élèves max</th>
-                  <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Semaines</th>
-                  <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>h/sem</th>
-                  {isAdmin && <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Actions</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {cours.map((c) => {
-                  const hSem = c.seances.reduce((a, s) => a + s.dureeHeures, 0);
-                  return (
-                    <tr key={c._id} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                      <td style={{ padding: "0.6rem 0.5rem" }}>
-                        <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, marginRight: 8, backgroundColor: colorByCours.get(c._id) }} />
-                        <strong>{c.nom}</strong>
-                        {c.lienPaiementCB && (
-                          <a href={c.lienPaiementCB} target="_blank" rel="noreferrer" style={{ marginLeft: "0.5rem", fontSize: "0.8rem", color: "#2563eb" }}>
-                            lien CB
-                          </a>
-                        )}
-                      </td>
-                      <td style={{ padding: "0.6rem 0.5rem", fontSize: "0.85rem" }}>
-                        {c.moniteurs.map((m, i) => (
-                          <span key={i} style={{ display: "block", color: "#374151" }}>
-                            {m.nom}
-                            {c.moniteurs.length > 1 && (
-                              <span style={{ color: "#9ca3af" }}> ({m.nbSemaines} sem.)</span>
-                            )}
-                          </span>
-                        ))}
-                      </td>
-                      <td style={{ padding: "0.6rem 0.5rem", fontSize: "0.85rem" }}>
-                        {c.seances.map((s, i) => (
-                          <span key={i} style={{ display: "block", color: "#374151" }}>
-                            {JOURS[s.jour]} {fmtHeure(toDecimal(s.heureDebut))} ({s.dureeHeures} h)
-                          </span>
-                        ))}
-                      </td>
-                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">{eur0(c.tarifAnnuel)}</td>
-                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">{c.nbElevesMax}</td>
-                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">{c.nbSemaines}</td>
-                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">{hSem.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}</td>
-                      {isAdmin && (
-                        <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>
-                          <div style={{ display: "flex", gap: "0.4rem", justifyContent: "flex-end" }}>
-                            <button className="btn-icon info" onClick={() => openEdit(c)} title="Modifier"><Edit2 size={16} /></button>
-                            <button className="btn-icon danger" onClick={() => handleDelete(c)} title="Supprimer"><Trash2 size={16} /></button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
           </section>
         </>
       )}
@@ -390,54 +372,172 @@ export default function PlanningCours({ isAdmin }: Props) {
         onClose={() => setIsModalOpen(false)}
         coursToEdit={coursToEdit}
         moniteurs={moniteurs}
+        coursTypes={coursTypes}
+        prefill={prefill}
       />
     </>
+  );
+}
+
+/** Ligne du tableau « types de cours » : tarif/élèves/semaines éditables (cascade). */
+function TypeRow({
+  saison,
+  type,
+  nbCreneaux,
+  color,
+  isAdmin,
+}: {
+  saison: string;
+  type: CoursType;
+  nbCreneaux: number;
+  color?: string;
+  isAdmin: boolean;
+}) {
+  const updateTypeCours = useMutation(api.cours.updateTypeCours);
+  const [tarif, setTarif] = useState(String(type.tarifAnnuel));
+  const [eleves, setEleves] = useState(String(type.nbElevesMax));
+  const [semaines, setSemaines] = useState(String(type.nbSemaines));
+  const [saving, setSaving] = useState(false);
+
+  // Re-synchronise quand les données changent (cascade, autre client…).
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    setTarif(String(type.tarifAnnuel));
+    setEleves(String(type.nbElevesMax));
+    setSemaines(String(type.nbSemaines));
+  }, [type.tarifAnnuel, type.nbElevesMax, type.nbSemaines]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const dirty =
+    parseFloat(tarif) !== type.tarifAnnuel ||
+    parseInt(eleves, 10) !== type.nbElevesMax ||
+    parseInt(semaines, 10) !== type.nbSemaines;
+
+  const hSem = type.seances.reduce((a, s) => a + s.dureeHeures, 0);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await updateTypeCours({
+        saison,
+        nom: type.nom,
+        tarifAnnuel: parseFloat(tarif) || 0,
+        nbElevesMax: parseInt(eleves, 10) || 0,
+        nbSemaines: parseInt(semaines, 10) || 0,
+      });
+    } catch (err) {
+      console.error(err);
+      alert("Erreur lors de l'enregistrement du type de cours.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const cell: CSSProperties = { padding: "0.5rem 0.5rem", textAlign: "right" };
+  const inputStyle: CSSProperties = { width: 80, textAlign: "right", margin: 0, padding: "0.3rem 0.4rem" };
+
+  return (
+    <tr style={{ borderBottom: "1px solid #f0f0f0" }}>
+      <td style={{ padding: "0.5rem 0.5rem" }}>
+        <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, marginRight: 8, backgroundColor: color }} />
+        <strong>{type.nom}</strong>
+      </td>
+      <td style={cell}>
+        {isAdmin ? (
+          <input type="number" step="0.01" className="input-field" style={inputStyle} value={tarif} onChange={(e) => setTarif(e.target.value)} />
+        ) : (
+          <span className="font-mono">{eur0(type.tarifAnnuel)}</span>
+        )}
+      </td>
+      <td style={cell}>
+        {isAdmin ? (
+          <input type="number" step="1" className="input-field" style={inputStyle} value={eleves} onChange={(e) => setEleves(e.target.value)} />
+        ) : (
+          <span className="font-mono">{type.nbElevesMax}</span>
+        )}
+      </td>
+      <td style={cell}>
+        {isAdmin ? (
+          <input type="number" step="1" className="input-field" style={inputStyle} value={semaines} onChange={(e) => setSemaines(e.target.value)} />
+        ) : (
+          <span className="font-mono">{type.nbSemaines}</span>
+        )}
+      </td>
+      <td style={cell} className="font-mono">{type.seances.length}</td>
+      <td style={cell} className="font-mono">{hSem.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}</td>
+      <td style={cell} className="font-mono">{nbCreneaux}</td>
+      {isAdmin && (
+        <td style={cell}>
+          <button
+            className="btn-icon info"
+            onClick={save}
+            disabled={!dirty || saving}
+            title={dirty ? "Enregistrer (cascade sur tous les créneaux)" : "Aucune modification"}
+            style={{ opacity: dirty ? 1 : 0.4 }}
+          >
+            <Save size={16} />
+          </button>
+        </td>
+      )}
+    </tr>
   );
 }
 
 type GanttItem = {
   coursId: string;
   coursNom: string;
-  salarieId: Id<"salaries">;
+  rowKey: string;
+  rowLabel: string;
+  salarieIds: Id<"salaries">[];
   jour: number;
   debut: number;
   fin: number;
   color: string;
 };
+type GanttRow = { key: string; label: string; salarieIds: Id<"salaries">[]; minOrdre: number };
+type JourData = { jour: number; items: GanttItem[]; rows: GanttRow[]; min: number; max: number };
 
-/** Une journée du Gantt : lignes = moniteurs, axe horizontal = horaires. */
+/** Une journée du Gantt : lignes = moniteur(s), axe horizontal = horaires. */
 function GanttJour({
   jourData,
   coursById,
   isAdmin,
   onEdit,
+  onAdd,
 }: {
-  jourData: {
-    jour: number;
-    items: GanttItem[];
-    moniteurs: Array<{ salarieId: Id<"salaries">; nom: string }>;
-    min: number;
-    max: number;
-  };
+  jourData: JourData;
   coursById: Map<string, CoursDisplay>;
   isAdmin: boolean;
   onEdit: (coursId: string) => void;
+  onAdd: (prefill: CoursPrefill) => void;
 }) {
-  const { jour, items, moniteurs, min, max } = jourData;
+  const { jour, items, rows, min, max } = jourData;
   const span = Math.max(max - min, 1);
   const heures: number[] = [];
   for (let h = min; h <= max; h++) heures.push(h);
 
   const pct = (v: number) => `${((v - min) / span) * 100}%`;
-  const LABEL_W = 140;
+  const LABEL_W = 150;
 
   const [hover, setHover] = useState<{ item: GanttItem; x: number; y: number } | null>(null);
 
   return (
     <section className="card glass-card" style={{ marginBottom: "1.5rem" }}>
-      <h3 style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: 0, marginBottom: "1rem" }}>
-        <CalendarDays size={18} /> {JOURS[jour]}
-      </h3>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+        <h3 style={{ display: "flex", alignItems: "center", gap: "0.5rem", margin: 0 }}>
+          <CalendarDays size={18} /> {JOURS[jour]}
+        </h3>
+        {isAdmin && (
+          <button
+            className="btn-secondary"
+            style={{ width: "auto", padding: "0.25rem 0.6rem", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+            onClick={() => onAdd({ jour })}
+            title="Ajouter un créneau ce jour"
+          >
+            <Plus size={14} /> Ligne
+          </button>
+        )}
+      </div>
 
       <div style={{ overflowX: "auto" }}>
         <div style={{ minWidth: 640 }}>
@@ -446,30 +546,32 @@ function GanttJour({
             <div style={{ width: LABEL_W, flexShrink: 0 }} />
             <div style={{ position: "relative", flex: 1, height: 20 }}>
               {heures.map((h) => (
-                <span
-                  key={h}
-                  style={{ position: "absolute", left: pct(h), transform: "translateX(-50%)", fontSize: "0.72rem", color: "#6b7280", whiteSpace: "nowrap" }}
-                >
-                  {h}h
-                </span>
+                <span key={h} style={{ position: "absolute", left: pct(h), transform: "translateX(-50%)", fontSize: "0.72rem", color: "#6b7280", whiteSpace: "nowrap" }}>{h}h</span>
               ))}
             </div>
           </div>
 
-          {/* Une ligne par moniteur */}
-          {moniteurs.map((m) => {
-            const seances = items.filter((it) => it.salarieId === m.salarieId);
+          {/* Une ligne par ensemble de moniteurs */}
+          {rows.map((row) => {
+            const seances = items.filter((it) => it.rowKey === row.key);
             return (
-              <div key={m.salarieId} style={{ display: "flex", alignItems: "center", borderTop: "1px solid #f0f0f0" }}>
-                <div style={{ width: LABEL_W, flexShrink: 0, padding: "0.5rem 0.5rem 0.5rem 0", fontWeight: 600, fontSize: "0.9rem" }}>
-                  {m.nom}
+              <div key={row.key} style={{ display: "flex", alignItems: "center", borderTop: "1px solid #f0f0f0" }}>
+                <div style={{ width: LABEL_W, flexShrink: 0, padding: "0.5rem 0.5rem 0.5rem 0", fontWeight: 600, fontSize: "0.85rem", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4 }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.label}</span>
+                  {isAdmin && (
+                    <button
+                      onClick={() => onAdd({ jour, moniteurIds: row.salarieIds })}
+                      title="Ajouter un créneau pour ce(s) moniteur(s) ce jour"
+                      style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "#2563eb", display: "flex", flexShrink: 0 }}
+                    >
+                      <Plus size={16} />
+                    </button>
+                  )}
                 </div>
                 <div style={{ position: "relative", flex: 1, height: 44 }}>
-                  {/* Lignes verticales (heures) */}
                   {heures.map((h) => (
                     <div key={h} style={{ position: "absolute", left: pct(h), top: 0, bottom: 0, width: 1, background: "#f1f5f9" }} />
                   ))}
-                  {/* Barres des séances */}
                   {seances.map((s, i) => (
                     <div
                       key={i}
@@ -522,28 +624,11 @@ function GanttTooltip({
 }) {
   if (!cours) return null;
   const { item } = hover;
-  // Positionnement près du curseur, en restant dans l'écran.
   const left = Math.min(hover.x + 14, window.innerWidth - 280);
-  const top = Math.min(hover.y + 14, window.innerHeight - 220);
+  const top = Math.min(hover.y + 14, window.innerHeight - 240);
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        left,
-        top,
-        zIndex: 1000,
-        width: 260,
-        background: "#fff",
-        border: "1px solid #e5e7eb",
-        borderRadius: 8,
-        boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
-        padding: "0.75rem 0.85rem",
-        fontSize: "0.8rem",
-        color: "#374151",
-        pointerEvents: "none",
-      }}
-    >
+    <div style={{ position: "fixed", left, top, zIndex: 1000, width: 260, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.18)", padding: "0.75rem 0.85rem", fontSize: "0.8rem", color: "#374151", pointerEvents: "none" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: "0.9rem", marginBottom: 6 }}>
         <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: item.color }} />
         {cours.nom}
@@ -556,9 +641,7 @@ function GanttTooltip({
       <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid #f0f0f0" }}>
         <div style={{ color: "#6b7280", marginBottom: 2 }}>Séances :</div>
         {cours.seances.map((s, i) => (
-          <div key={i}>
-            {JOURS[s.jour]} {fmtHeure(toDecimal(s.heureDebut))} · {s.dureeHeures} h
-          </div>
+          <div key={i}>{JOURS[s.jour]} {fmtHeure(toDecimal(s.heureDebut))} · {s.dureeHeures} h</div>
         ))}
       </div>
       <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid #f0f0f0" }}>
@@ -566,13 +649,13 @@ function GanttTooltip({
         {cours.moniteurs.map((m, i) => (
           <div key={i}>
             {m.nom}
-            {cours.moniteurs.length > 1 && <span style={{ color: "#9ca3af" }}> ({m.nbSemaines} sem.)</span>}
+            {cours.moniteurs.length > 1 && (
+              <span style={{ color: "#9ca3af" }}> ({m.nbSemaines.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} sem.)</span>
+            )}
           </div>
         ))}
       </div>
-      {cours.lienPaiementCB && (
-        <div style={{ marginTop: 6, color: "#2563eb", wordBreak: "break-all" }}>{cours.lienPaiementCB}</div>
-      )}
+      {cours.lienPaiementCB && <div style={{ marginTop: 6, color: "#2563eb", wordBreak: "break-all" }}>{cours.lienPaiementCB}</div>}
     </div>
   );
 }
