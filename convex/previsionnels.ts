@@ -9,6 +9,7 @@ export const getStats = query({
     saison: v.string(),
     filterAnalytiqueId: v.optional(v.string()),
     filterEtat: v.optional(v.string()), // "Tous", "Réalisé", "Non Réalisé"
+    filterCompetition: v.optional(v.string()), // "Tous", "Oui", "Non"
   },
   handler: async (ctx, args) => {
     const previsionnels = await ctx.db
@@ -30,11 +31,15 @@ export const getStats = query({
     const filtreEtat = args.filterEtat && args.filterEtat !== "Tous"
       ? args.filterEtat === "Réalisé"
       : null;
+    const filtreCompet = args.filterCompetition && args.filterCompetition !== "Tous"
+      ? args.filterCompetition === "Oui"
+      : null;
 
     let total = 0, recettes = 0, depenses = 0, realise = 0;
     for (const p of previsionnels) {
       if (filtreAna && p.analytiqueId !== filtreAna) continue;
       if (filtreEtat !== null && p.etat !== filtreEtat) continue;
+      if (filtreCompet !== null && (p.competition ?? false) !== filtreCompet) continue;
       total += p.montant;
       if (p.montant >= 0) recettes += p.montant;
       else depenses += Math.abs(p.montant);
@@ -118,7 +123,8 @@ export const get = query({
     saison: v.string(),
     paginationOpts: paginationOptsValidator,
     filterAnalytiqueId: v.optional(v.string()),
-    filterEtat: v.optional(v.string()) // "Tous", "Réalisé", "Non Réalisé"
+    filterEtat: v.optional(v.string()), // "Tous", "Réalisé", "Non Réalisé"
+    filterCompetition: v.optional(v.string()) // "Tous", "Oui", "Non"
   },
   handler: async (ctx, args) => {
     let q = ctx.db
@@ -131,6 +137,13 @@ export const get = query({
     if (args.filterEtat && args.filterEtat !== "Tous") {
       const isEtatRealise = args.filterEtat === "Réalisé";
       q = q.filter((q) => q.eq(q.field("etat"), isEtatRealise));
+    }
+    if (args.filterCompetition && args.filterCompetition !== "Tous") {
+      const isCompet = args.filterCompetition === "Oui";
+      // `competition` absent = loisir (false).
+      q = isCompet
+        ? q.filter((q) => q.eq(q.field("competition"), true))
+        : q.filter((q) => q.neq(q.field("competition"), true));
     }
 
     const results = await q.paginate(args.paginationOpts);
@@ -160,6 +173,7 @@ export const add = mutation({
     etat: v.boolean(),
     analytiqueId: v.id("analytiques"),
     saison: v.string(),
+    competition: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("previsionnels", {
@@ -168,6 +182,7 @@ export const add = mutation({
       etat: args.etat,
       analytiqueId: args.analytiqueId,
       saison: args.saison,
+      competition: args.competition ?? false,
     });
   },
 });
@@ -180,6 +195,7 @@ export const update = mutation({
     etat: v.optional(v.boolean()),
     analytiqueId: v.optional(v.id("analytiques")),
     saison: v.optional(v.string()),
+    competition: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { id, ...updates } = args;

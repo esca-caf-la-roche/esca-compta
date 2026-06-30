@@ -246,9 +246,7 @@ export default function SalarieFormModal({ isOpen, onClose, salarieToEdit }: Pro
                     onChange={(e) => updateHeureSup(idx, { competition: e.target.checked })}
                     style={{ width: 16, height: 16 }}
                   />
-                  <span style={{ fontSize: "0.85rem", color: "#374151" }}>
-                    {h.competition ? "Compétition" : "Loisir"}
-                  </span>
+                  <span style={{ fontSize: "0.85rem", color: "#374151" }}>Compétition&nbsp;?</span>
                 </label>
                 <button
                   type="button"

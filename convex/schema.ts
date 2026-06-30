@@ -29,6 +29,8 @@ export default defineSchema({
     etat: v.boolean(),
     analytiqueId: v.id("analytiques"),
     saison: v.string(),
+    // true = ligne de compétition (étiquette + filtre). false/absent = loisir.
+    competition: v.optional(v.boolean()),
   }).index("by_saison", ["saison"]),
 
   // --- BUDGET PRÉVISIONNEL : MASSE SALARIALE ---

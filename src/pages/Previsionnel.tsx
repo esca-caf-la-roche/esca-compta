@@ -24,10 +24,17 @@ type PrevisionnelRecord = {
   nom: string;
   montant: number;
   etat: boolean;
+  competition?: boolean;
   analytiqueId: Id<"analytiques">;
   analytiqueNom: string;
   saison: string;
 };
+
+const CompetitionBadge = () => (
+  <span className="badge" style={{ backgroundColor: "#fef3c7", color: "#92400e", border: "1px solid #92400e" }}>
+    Compétition
+  </span>
+);
 
 export default function Previsionnel({
   masseSalarialeLoisir,
@@ -42,19 +49,22 @@ export default function Previsionnel({
   const [previsionnelToEdit, setPrevisionnelToEdit] = useState<PrevisionnelRecord | null>(null);
   const [filterAnalytique, setFilterAnalytique] = useState<string>("Tous");
   const [filterEtat, setFilterEtat] = useState<string>("Tous");
+  const [filterCompetition, setFilterCompetition] = useState<string>("Tous");
 
   const statsQuery = useQuery(api.previsionnels.getStats, {
     saison: season,
     filterAnalytiqueId: filterAnalytique,
     filterEtat: filterEtat,
+    filterCompetition: filterCompetition,
   });
-  
+
   const { results: previsionnels, status, loadMore } = usePaginatedQuery(
-    api.previsionnels.get, 
-    { 
+    api.previsionnels.get,
+    {
       saison: season,
       filterAnalytiqueId: filterAnalytique,
-      filterEtat: filterEtat
+      filterEtat: filterEtat,
+      filterCompetition: filterCompetition
     },
     { initialNumItems: 50 }
   );
@@ -78,6 +88,7 @@ export default function Previsionnel({
       montant: number;
       analytiqueId: Id<"analytiques">;
       analytiqueNom: string;
+      competition: boolean;
     }[] = [];
     if (masseSalarialeLoisir != null && masseSalarialeLoisir > 0) {
       lines.push({
@@ -86,6 +97,7 @@ export default function Previsionnel({
         montant: -Math.round(masseSalarialeLoisir),
         analytiqueId: ana._id,
         analytiqueNom: ana.nom,
+        competition: false,
       });
     }
     if (masseSalarialeCompetition != null && masseSalarialeCompetition > 0) {
@@ -95,6 +107,7 @@ export default function Previsionnel({
         montant: -Math.round(masseSalarialeCompetition),
         analytiqueId: ana._id,
         analytiqueNom: ana.nom,
+        competition: true,
       });
     }
     return lines;
@@ -105,7 +118,8 @@ export default function Previsionnel({
   const visibleAutoLines = autoLines.filter(
     (l) =>
       (filterAnalytique === "Tous" || filterAnalytique === l.analytiqueId) &&
-      (filterEtat === "Tous" || filterEtat === "Non Réalisé")
+      (filterEtat === "Tous" || filterEtat === "Non Réalisé") &&
+      (filterCompetition === "Tous" || (filterCompetition === "Oui") === l.competition)
   );
 
   const autoTotal = visibleAutoLines.reduce((a, l) => a + l.montant, 0);
@@ -182,6 +196,19 @@ export default function Previsionnel({
               <option value="Non Réalisé">Non Réalisé</option>
             </select>
           </div>
+          <div className="filter-group">
+            <label htmlFor="filter-competition" className="filter-label">Compétition</label>
+            <select
+              id="filter-competition"
+              className="filter-dropdown"
+              value={filterCompetition}
+              onChange={(e) => setFilterCompetition(e.target.value)}
+            >
+              <option value="Tous">Tous</option>
+              <option value="Oui">Compétition</option>
+              <option value="Non">Loisir</option>
+            </select>
+          </div>
         </div>
       )}
 
@@ -253,6 +280,7 @@ export default function Previsionnel({
                   <span className="badge" style={{ backgroundColor: "#dbeafe", color: "#1e40af", border: "1px solid #1e40af" }}>
                     Auto · masse salariale
                   </span>
+                  {line.competition && <CompetitionBadge />}
                 </div>
               </div>
             ))}
@@ -278,10 +306,11 @@ export default function Previsionnel({
                       {Math.abs(prev.montant).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
                     </div>
                   </div>
-                  <div className="tc-badges" style={{ marginTop: "0.5rem" }}>
+                  <div className="tc-badges" style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
                     <span className="badge facture" style={{ backgroundColor: getPastelColor(prev.analytiqueNom), boxShadow: "2px 2px 0px 0px #000", color: "#1a1a1a", border: "1px solid #1a1a1a" }}>
                       {prev.analytiqueNom}
                     </span>
+                    {prev.competition && <CompetitionBadge />}
                   </div>
                   <div className="tc-actions">
                     <button className="btn-icon" onClick={() => handleEdit(prev)} title="Modifier" aria-label="Modifier">

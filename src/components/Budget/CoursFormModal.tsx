@@ -253,10 +253,12 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
               <input id="cours-semaines" type="number" step="1" className="input-field" value={nbSemaines} onChange={(e) => setNbSemaines(e.target.value)} required placeholder="Ex: 34" />
             </div>
             <div className="form-group" style={{ flex: "1 1 120px" }}>
-              <label className="form-label" htmlFor="cours-competition">Compétition</label>
+              <label className="form-label" htmlFor="cours-competition">Compétition ?</label>
               <label htmlFor="cours-competition" style={{ display: "flex", alignItems: "center", gap: "0.5rem", height: "calc(2.5rem + 2px)", cursor: "pointer" }}>
                 <input id="cours-competition" type="checkbox" checked={competition} onChange={(e) => setCompetition(e.target.checked)} style={{ width: 18, height: 18 }} />
-                <span style={{ fontSize: "0.85rem", color: "#374151" }}>{competition ? "Compétition" : "Loisir"}</span>
+                {competition && (
+                  <span className="badge" style={{ fontSize: "0.72rem", backgroundColor: "#fef3c7", color: "#92400e" }}>Compétition</span>
+                )}
               </label>
             </div>
           </div>

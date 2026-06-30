@@ -15,6 +15,7 @@ export default function PrevisionnelFormModal({ isOpen, onClose, previsionnelToE
   const [nom, setNom] = useState("");
   const [montant, setMontant] = useState("");
   const [etat, setEtat] = useState(false);
+  const [competition, setCompetition] = useState(false);
   const [analytiqueId, setAnalytiqueId] = useState<string>("");
 
   const analytiques = useQuery(api.analytiques.get) || [];
@@ -31,11 +32,13 @@ export default function PrevisionnelFormModal({ isOpen, onClose, previsionnelToE
         setNom(previsionnelToEdit.nom);
         setMontant(previsionnelToEdit.montant.toString());
         setEtat(previsionnelToEdit.etat);
+        setCompetition(previsionnelToEdit.competition ?? false);
         setAnalytiqueId(previsionnelToEdit.analytiqueId);
       } else {
         setNom("");
         setMontant("");
         setEtat(false);
+        setCompetition(false);
         setAnalytiqueId("");
       }
       setIsAddingAna(false);
@@ -61,6 +64,7 @@ export default function PrevisionnelFormModal({ isOpen, onClose, previsionnelToE
           nom,
           montant: montantNum,
           etat,
+          competition,
           analytiqueId: analytiqueId as any,
           saison: season,
         });
@@ -69,6 +73,7 @@ export default function PrevisionnelFormModal({ isOpen, onClose, previsionnelToE
           nom,
           montant: montantNum,
           etat,
+          competition,
           analytiqueId: analytiqueId as any,
           saison: season,
         });
@@ -176,6 +181,17 @@ export default function PrevisionnelFormModal({ isOpen, onClose, previsionnelToE
               style={{ width: "20px", height: "20px", accentColor: "black" }}
             />
             <label className="form-label" htmlFor="etat" style={{ margin: 0 }}>Réalisé ?</label>
+          </div>
+
+          <div className="form-group" style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.5rem" }}>
+            <input
+              id="competition"
+              type="checkbox"
+              checked={competition}
+              onChange={(e) => setCompetition(e.target.checked)}
+              style={{ width: "20px", height: "20px", accentColor: "#92400e" }}
+            />
+            <label className="form-label" htmlFor="competition" style={{ margin: 0 }}>Compétition ?</label>
           </div>
 
           <div className="form-actions" style={{ marginTop: "2rem" }}>

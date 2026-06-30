@@ -293,7 +293,7 @@ export default function PlanningCours({ isAdmin }: Props) {
               <thead>
                 <tr style={{ borderBottom: "2px solid #e5e7eb", textAlign: "left" }}>
                   <th style={{ padding: "0.6rem 0.5rem" }}>Type de cours</th>
-                  <th style={{ padding: "0.6rem 0.5rem" }}>Catégorie</th>
+                  <th style={{ padding: "0.6rem 0.5rem" }}>Compétition&nbsp;?</th>
                   <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Tarif/an (€)</th>
                   <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Élèves max</th>
                   <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Semaines</th>
@@ -454,13 +454,13 @@ function TypeRow({
         {isAdmin ? (
           <label style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", cursor: "pointer" }}>
             <input type="checkbox" checked={competition} onChange={(e) => setCompetition(e.target.checked)} style={{ width: 16, height: 16 }} />
-            <span style={{ fontSize: "0.8rem", color: "#374151" }}>{competition ? "Compétition" : "Loisir"}</span>
+            {competition && (
+              <span className="badge" style={{ fontSize: "0.72rem", backgroundColor: "#fef3c7", color: "#92400e" }}>Compétition</span>
+            )}
           </label>
-        ) : (
-          <span className="badge" style={{ fontSize: "0.72rem", backgroundColor: competition ? "#fef3c7" : "#dbeafe", color: competition ? "#92400e" : "#1e40af" }}>
-            {competition ? "Compétition" : "Loisir"}
-          </span>
-        )}
+        ) : competition ? (
+          <span className="badge" style={{ fontSize: "0.72rem", backgroundColor: "#fef3c7", color: "#92400e" }}>Compétition</span>
+        ) : null}
       </td>
       <td style={cell}>
         {isAdmin ? (
