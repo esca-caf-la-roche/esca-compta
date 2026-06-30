@@ -8,7 +8,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 export type HeureSup = {
   designation: string;
   nbHeures: number;
-  categorie: "loisir" | "competition";
+  competition?: boolean;
 };
 
 export interface SalarieRow {
@@ -38,7 +38,7 @@ export default function SalarieFormModal({ isOpen, onClose, salarieToEdit }: Pro
   const addSalarie = useMutation(api.paie.addSalarie);
   const updateSalarie = useMutation(api.paie.updateSalarie);
 
-  type HeureSupForm = { designation: string; nbHeures: string; categorie: "loisir" | "competition" };
+  type HeureSupForm = { designation: string; nbHeures: string; competition: boolean };
 
   const [nom, setNom] = useState("");
   const [typeContrat, setTypeContrat] = useState<"CDII" | "CDI">("CDII");
@@ -62,7 +62,7 @@ export default function SalarieFormModal({ isOpen, onClose, salarieToEdit }: Pro
         (salarieToEdit.heuresSup ?? []).map((h) => ({
           designation: h.designation,
           nbHeures: String(h.nbHeures),
-          categorie: h.categorie,
+          competition: h.competition ?? false,
         }))
       );
     } else {
@@ -76,7 +76,7 @@ export default function SalarieFormModal({ isOpen, onClose, salarieToEdit }: Pro
   }, [isOpen, salarieToEdit]);
 
   const addHeureSup = () =>
-    setHeuresSup((prev) => [...prev, { designation: "", nbHeures: "", categorie: "loisir" }]);
+    setHeuresSup((prev) => [...prev, { designation: "", nbHeures: "", competition: false }]);
   const updateHeureSup = (idx: number, patch: Partial<HeureSupForm>) =>
     setHeuresSup((prev) => prev.map((h, i) => (i === idx ? { ...h, ...patch } : h)));
   const removeHeureSup = (idx: number) =>
@@ -103,7 +103,7 @@ export default function SalarieFormModal({ isOpen, onClose, salarieToEdit }: Pro
       .map((h) => ({
         designation: h.designation.trim(),
         nbHeures: parseFloat(h.nbHeures),
-        categorie: h.categorie,
+        competition: h.competition,
       }));
     setSaving(true);
     try {
@@ -237,17 +237,19 @@ export default function SalarieFormModal({ isOpen, onClose, salarieToEdit }: Pro
                   onChange={(e) => updateHeureSup(idx, { nbHeures: e.target.value })}
                   placeholder="Heures"
                 />
-                <select
-                  className="input-field"
-                  style={{ flex: "1 1 120px" }}
-                  value={h.categorie}
-                  onChange={(e) =>
-                    updateHeureSup(idx, { categorie: e.target.value as "loisir" | "competition" })
-                  }
+                <label
+                  style={{ flex: "1 1 120px", display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer" }}
                 >
-                  <option value="loisir">Loisir</option>
-                  <option value="competition">Compétition</option>
-                </select>
+                  <input
+                    type="checkbox"
+                    checked={h.competition}
+                    onChange={(e) => updateHeureSup(idx, { competition: e.target.checked })}
+                    style={{ width: 16, height: 16 }}
+                  />
+                  <span style={{ fontSize: "0.85rem", color: "#374151" }}>
+                    {h.competition ? "Compétition" : "Loisir"}
+                  </span>
+                </label>
                 <button
                   type="button"
                   className="btn-secondary"

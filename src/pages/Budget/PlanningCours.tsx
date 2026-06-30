@@ -7,13 +7,7 @@ import CoursFormModal, {
   type CoursRow,
   type CoursType,
   type CoursPrefill,
-  type CoursCategorie,
 } from "../../components/Budget/CoursFormModal";
-
-const CATEGORIE_LABEL: Record<CoursCategorie, string> = {
-  loisir: "Loisir",
-  competition: "Compétition",
-};
 import { JOURS } from "../../utils/planning";
 import type { Id } from "../../../convex/_generated/dataModel";
 
@@ -51,7 +45,7 @@ type CoursDisplay = {
   lienPaiementCB?: string;
   nbElevesMax: number;
   nbSemaines: number;
-  categorie: CoursCategorie;
+  competition: boolean;
   moniteurs: Array<{ salarieId: Id<"salaries">; nbSemaines: number; nom: string }>;
   seances: Array<{ jour: number; heureDebut: string; dureeHeures: number }>;
 };
@@ -119,7 +113,7 @@ export default function PlanningCours({ isAdmin }: Props) {
           tarifAnnuel: c.tarifAnnuel,
           nbElevesMax: c.nbElevesMax,
           nbSemaines: c.nbSemaines,
-          categorie: c.categorie,
+          competition: c.competition,
           seances: c.seances,
         });
       }
@@ -135,7 +129,7 @@ export default function PlanningCours({ isAdmin }: Props) {
       if (ex) ex.nbCreneaux += 1;
       else
         map.set(c.nom, {
-          type: { nom: c.nom, tarifAnnuel: c.tarifAnnuel, nbElevesMax: c.nbElevesMax, nbSemaines: c.nbSemaines, categorie: c.categorie, seances: c.seances },
+          type: { nom: c.nom, tarifAnnuel: c.tarifAnnuel, nbElevesMax: c.nbElevesMax, nbSemaines: c.nbSemaines, competition: c.competition, seances: c.seances },
           nbCreneaux: 1,
         });
     }
@@ -205,7 +199,7 @@ export default function PlanningCours({ isAdmin }: Props) {
       lienPaiementCB: c.lienPaiementCB,
       nbElevesMax: c.nbElevesMax,
       nbSemaines: c.nbSemaines,
-      categorie: c.categorie,
+      competition: c.competition,
       moniteurs: c.moniteurs.map((m) => ({ salarieId: m.salarieId, nbSemaines: m.nbSemaines })),
       seances: c.seances,
     });
@@ -407,7 +401,7 @@ function TypeRow({
   const [tarif, setTarif] = useState(String(type.tarifAnnuel));
   const [eleves, setEleves] = useState(String(type.nbElevesMax));
   const [semaines, setSemaines] = useState(String(type.nbSemaines));
-  const [categorie, setCategorie] = useState<CoursCategorie>(type.categorie);
+  const [competition, setCompetition] = useState(type.competition);
   const [saving, setSaving] = useState(false);
 
   // Re-synchronise quand les données changent (cascade, autre client…).
@@ -416,15 +410,15 @@ function TypeRow({
     setTarif(String(type.tarifAnnuel));
     setEleves(String(type.nbElevesMax));
     setSemaines(String(type.nbSemaines));
-    setCategorie(type.categorie);
-  }, [type.tarifAnnuel, type.nbElevesMax, type.nbSemaines, type.categorie]);
+    setCompetition(type.competition);
+  }, [type.tarifAnnuel, type.nbElevesMax, type.nbSemaines, type.competition]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const dirty =
     parseFloat(tarif) !== type.tarifAnnuel ||
     parseInt(eleves, 10) !== type.nbElevesMax ||
     parseInt(semaines, 10) !== type.nbSemaines ||
-    categorie !== type.categorie;
+    competition !== type.competition;
 
   const hSem = type.seances.reduce((a, s) => a + s.dureeHeures, 0);
 
@@ -437,7 +431,7 @@ function TypeRow({
         tarifAnnuel: parseFloat(tarif) || 0,
         nbElevesMax: parseInt(eleves, 10) || 0,
         nbSemaines: parseInt(semaines, 10) || 0,
-        categorie,
+        competition,
       });
     } catch (err) {
       console.error(err);
@@ -458,13 +452,13 @@ function TypeRow({
       </td>
       <td style={{ padding: "0.5rem 0.5rem" }}>
         {isAdmin ? (
-          <select className="input-field" style={{ margin: 0, padding: "0.3rem 0.4rem", width: "auto" }} value={categorie} onChange={(e) => setCategorie(e.target.value as CoursCategorie)}>
-            <option value="loisir">Loisir</option>
-            <option value="competition">Compétition</option>
-          </select>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", cursor: "pointer" }}>
+            <input type="checkbox" checked={competition} onChange={(e) => setCompetition(e.target.checked)} style={{ width: 16, height: 16 }} />
+            <span style={{ fontSize: "0.8rem", color: "#374151" }}>{competition ? "Compétition" : "Loisir"}</span>
+          </label>
         ) : (
-          <span className="badge" style={{ fontSize: "0.72rem", backgroundColor: categorie === "competition" ? "#fef3c7" : "#dbeafe", color: categorie === "competition" ? "#92400e" : "#1e40af" }}>
-            {CATEGORIE_LABEL[categorie]}
+          <span className="badge" style={{ fontSize: "0.72rem", backgroundColor: competition ? "#fef3c7" : "#dbeafe", color: competition ? "#92400e" : "#1e40af" }}>
+            {competition ? "Compétition" : "Loisir"}
           </span>
         )}
       </td>

@@ -11,8 +11,6 @@ const seanceValidator = v.object({
   dureeHeures: v.number(),
 });
 
-const categorieValidator = v.union(v.literal("loisir"), v.literal("competition"));
-
 /** Répartit les semaines du cours entre ses moniteurs : nbSemaines / nb moniteurs.
  *  La virgule est admise (prévisionnel). Pour un seul moniteur => toutes les semaines. */
 function repartirMoniteurs(
@@ -60,7 +58,7 @@ async function cascadeTypeCours(
   saison: string,
   nom: string,
   exclureId: Id<"cours">,
-  shared: { tarifAnnuel: number; nbElevesMax: number; nbSemaines: number; seances: Seance[]; categorie: "loisir" | "competition" }
+  shared: { tarifAnnuel: number; nbElevesMax: number; nbSemaines: number; seances: Seance[]; competition: boolean }
 ): Promise<number> {
   const siblings = (await ctx.db
     .query("cours")
@@ -72,7 +70,7 @@ async function cascadeTypeCours(
       tarifAnnuel: shared.tarifAnnuel,
       nbElevesMax: shared.nbElevesMax,
       nbSemaines: shared.nbSemaines,
-      categorie: shared.categorie,
+      competition: shared.competition,
       seances: alignerSeances(shared.seances, sib.seances),
       // Le nb de semaines a pu changer => on redistribue entre les moniteurs du créneau.
       moniteurs: repartirMoniteurs(sib.moniteurs.map((m) => m.salarieId), shared.nbSemaines),
@@ -126,7 +124,7 @@ export const getPlanning = query({
       ...c,
       // nb semaines effectif : champ « type de cours » sinon somme des moniteurs.
       nbSemaines: c.nbSemaines ?? c.moniteurs.reduce((a, m) => a + m.nbSemaines, 0),
-      categorie: c.categorie ?? ("loisir" as const),
+      competition: c.competition ?? false,
       moniteurs: c.moniteurs.map((m) => ({
         ...m,
         nom: nomById.get(m.salarieId) ?? "Inconnu",
@@ -165,7 +163,7 @@ export const addCours = mutation({
     lienPaiementCB: v.optional(v.string()),
     nbElevesMax: v.number(),
     nbSemaines: v.number(),
-    categorie: v.optional(categorieValidator),
+    competition: v.optional(v.boolean()),
     moniteurs: v.array(v.id("salaries")), // liste de moniteurs ; semaines réparties auto
     seances: v.array(seanceValidator),
   },
@@ -193,7 +191,7 @@ export const addCours = mutation({
     const tarifAnnuel = modele ? modele.tarifAnnuel : args.tarifAnnuel;
     const nbElevesMax = modele ? modele.nbElevesMax : args.nbElevesMax;
     const nbSemaines = modele ? (modele.nbSemaines ?? args.nbSemaines) : args.nbSemaines;
-    const categorie = modele ? (modele.categorie ?? "loisir") : (args.categorie ?? "loisir");
+    const competition = modele ? (modele.competition ?? false) : (args.competition ?? false);
     const seances = modele ? alignerSeances(modele.seances, args.seances) : args.seances;
 
     return await ctx.db.insert("cours", {
@@ -203,7 +201,7 @@ export const addCours = mutation({
       lienPaiementCB: args.lienPaiementCB?.trim() || undefined,
       nbElevesMax,
       nbSemaines,
-      categorie,
+      competition,
       moniteurs: repartirMoniteurs(args.moniteurs, nbSemaines),
       seances,
       ordre: tousCours.length,
@@ -219,7 +217,7 @@ export const updateCours = mutation({
     lienPaiementCB: v.optional(v.string()),
     nbElevesMax: v.optional(v.number()),
     nbSemaines: v.optional(v.number()),
-    categorie: v.optional(categorieValidator),
+    competition: v.optional(v.boolean()),
     moniteurs: v.optional(v.array(v.id("salaries"))),
     seances: v.optional(v.array(seanceValidator)),
   },
@@ -239,7 +237,7 @@ export const updateCours = mutation({
       updates.lienPaiementCB = args.lienPaiementCB.trim() || undefined;
     if (args.nbElevesMax !== undefined) updates.nbElevesMax = args.nbElevesMax;
     if (args.nbSemaines !== undefined) updates.nbSemaines = args.nbSemaines;
-    if (args.categorie !== undefined) updates.categorie = args.categorie;
+    if (args.competition !== undefined) updates.competition = args.competition;
     if (args.seances !== undefined) {
       if (args.seances.length === 0) {
         throw new Error("Un cours doit comporter au moins une séance.");
@@ -274,7 +272,7 @@ export const updateCours = mutation({
         tarifAnnuel: finalCours.tarifAnnuel,
         nbElevesMax: finalCours.nbElevesMax,
         nbSemaines: finalCours.nbSemaines ?? finalCours.moniteurs.reduce((a, m) => a + m.nbSemaines, 0),
-        categorie: finalCours.categorie ?? "loisir",
+        competition: finalCours.competition ?? false,
         seances: finalCours.seances,
       });
     }
@@ -300,7 +298,7 @@ export const updateTypeCours = mutation({
     tarifAnnuel: v.number(),
     nbElevesMax: v.number(),
     nbSemaines: v.number(),
-    categorie: v.optional(categorieValidator),
+    competition: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx, ctx.userId);
@@ -314,7 +312,7 @@ export const updateTypeCours = mutation({
         tarifAnnuel: args.tarifAnnuel,
         nbElevesMax: args.nbElevesMax,
         nbSemaines: args.nbSemaines,
-        ...(args.categorie !== undefined ? { categorie: args.categorie } : {}),
+        ...(args.competition !== undefined ? { competition: args.competition } : {}),
         moniteurs: repartirMoniteurs(c.moniteurs.map((m) => m.salarieId), args.nbSemaines),
       });
     }
@@ -357,7 +355,7 @@ export const reprendrePlanningSaisonPrecedente = mutation({
         lienPaiementCB: c.lienPaiementCB,
         nbElevesMax: c.nbElevesMax,
         nbSemaines: c.nbSemaines,
-        categorie: c.categorie,
+        competition: c.competition,
         moniteurs: c.moniteurs,
         seances: c.seances,
         ordre: c.ordre,
@@ -391,7 +389,7 @@ export const importPlanning = internalMutation({
         lienPaiementCB: v.optional(v.string()),
         nbElevesMax: v.number(),
         nbSemaines: v.number(),
-        categorie: v.optional(categorieValidator),
+        competition: v.optional(v.boolean()),
         seances: v.array(seanceValidator),
         // Liste de prénoms ; les semaines sont réparties automatiquement.
         moniteurs: v.array(v.object({ prenom: v.string() })),
@@ -442,7 +440,7 @@ export const importPlanning = internalMutation({
         lienPaiementCB: c.lienPaiementCB,
         nbElevesMax: c.nbElevesMax,
         nbSemaines: c.nbSemaines,
-        categorie: c.categorie ?? "loisir",
+        competition: c.competition ?? false,
         moniteurs: repartirMoniteurs(
           c.moniteurs.map((m) => resolve(m.prenom)),
           c.nbSemaines

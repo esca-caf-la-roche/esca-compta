@@ -17,8 +17,6 @@ export interface CoursMoniteur {
   nbSemaines: number;
 }
 
-export type CoursCategorie = "loisir" | "competition";
-
 export interface CoursRow {
   _id: Id<"cours">;
   nom: string;
@@ -26,7 +24,7 @@ export interface CoursRow {
   lienPaiementCB?: string;
   nbElevesMax: number;
   nbSemaines: number;
-  categorie: CoursCategorie;
+  competition: boolean;
   moniteurs: CoursMoniteur[];
   seances: Seance[];
 }
@@ -37,7 +35,7 @@ export interface CoursType {
   tarifAnnuel: number;
   nbElevesMax: number;
   nbSemaines: number;
-  categorie: CoursCategorie;
+  competition: boolean;
   seances: Seance[];
 }
 
@@ -77,7 +75,7 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
   const [lienPaiementCB, setLienPaiementCB] = useState("");
   const [nbElevesMax, setNbElevesMax] = useState("");
   const [nbSemaines, setNbSemaines] = useState("");
-  const [categorie, setCategorie] = useState<CoursCategorie>("loisir");
+  const [competition, setCompetition] = useState(false);
   const [moniteurIds, setMoniteurIds] = useState<string[]>([]);
   const [seances, setSeances] = useState<SeanceForm[]>([emptySeance()]);
   const [saving, setSaving] = useState(false);
@@ -92,7 +90,7 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
       setLienPaiementCB(coursToEdit.lienPaiementCB ?? "");
       setNbElevesMax(String(coursToEdit.nbElevesMax));
       setNbSemaines(String(coursToEdit.nbSemaines));
-      setCategorie(coursToEdit.categorie);
+      setCompetition(coursToEdit.competition);
       setMoniteurIds(coursToEdit.moniteurs.map((m) => m.salarieId));
       setSeances(
         coursToEdit.seances.map((s) => ({ jour: s.jour, heureDebut: s.heureDebut, dureeHeures: String(s.dureeHeures) }))
@@ -104,7 +102,7 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
       setLienPaiementCB("");
       setNbElevesMax("");
       setNbSemaines("");
-      setCategorie("loisir");
+      setCompetition(false);
       setMoniteurIds(
         prefill?.moniteurIds && prefill.moniteurIds.length > 0
           ? prefill.moniteurIds
@@ -126,7 +124,7 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
       setTarifAnnuel(String(t.tarifAnnuel));
       setNbElevesMax(String(t.nbElevesMax));
       setNbSemaines(String(t.nbSemaines));
-      setCategorie(t.categorie);
+      setCompetition(t.competition);
       setSeances(
         t.seances.map((s) => ({ jour: s.jour, heureDebut: s.heureDebut, dureeHeures: String(s.dureeHeures) }))
       );
@@ -176,7 +174,7 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
         lienPaiementCB: lienPaiementCB.trim() || undefined,
         nbElevesMax: parseInt(nbElevesMax, 10),
         nbSemaines: nbSemainesNum,
-        categorie,
+        competition,
         moniteurs: moniteursValides as Id<"salaries">[],
         seances: parsedSeances,
       };
@@ -255,11 +253,11 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
               <input id="cours-semaines" type="number" step="1" className="input-field" value={nbSemaines} onChange={(e) => setNbSemaines(e.target.value)} required placeholder="Ex: 34" />
             </div>
             <div className="form-group" style={{ flex: "1 1 120px" }}>
-              <label className="form-label" htmlFor="cours-categorie">Catégorie <span className="text-red-500">*</span></label>
-              <select id="cours-categorie" className="input-field" value={categorie} onChange={(e) => setCategorie(e.target.value as CoursCategorie)}>
-                <option value="loisir">Loisir</option>
-                <option value="competition">Compétition</option>
-              </select>
+              <label className="form-label" htmlFor="cours-competition">Compétition</label>
+              <label htmlFor="cours-competition" style={{ display: "flex", alignItems: "center", gap: "0.5rem", height: "calc(2.5rem + 2px)", cursor: "pointer" }}>
+                <input id="cours-competition" type="checkbox" checked={competition} onChange={(e) => setCompetition(e.target.checked)} style={{ width: 18, height: 18 }} />
+                <span style={{ fontSize: "0.85rem", color: "#374151" }}>{competition ? "Compétition" : "Loisir"}</span>
+              </label>
             </div>
           </div>
 

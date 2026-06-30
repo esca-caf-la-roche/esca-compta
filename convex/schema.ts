@@ -49,13 +49,14 @@ export default defineSchema({
     augmentationPct: v.optional(v.number()), // informatif : hausse vs N-1
     actif: v.optional(v.boolean()),
     // Heures supplémentaires déclarées (hors cours) : stages, remplacements… Chacune
-    // porte une désignation et une catégorie loisir/compétition pour la ventilation.
+    // porte une désignation et un indicateur compétition pour la ventilation.
     heuresSup: v.optional(
       v.array(
         v.object({
           designation: v.string(),
           nbHeures: v.number(),
-          categorie: v.union(v.literal("loisir"), v.literal("competition")),
+          // true = heures de compétition, false/absent = loisir.
+          competition: v.optional(v.boolean()),
         })
       )
     ),
@@ -75,9 +76,10 @@ export default defineSchema({
     tarifAnnuel: v.number(),
     lienPaiementCB: v.optional(v.string()),
     nbElevesMax: v.number(),
-    // Catégorie du type de cours (cascade comme le tarif). Détermine la ventilation
-    // des heures/coûts en masse salariale loisir vs compétition. Défaut : loisir.
-    categorie: v.optional(v.union(v.literal("loisir"), v.literal("competition"))),
+    // Indicateur compétition du type de cours (cascade comme le tarif). Détermine la
+    // ventilation des heures/coûts en masse salariale loisir vs compétition.
+    // true = compétition, false/absent = loisir.
+    competition: v.optional(v.boolean()),
     // Nombre de semaines du cours (niveau « type de cours »). Partagé par cascade
     // entre tous les créneaux de même nom. Optionnel : à défaut, on retombe sur la
     // somme des semaines des moniteurs.
