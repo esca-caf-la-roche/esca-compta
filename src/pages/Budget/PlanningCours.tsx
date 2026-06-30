@@ -551,7 +551,21 @@ function GanttJour({
             <div style={{ width: LABEL_W, flexShrink: 0 }} />
             <div style={{ position: "relative", flex: 1, height: 20 }}>
               {heures.map((h) => (
-                <span key={h} style={{ position: "absolute", left: pct(h), transform: "translateX(-50%)", fontSize: "0.72rem", color: "#6b7280", whiteSpace: "nowrap" }}>{h}h</span>
+                <span
+                  key={h}
+                  style={{
+                    position: "absolute",
+                    left: pct(h),
+                    // La 1re heure s'aligne à gauche, la dernière à droite, le reste centré,
+                    // pour éviter que le label déborde (et soit coupé) aux extrémités.
+                    transform: h === min ? "translateX(0)" : h === max ? "translateX(-100%)" : "translateX(-50%)",
+                    fontSize: "0.72rem",
+                    color: "#6b7280",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {h}h
+                </span>
               ))}
             </div>
           </div>
