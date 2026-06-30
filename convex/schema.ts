@@ -57,8 +57,6 @@ export default defineSchema({
           nbHeures: v.number(),
           // true = heures de compétition, false/absent = loisir.
           competition: v.optional(v.boolean()),
-          // Legacy (migration vers `competition`) : à retirer après backfill.
-          categorie: v.optional(v.union(v.literal("loisir"), v.literal("competition"))),
         })
       )
     ),
@@ -82,8 +80,6 @@ export default defineSchema({
     // ventilation des heures/coûts en masse salariale loisir vs compétition.
     // true = compétition, false/absent = loisir.
     competition: v.optional(v.boolean()),
-    // Legacy (migration vers `competition`) : à retirer après backfill.
-    categorie: v.optional(v.union(v.literal("loisir"), v.literal("competition"))),
     // Nombre de semaines du cours (niveau « type de cours »). Partagé par cascade
     // entre tous les créneaux de même nom. Optionnel : à défaut, on retombe sur la
     // somme des semaines des moniteurs.
