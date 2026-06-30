@@ -37,6 +37,74 @@ function heuresParSemaine(seances: Array<{ dureeHeures: number }>): number {
   return seances.reduce((acc, s) => acc + s.dureeHeures, 0);
 }
 
+/** (Re)génère les lignes d'inscription du prévisionnel pour une saison : une ligne
+ *  « gérée » (auto=true) par analytique rattachée à au moins un type de cours. Le
+ *  montant = Σ (tarifAnnuel × nbElevesMax) sur tous les créneaux liés à l'analytique
+ *  (tarif et élèves max étant communs au type, sommer sur les créneaux revient à
+ *  multiplier par le nombre de créneaux). L'état « réalisé » d'une ligne existante est
+ *  conservé. Les lignes saisies à la main (auto absent/false) ne sont jamais touchées.
+ *  La compétition de la ligne est vraie seulement si tous les créneaux liés le sont. */
+async function syncInscriptionsPrevisionnel(ctx: MutationCtx, saison: string): Promise<void> {
+  const coursDocs = await ctx.db
+    .query("cours")
+    .withIndex("by_saison", (q) => q.eq("saison", saison))
+    .collect();
+
+  // Agrégat par analytique (créneaux rattachés à une analytique uniquement).
+  const agg = new Map<string, { montant: number; tousCompet: boolean; nom: string }>();
+  for (const c of coursDocs) {
+    if (!c.analytiqueId) continue;
+    const ana = await ctx.db.get(c.analytiqueId);
+    if (!ana) continue;
+    const montant = c.tarifAnnuel * c.nbElevesMax;
+    const ex = agg.get(c.analytiqueId);
+    if (ex) {
+      ex.montant += montant;
+      ex.tousCompet = ex.tousCompet && (c.competition ?? false);
+    } else {
+      agg.set(c.analytiqueId, { montant, tousCompet: c.competition ?? false, nom: ana.nom });
+    }
+  }
+
+  // Lignes auto existantes pour la saison, indexées par analytique.
+  const existantes = (await ctx.db
+    .query("previsionnels")
+    .withIndex("by_saison", (q) => q.eq("saison", saison))
+    .collect()).filter((p) => p.auto === true);
+  const restantes = new Map<string, (typeof existantes)[number]>();
+  for (const p of existantes) restantes.set(p.analytiqueId, p);
+
+  // Upsert d'une ligne par analytique.
+  for (const [anaId, info] of agg) {
+    const montant = Math.round(info.montant);
+    const ex = restantes.get(anaId);
+    if (ex) {
+      await ctx.db.patch(ex._id, {
+        nom: `Inscriptions ${info.nom}`,
+        montant,
+        analytiqueId: anaId as Id<"analytiques">,
+        competition: info.tousCompet,
+      });
+      restantes.delete(anaId);
+    } else {
+      await ctx.db.insert("previsionnels", {
+        nom: `Inscriptions ${info.nom}`,
+        montant,
+        etat: false,
+        analytiqueId: anaId as Id<"analytiques">,
+        saison,
+        competition: info.tousCompet,
+        auto: true,
+      });
+    }
+  }
+
+  // Suppression des lignes auto orphelines (analytique plus rattachée à aucun cours).
+  for (const orpheline of restantes.values()) {
+    await ctx.db.delete(orpheline._id);
+  }
+}
+
 type Seance = { jour: number; heureDebut: string; dureeHeures: number };
 
 /** Aligne les séances d'un créneau « cible » sur un modèle (même nombre de séances
@@ -58,7 +126,7 @@ async function cascadeTypeCours(
   saison: string,
   nom: string,
   exclureId: Id<"cours">,
-  shared: { tarifAnnuel: number; nbElevesMax: number; nbSemaines: number; seances: Seance[]; competition: boolean }
+  shared: { tarifAnnuel: number; nbElevesMax: number; nbSemaines: number; seances: Seance[]; competition: boolean; analytiqueId: Id<"analytiques"> | undefined }
 ): Promise<number> {
   const siblings = (await ctx.db
     .query("cours")
@@ -71,6 +139,7 @@ async function cascadeTypeCours(
       nbElevesMax: shared.nbElevesMax,
       nbSemaines: shared.nbSemaines,
       competition: shared.competition,
+      analytiqueId: shared.analytiqueId,
       seances: alignerSeances(shared.seances, sib.seances),
       // Le nb de semaines a pu changer => on redistribue entre les moniteurs du créneau.
       moniteurs: repartirMoniteurs(sib.moniteurs.map((m) => m.salarieId), shared.nbSemaines),
@@ -192,9 +261,12 @@ export const addCours = mutation({
     const nbElevesMax = modele ? modele.nbElevesMax : args.nbElevesMax;
     const nbSemaines = modele ? (modele.nbSemaines ?? args.nbSemaines) : args.nbSemaines;
     const competition = modele ? (modele.competition ?? false) : (args.competition ?? false);
+    // L'analytique est un attribut de type : un nouveau créneau hérite de celle du type
+    // existant (cascade). Pour un type inédit, elle reste à définir dans le tableau.
+    const analytiqueId = modele ? modele.analytiqueId : undefined;
     const seances = modele ? alignerSeances(modele.seances, args.seances) : args.seances;
 
-    return await ctx.db.insert("cours", {
+    const id = await ctx.db.insert("cours", {
       saison: args.saison,
       nom,
       tarifAnnuel,
@@ -202,10 +274,13 @@ export const addCours = mutation({
       nbElevesMax,
       nbSemaines,
       competition,
+      analytiqueId,
       moniteurs: repartirMoniteurs(args.moniteurs, nbSemaines),
       seances,
       ordre: tousCours.length,
     });
+    await syncInscriptionsPrevisionnel(ctx, args.saison);
+    return id;
   },
 });
 
@@ -273,8 +348,10 @@ export const updateCours = mutation({
         nbElevesMax: finalCours.nbElevesMax,
         nbSemaines: finalCours.nbSemaines ?? finalCours.moniteurs.reduce((a, m) => a + m.nbSemaines, 0),
         competition: finalCours.competition ?? false,
+        analytiqueId: finalCours.analytiqueId,
         seances: finalCours.seances,
       });
+      await syncInscriptionsPrevisionnel(ctx, finalCours.saison);
     }
   },
 });
@@ -283,7 +360,9 @@ export const removeCours = mutation({
   args: { coursId: v.id("cours") },
   handler: async (ctx, args) => {
     await requireAdmin(ctx, ctx.userId);
+    const cours = await ctx.db.get(args.coursId);
     await ctx.db.delete(args.coursId);
+    if (cours) await syncInscriptionsPrevisionnel(ctx, cours.saison);
   },
 });
 
@@ -299,6 +378,8 @@ export const updateTypeCours = mutation({
     nbElevesMax: v.number(),
     nbSemaines: v.number(),
     competition: v.optional(v.boolean()),
+    // Analytique du type. Id = rattacher, null = retirer le lien, omis = ne pas toucher.
+    analytiqueId: v.optional(v.union(v.id("analytiques"), v.null())),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx, ctx.userId);
@@ -313,9 +394,11 @@ export const updateTypeCours = mutation({
         nbElevesMax: args.nbElevesMax,
         nbSemaines: args.nbSemaines,
         ...(args.competition !== undefined ? { competition: args.competition } : {}),
+        ...(args.analytiqueId !== undefined ? { analytiqueId: args.analytiqueId ?? undefined } : {}),
         moniteurs: repartirMoniteurs(c.moniteurs.map((m) => m.salarieId), args.nbSemaines),
       });
     }
+    await syncInscriptionsPrevisionnel(ctx, args.saison);
     return { modifies: creneaux.length };
   },
 });
@@ -356,11 +439,13 @@ export const reprendrePlanningSaisonPrecedente = mutation({
         nbElevesMax: c.nbElevesMax,
         nbSemaines: c.nbSemaines,
         competition: c.competition,
+        analytiqueId: c.analytiqueId,
         moniteurs: c.moniteurs,
         seances: c.seances,
         ordre: c.ordre,
       });
     }
+    await syncInscriptionsPrevisionnel(ctx, args.saison);
     return { copiees: prevCours.length, message: `${prevCours.length} cours repris de ${prev}.` };
   },
 });
@@ -450,6 +535,7 @@ export const importPlanning = internalMutation({
       });
       created++;
     }
+    await syncInscriptionsPrevisionnel(ctx, saison);
     return { saison, created };
   },
 });

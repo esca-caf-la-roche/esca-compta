@@ -36,6 +36,7 @@ export interface CoursType {
   nbElevesMax: number;
   nbSemaines: number;
   competition: boolean;
+  analytiqueId?: Id<"analytiques">;
   seances: Seance[];
 }
 

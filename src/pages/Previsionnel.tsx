@@ -25,6 +25,7 @@ type PrevisionnelRecord = {
   montant: number;
   etat: boolean;
   competition?: boolean;
+  auto?: boolean;
   analytiqueId: Id<"analytiques">;
   analytiqueNom: string;
   saison: string;
@@ -287,12 +288,12 @@ export default function Previsionnel({
             {previsionnels.map((prev: PrevisionnelRecord) => {
               const isDepense = prev.montant < 0;
               return (
-                <div key={prev._id} className="transaction-card">
+                <div key={prev._id} className="transaction-card" style={prev.auto ? { borderLeft: "4px solid #16a34a" } : undefined}>
                   <div className="tc-header">
                     <div className="tc-header-main">
                       <div className="tc-title" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <button 
-                          onClick={() => toggleEtat(prev)} 
+                        <button
+                          onClick={() => toggleEtat(prev)}
                           style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", padding: 0 }}
                           title={prev.etat ? "Marquer comme non réalisé" : "Marquer comme réalisé"}
                         >
@@ -311,15 +312,26 @@ export default function Previsionnel({
                       {prev.analytiqueNom}
                     </span>
                     {prev.competition && <CompetitionBadge />}
+                    {prev.auto && (
+                      <span className="badge" style={{ backgroundColor: "#dcfce7", color: "#166534", border: "1px solid #166534" }}>
+                        Auto · inscriptions
+                      </span>
+                    )}
                   </div>
-                  <div className="tc-actions">
-                    <button className="btn-icon" onClick={() => handleEdit(prev)} title="Modifier" aria-label="Modifier">
-                      <Edit2 size={16} />
-                    </button>
-                    <button className="btn-icon danger" onClick={() => handleDelete(prev._id)} title="Supprimer" aria-label="Supprimer">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
+                  {prev.auto ? (
+                    <div className="tc-actions" style={{ color: "#6b7280", display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.8rem" }}>
+                      <Lock size={14} /> Générée depuis le planning des cours
+                    </div>
+                  ) : (
+                    <div className="tc-actions">
+                      <button className="btn-icon" onClick={() => handleEdit(prev)} title="Modifier" aria-label="Modifier">
+                        <Edit2 size={16} />
+                      </button>
+                      <button className="btn-icon danger" onClick={() => handleDelete(prev._id)} title="Supprimer" aria-label="Supprimer">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}

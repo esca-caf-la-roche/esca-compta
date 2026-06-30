@@ -31,6 +31,10 @@ export default defineSchema({
     saison: v.string(),
     // true = ligne de compétition (étiquette + filtre). false/absent = loisir.
     competition: v.optional(v.boolean()),
+    // true = ligne d'inscription générée automatiquement depuis le planning des cours
+    // (1 par analytique). Recalculée à chaque changement de cours, non modifiable à la
+    // main. false/absent = ligne saisie manuellement.
+    auto: v.optional(v.boolean()),
   }).index("by_saison", ["saison"]),
 
   // --- BUDGET PRÉVISIONNEL : MASSE SALARIALE ---
@@ -82,6 +86,10 @@ export default defineSchema({
     // ventilation des heures/coûts en masse salariale loisir vs compétition.
     // true = compétition, false/absent = loisir.
     competition: v.optional(v.boolean()),
+    // Analytique rattachée au TYPE de cours (cascade comme le tarif/compétition).
+    // Sert à générer automatiquement les lignes d'inscription du prévisionnel : tous
+    // les créneaux d'un même type partagent la même analytique. Optionnel.
+    analytiqueId: v.optional(v.id("analytiques")),
     // Nombre de semaines du cours (niveau « type de cours »). Partagé par cascade
     // entre tous les créneaux de même nom. Optionnel : à défaut, on retombe sur la
     // somme des semaines des moniteurs.

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Plus, CalendarDays, AlertTriangle, Save } from "lucide-react";
+import { Plus, CalendarDays, Save } from "lucide-react";
 import { useSeason } from "../../contexts/SeasonContext";
 import CoursFormModal, {
   type CoursRow,
@@ -46,6 +46,7 @@ type CoursDisplay = {
   nbElevesMax: number;
   nbSemaines: number;
   competition: boolean;
+  analytiqueId?: Id<"analytiques">;
   moniteurs: Array<{ salarieId: Id<"salaries">; nbSemaines: number; nom: string }>;
   seances: Array<{ jour: number; heureDebut: string; dureeHeures: number }>;
 };
@@ -53,6 +54,7 @@ type CoursDisplay = {
 export default function PlanningCours({ isAdmin }: Props) {
   const { season } = useSeason();
   const data = useQuery(api.cours.getPlanning, { saison: season });
+  const analytiques = useQuery(api.analytiques.get);
   const reprendrePlanning = useMutation(api.cours.reprendrePlanningSaisonPrecedente);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -114,6 +116,7 @@ export default function PlanningCours({ isAdmin }: Props) {
           nbElevesMax: c.nbElevesMax,
           nbSemaines: c.nbSemaines,
           competition: c.competition,
+          analytiqueId: c.analytiqueId,
           seances: c.seances,
         });
       }
@@ -129,7 +132,7 @@ export default function PlanningCours({ isAdmin }: Props) {
       if (ex) ex.nbCreneaux += 1;
       else
         map.set(c.nom, {
-          type: { nom: c.nom, tarifAnnuel: c.tarifAnnuel, nbElevesMax: c.nbElevesMax, nbSemaines: c.nbSemaines, competition: c.competition, seances: c.seances },
+          type: { nom: c.nom, tarifAnnuel: c.tarifAnnuel, nbElevesMax: c.nbElevesMax, nbSemaines: c.nbSemaines, competition: c.competition, analytiqueId: c.analytiqueId, seances: c.seances },
           nbCreneaux: 1,
         });
     }
@@ -293,6 +296,7 @@ export default function PlanningCours({ isAdmin }: Props) {
               <thead>
                 <tr style={{ borderBottom: "2px solid #e5e7eb", textAlign: "left" }}>
                   <th style={{ padding: "0.6rem 0.5rem" }}>Type de cours</th>
+                  <th style={{ padding: "0.6rem 0.5rem" }}>Analytique</th>
                   <th style={{ padding: "0.6rem 0.5rem" }}>Compétition&nbsp;?</th>
                   <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Tarif/an (€)</th>
                   <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Élèves max</th>
@@ -311,61 +315,17 @@ export default function PlanningCours({ isAdmin }: Props) {
                     type={type}
                     nbCreneaux={nbCreneaux}
                     color={colorByNom.get(type.nom)}
+                    analytiques={analytiques ?? []}
                     isAdmin={isAdmin}
                   />
                 ))}
               </tbody>
             </table>
             <p style={{ color: "#6b7280", fontSize: "0.85rem", marginTop: "0.75rem", marginBottom: 0 }}>
-              Le tarif, le nombre d'élèves et de semaines sont communs à tous les créneaux d'un même
-              type (cascade). Les jours/horaires, durées et moniteurs se modifient sur chaque créneau
-              (clic dans le diagramme).
-            </p>
-          </section>
-
-          {/* Cohérence des heures : planning vs masse salariale */}
-          <section className="card glass-card" style={{ marginTop: "2rem", overflowX: "auto" }}>
-            <h2 style={{ marginBottom: "1rem" }}>Heures par moniteur — planning vs masse salariale</h2>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "560px" }}>
-              <thead>
-                <tr style={{ borderBottom: "2px solid #e5e7eb", textAlign: "left" }}>
-                  <th style={{ padding: "0.6rem 0.5rem" }}>Moniteur</th>
-                  <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Heures planning</th>
-                  <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Heures masse salariale</th>
-                  <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Écart</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(data.heuresParMoniteur ?? []).map((h) => {
-                  const ecart = h.calculees - h.saisies;
-                  const significatif = Math.abs(ecart) >= 0.5;
-                  return (
-                    <tr key={h.salarieId} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                      <td style={{ padding: "0.6rem 0.5rem" }}>
-                        <strong>{h.nom}</strong>
-                        <span className="badge" style={{ marginLeft: "0.5rem", fontSize: "0.7rem", backgroundColor: "#e0f2fe", color: "#075985" }}>{h.typeContrat}</span>
-                      </td>
-                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">
-                        {h.calculees.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} h
-                      </td>
-                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">
-                        {h.saisies.toLocaleString("fr-FR")} h
-                      </td>
-                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right", fontWeight: significatif ? "bold" : "normal" }} className="font-mono">
-                        <span style={{ color: !significatif ? "#15803d" : ecart > 0 ? "#b45309" : "#b91c1c", display: "inline-flex", alignItems: "center", gap: "0.3rem", justifyContent: "flex-end" }}>
-                          {significatif && <AlertTriangle size={14} />}
-                          {ecart >= 0 ? "+" : "−"}
-                          {Math.abs(ecart).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} h
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <p style={{ color: "#6b7280", fontSize: "0.85rem", marginTop: "0.75rem", marginBottom: 0 }}>
-              Heures planning = Σ (durée hebdo du cours × semaines couvertes par le moniteur).
-              Pour un cours co-encadré, les semaines sont réparties entre les moniteurs.
+              Le tarif, le nombre d'élèves, de semaines et l'analytique sont communs à tous les
+              créneaux d'un même type (cascade). Les jours/horaires, durées et moniteurs se modifient
+              sur chaque créneau (clic dans le diagramme). L'analytique alimente automatiquement une
+              ligne d'inscription dans le prévisionnel (1 par analytique = Σ tarif × élèves max).
             </p>
           </section>
         </>
@@ -389,12 +349,14 @@ function TypeRow({
   type,
   nbCreneaux,
   color,
+  analytiques,
   isAdmin,
 }: {
   saison: string;
   type: CoursType;
   nbCreneaux: number;
   color?: string;
+  analytiques: Array<{ _id: Id<"analytiques">; nom: string }>;
   isAdmin: boolean;
 }) {
   const updateTypeCours = useMutation(api.cours.updateTypeCours);
@@ -402,6 +364,7 @@ function TypeRow({
   const [eleves, setEleves] = useState(String(type.nbElevesMax));
   const [semaines, setSemaines] = useState(String(type.nbSemaines));
   const [competition, setCompetition] = useState(type.competition);
+  const [analytiqueId, setAnalytiqueId] = useState<string>(type.analytiqueId ?? "");
   const [saving, setSaving] = useState(false);
 
   // Re-synchronise quand les données changent (cascade, autre client…).
@@ -411,14 +374,16 @@ function TypeRow({
     setEleves(String(type.nbElevesMax));
     setSemaines(String(type.nbSemaines));
     setCompetition(type.competition);
-  }, [type.tarifAnnuel, type.nbElevesMax, type.nbSemaines, type.competition]);
+    setAnalytiqueId(type.analytiqueId ?? "");
+  }, [type.tarifAnnuel, type.nbElevesMax, type.nbSemaines, type.competition, type.analytiqueId]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const dirty =
     parseFloat(tarif) !== type.tarifAnnuel ||
     parseInt(eleves, 10) !== type.nbElevesMax ||
     parseInt(semaines, 10) !== type.nbSemaines ||
-    competition !== type.competition;
+    competition !== type.competition ||
+    analytiqueId !== (type.analytiqueId ?? "");
 
   const hSem = type.seances.reduce((a, s) => a + s.dureeHeures, 0);
 
@@ -432,6 +397,7 @@ function TypeRow({
         nbElevesMax: parseInt(eleves, 10) || 0,
         nbSemaines: parseInt(semaines, 10) || 0,
         competition,
+        analytiqueId: analytiqueId ? (analytiqueId as Id<"analytiques">) : null,
       });
     } catch (err) {
       console.error(err);
@@ -449,6 +415,26 @@ function TypeRow({
       <td style={{ padding: "0.5rem 0.5rem" }}>
         <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, marginRight: 8, backgroundColor: color }} />
         <strong>{type.nom}</strong>
+      </td>
+      <td style={{ padding: "0.5rem 0.5rem" }}>
+        {isAdmin ? (
+          <select
+            className="input-field"
+            style={{ margin: 0, padding: "0.3rem 0.4rem", minWidth: 150 }}
+            value={analytiqueId}
+            onChange={(e) => setAnalytiqueId(e.target.value)}
+            title="Analytique pour la ligne d'inscription du prévisionnel"
+          >
+            <option value="">— Aucune —</option>
+            {analytiques.map((a) => (
+              <option key={a._id} value={a._id}>{a.nom}</option>
+            ))}
+          </select>
+        ) : (
+          <span style={{ color: "#6b7280" }}>
+            {analytiques.find((a) => a._id === type.analytiqueId)?.nom ?? "—"}
+          </span>
+        )}
       </td>
       <td style={{ padding: "0.5rem 0.5rem" }}>
         {isAdmin ? (
