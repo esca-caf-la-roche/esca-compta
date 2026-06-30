@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, usePaginatedQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { ArrowLeft, Plus, Edit2, Trash2, CheckCircle, Circle, Filter } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Plus, Edit2, Trash2, CheckCircle, Circle, Filter } from "lucide-react";
 import PrevisionnelFormModal from "../components/PrevisionnelFormModal";
 import type { Id } from "../../convex/_generated/dataModel";
 import { useSeason } from "../contexts/SeasonContext";
@@ -70,20 +69,13 @@ export default function Previsionnel() {
   };
 
   return (
-    <div className="compta-page fade-in">
-      <header className="page-header" style={{ display: "flex", flexWrap: "wrap", gap: "1rem", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "3rem" }}>
-        <div>
-          <Link to="/compta" className="back-link">
-            <ArrowLeft size={16} /> Retour à la comptabilité
-          </Link>
-          <h1>Prévisionnel</h1>
-          <p className="subtitle">Budget et suivi analytique</p>
-        </div>
-        <button className="btn-primary" style={{ width: "auto", flexGrow: 1, minWidth: "200px" }} onClick={openNewModal}>
-          <Plus size={20} style={{ display: "inline-block", marginRight: "0.5rem", verticalAlign: "middle" }} />
+    <>
+      <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: "1rem", marginBottom: "1.5rem" }}>
+        <button className="btn-primary" style={{ width: "auto" }} onClick={openNewModal}>
+          <Plus size={18} style={{ verticalAlign: "middle", marginRight: "0.4rem" }} />
           Nouveau Prévisionnel
         </button>
-      </header>
+      </div>
 
       {previsionnels !== undefined && previsionnels.length > 0 && (
         <div className="filter-bar fade-in" style={{ marginBottom: "2rem" }}>
@@ -217,11 +209,11 @@ export default function Previsionnel() {
         )}
       </section>
 
-      <PrevisionnelFormModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        previsionnelToEdit={previsionnelToEdit} 
+      <PrevisionnelFormModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        previsionnelToEdit={previsionnelToEdit}
       />
-    </div>
+    </>
   );
 }

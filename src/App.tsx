@@ -4,7 +4,6 @@ import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Compta from "./pages/Compta";
-import Previsionnel from "./pages/Previsionnel";
 import MasseSalariale from "./pages/Budget/MasseSalariale";
 import ParametresPaie from "./pages/Budget/ParametresPaie";
 import Configurations from "./pages/Configurations";
@@ -33,7 +32,6 @@ function App() {
             <Route element={<Layout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/compta" element={<Compta />} />
-              <Route path="/compta/previsionnel" element={<Previsionnel />} />
               <Route path="/budget" element={<MasseSalariale />} />
               <Route path="/budget/parametres" element={<ParametresPaie />} />
               <Route path="/configurations" element={<Configurations />} />

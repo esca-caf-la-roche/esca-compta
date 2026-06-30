@@ -225,9 +225,6 @@ export default function Compta() {
         </div>
         <div className="header-actions" style={{ display: "flex", flexDirection: "column", gap: "0.75rem", alignItems: "flex-end", flex: "1 1 300px" }}>
           <div style={{ display: "flex", gap: "0.5rem", width: "100%", justifyContent: "flex-end", flexWrap: "wrap" }}>
-            <Link to="/compta/previsionnel" className="btn-secondary" style={{ flex: 1, minWidth: "180px", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none", fontSize: "0.9rem", padding: "0.75rem 1rem", textAlign: "center" }}>
-              Voir le Prévisionnel
-            </Link>
             <button className="btn-secondary" style={{ flex: 1, minWidth: "180px", fontSize: "0.9rem", padding: "0.75rem 1rem" }} onClick={() => setIsTrendsModalOpen(true)}>
               Tendances du Budget
             </button>

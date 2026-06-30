@@ -13,6 +13,7 @@ import {
 } from "../../utils/paieCompute";
 import SalarieFormModal, { type SalarieRow } from "../../components/Budget/SalarieFormModal";
 import PlanningCours from "./PlanningCours";
+import Previsionnel from "../Previsionnel";
 
 /** Convertit les paramètres bruts (Convex) vers le type de calcul. */
 function toParametresPaie(params: {
@@ -67,7 +68,7 @@ export default function MasseSalariale() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [isSalarieModalOpen, setIsSalarieModalOpen] = useState(false);
   const [salarieToEdit, setSalarieToEdit] = useState<SalarieRow | null>(null);
-  const [tab, setTab] = useState<"masse" | "planning">("masse");
+  const [tab, setTab] = useState<"masse" | "planning" | "previsionnel">("masse");
 
   const params = data?.params;
   const salaries = useMemo(() => data?.salaries ?? [], [data]);
@@ -184,7 +185,7 @@ export default function MasseSalariale() {
             <ArrowLeft size={16} /> Retour au tableau de bord
           </Link>
           <h1>Budget prévisionnel</h1>
-          <p className="subtitle">Masse salariale & planning des cours · saison {season}</p>
+          <p className="subtitle">Masse salariale, planning des cours & prévisionnel · saison {season}</p>
         </div>
         {tab === "masse" && isAdmin && salaries.length > 0 && (
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
@@ -205,6 +206,7 @@ export default function MasseSalariale() {
         {([
           { id: "masse", label: "Masse salariale" },
           { id: "planning", label: "Planning des cours" },
+          { id: "previsionnel", label: "Prévisionnel" },
         ] as const).map((t) => (
           <button
             key={t.id}
@@ -228,6 +230,8 @@ export default function MasseSalariale() {
 
       {tab === "planning" ? (
         <PlanningCours isAdmin={isAdmin} />
+      ) : tab === "previsionnel" ? (
+        <Previsionnel />
       ) : data === undefined ? (
         <div className="loading">Chargement des données...</div>
       ) : reprise && salaries.length === 0 ? (
