@@ -504,8 +504,8 @@ export default function MasseSalariale() {
                         <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
                           <strong>{l.nom}</strong>
                           <ContratBadge type={l.typeContrat} />
-                          {l.statut === "arrivee" && <ArrowUpRight size={15} style={{ color: "#16a34a", flexShrink: 0 }} title="Arrivée" />}
-                          {l.statut === "depart" && <ArrowDownRight size={15} style={{ color: "#dc2626", flexShrink: 0 }} title="Départ" />}
+                          {l.statut === "arrivee" && <ArrowUpRight size={15} style={{ color: "#16a34a", flexShrink: 0 }} />}
+                          {l.statut === "depart" && <ArrowDownRight size={15} style={{ color: "#dc2626", flexShrink: 0 }} />}
                         </div>
                       </td>
                       <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">
