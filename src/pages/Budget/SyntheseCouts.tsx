@@ -73,13 +73,17 @@ export default function SyntheseCouts({
         <h2 style={{ marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
           <Users size={20} /> Effectifs
         </h2>
-        <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap", alignItems: "flex-end" }}>
-          <div>
-            <label className="form-label" htmlFor="nb-loisir">
-              Membres loisir (élèves en cours + abonnements)
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1.5rem" }}>
+          {/* Loisir */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+            <label className="form-label" htmlFor="nb-loisir" style={{ margin: 0 }}>
+              Membres loisir
             </label>
+            <p style={{ fontSize: "0.75rem", color: "#6b7280", margin: 0 }}>
+              Élèves en cours + abonnements
+            </p>
             {isAdmin ? (
-              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginTop: "0.25rem" }}>
                 <input
                   id="nb-loisir"
                   type="number"
@@ -101,23 +105,26 @@ export default function SyntheseCouts({
                 </button>
               </div>
             ) : (
-              <p className="font-mono" style={{ fontSize: "1.4rem", margin: 0 }}>{nbLoisir}</p>
+              <p className="font-mono" style={{ fontSize: "1.4rem", margin: "0.25rem 0 0" }}>{nbLoisir}</p>
             )}
           </div>
 
-          <div>
-            <label className="form-label">
+          {/* Compétition */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+            <label className="form-label" style={{ margin: 0 }}>
               Membres compétition <span style={{ fontWeight: "normal", color: "#6b7280" }}>(auto)</span>
             </label>
-            <p className="font-mono" style={{ fontSize: "1.4rem", margin: 0 }}>{nbCompet}</p>
-            <p style={{ fontSize: "0.78rem", color: "#6b7280", margin: "0.2rem 0 0" }}>
+            <p style={{ fontSize: "0.75rem", color: "#6b7280", margin: 0 }}>
               Σ élèves max des types de cours compétition
             </p>
+            <p className="font-mono" style={{ fontSize: "1.4rem", margin: "0.25rem 0 0" }}>{nbCompet}</p>
           </div>
 
-          <div>
-            <label className="form-label">Total membres</label>
-            <p className="font-mono" style={{ fontSize: "1.4rem", margin: 0 }}>{totalMembres}</p>
+          {/* Total */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+            <label className="form-label" style={{ margin: 0 }}>Total membres</label>
+            <p style={{ fontSize: "0.75rem", color: "#6b7280", margin: 0 }}>&nbsp;</p>
+            <p className="font-mono" style={{ fontSize: "1.4rem", margin: "0.25rem 0 0", fontWeight: 700 }}>{totalMembres}</p>
           </div>
         </div>
       </section>
