@@ -84,6 +84,25 @@ export default function SalarieFormModal({ isOpen, onClose, salarieToEdit }: Pro
 
   if (!isOpen) return null;
 
+  // Calcul live du total d'heures si planning actif : base (cours + réunion) + heures sup du formulaire.
+  const liveHours = (() => {
+    if (!salarieToEdit?.heuresAuto) return null;
+    const savedSup = salarieToEdit.heuresSup ?? [];
+    const savedSupH = savedSup.reduce((a, h) => a + h.nbHeures, 0);
+    const savedSupLoisirH = savedSup.filter((h) => !h.competition).reduce((a, h) => a + h.nbHeures, 0);
+    const baseH = salarieToEdit.nbHeuresAnnuel - savedSupH;
+    const baseLoisir = salarieToEdit.heuresLoisir - savedSupLoisirH;
+    const baseCompet = salarieToEdit.heuresCompetition - (savedSupH - savedSupLoisirH);
+    const liveSupH = heuresSup.reduce((a, h) => a + (parseFloat(h.nbHeures) || 0), 0);
+    const liveSupLoisir = heuresSup.filter((h) => !h.competition).reduce((a, h) => a + (parseFloat(h.nbHeures) || 0), 0);
+    return {
+      base: { h: baseH, loisir: baseLoisir, compet: baseCompet },
+      total: baseH + liveSupH,
+      loisir: baseLoisir + liveSupLoisir,
+      compet: baseCompet + (liveSupH - liveSupLoisir),
+    };
+  })();
+
   // Le taux est dérivé de l'augmentation dès qu'il existe une saison précédente
   // pour ce moniteur : taux = taux(N-1) × (1 + augmentation). Sinon (nouvel arrivant /
   // saison de référence), on saisit un taux d'entrée.
@@ -182,26 +201,16 @@ export default function SalarieFormModal({ isOpen, onClose, salarieToEdit }: Pro
             </select>
           </div>
 
-          {salarieToEdit && salarieToEdit.heuresAuto && (
+          {liveHours && (
             <div className="form-group">
-              <label className="form-label">Nb heures / an — calculé automatiquement</label>
-              <div
-                style={{
-                  background: "#f3f4f6",
-                  borderRadius: "0.5rem",
-                  padding: "0.75rem 1rem",
-                  fontSize: "0.9rem",
-                  color: "#374151",
-                }}
-              >
-                <strong>{salarieToEdit.nbHeuresAnnuel.toFixed(1)} h</strong> au total
-                <span style={{ color: "#6b7280" }}>
-                  {" "}— Loisir {salarieToEdit.heuresLoisir.toFixed(1)} h · Compétition{" "}
-                  {salarieToEdit.heuresCompetition.toFixed(1)} h
+              <label className="form-label">Heures de cours (depuis le planning)</label>
+              <div style={{ background: "#f3f4f6", borderRadius: "0.5rem", padding: "0.6rem 1rem", fontSize: "0.85rem", color: "#6b7280" }}>
+                <span style={{ color: "#374151" }}>
+                  <strong className="font-mono">{liveHours.base.h.toFixed(1)} h</strong>
                 </span>
-                <div style={{ fontSize: "0.78rem", color: "#9ca3af", marginTop: "0.25rem" }}>
-                  Heures de cours du planning + 5 h de réunion (loisir) + heures supplémentaires
-                  ci-dessous.
+                {" "}— Loisir {liveHours.base.loisir.toFixed(1)} h · Compétition {liveHours.base.compet.toFixed(1)} h
+                <div style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: "0.2rem" }}>
+                  Cours planning + 5 h réunion (loisir), sans les heures supplémentaires
                 </div>
               </div>
             </div>
@@ -218,12 +227,12 @@ export default function SalarieFormModal({ isOpen, onClose, salarieToEdit }: Pro
             {heuresSup.map((h, idx) => (
               <div
                 key={idx}
-                style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}
+                style={{ display: "grid", gridTemplateColumns: "1fr 90px auto auto", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem" }}
               >
                 <input
                   type="text"
                   className="input-field"
-                  style={{ flex: "2 1 160px" }}
+                  style={{ margin: 0 }}
                   value={h.designation}
                   onChange={(e) => updateHeureSup(idx, { designation: e.target.value })}
                   placeholder="Désignation (ex: Stage été)"
@@ -232,21 +241,19 @@ export default function SalarieFormModal({ isOpen, onClose, salarieToEdit }: Pro
                   type="number"
                   step="0.5"
                   className="input-field"
-                  style={{ flex: "1 1 90px" }}
+                  style={{ margin: 0 }}
                   value={h.nbHeures}
                   onChange={(e) => updateHeureSup(idx, { nbHeures: e.target.value })}
                   placeholder="Heures"
                 />
-                <label
-                  style={{ flex: "1 1 120px", display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer" }}
-                >
+                <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer", whiteSpace: "nowrap" }}>
                   <input
                     type="checkbox"
                     checked={h.competition}
                     onChange={(e) => updateHeureSup(idx, { competition: e.target.checked })}
                     style={{ width: 16, height: 16 }}
                   />
-                  <span style={{ fontSize: "0.85rem", color: "#374151" }}>Compétition&nbsp;?</span>
+                  <span style={{ fontSize: "0.85rem", color: "#374151" }}>Compétition</span>
                 </label>
                 <button
                   type="button"
@@ -267,6 +274,18 @@ export default function SalarieFormModal({ isOpen, onClose, salarieToEdit }: Pro
             >
               + Ajouter des heures
             </button>
+            {liveHours && (
+              <div style={{ marginTop: "0.75rem", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "0.5rem", padding: "0.6rem 0.85rem", fontSize: "0.85rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <span style={{ color: "#1e40af", fontWeight: 600 }}>Total annuel (avec heures sup)</span>
+                  <strong className="font-mono" style={{ color: "#1e3a8a", fontSize: "1rem" }}>{liveHours.total.toFixed(1)} h</strong>
+                </div>
+                <div style={{ display: "flex", gap: "1.5rem", marginTop: "0.25rem", fontSize: "0.8rem", color: "#3b82f6" }}>
+                  <span>Loisir : <span className="font-mono">{liveHours.loisir.toFixed(1)} h</span></span>
+                  <span>Compétition : <span className="font-mono">{liveHours.compet.toFixed(1)} h</span></span>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="form-group">

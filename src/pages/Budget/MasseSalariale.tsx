@@ -317,8 +317,10 @@ export default function MasseSalariale() {
                 {salaries.map((s) => (
                   <tr key={s.ligneId} style={{ borderBottom: "1px solid #f0f0f0" }}>
                     <td style={{ padding: "0.6rem 0.5rem" }}>
-                      <strong>{s.nom}</strong>
-                      <span className="badge" style={{ marginLeft: "0.5rem", fontSize: "0.7rem", backgroundColor: "#e0f2fe", color: "#075985" }}>{s.typeContrat}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <strong>{s.nom}</strong>
+                        <span className="badge" style={{ fontSize: "0.7rem", backgroundColor: "#e0f2fe", color: "#075985" }}>{s.typeContrat}</span>
+                      </div>
                     </td>
                     <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">{eur(s.tauxHoraireBrut)}</td>
                     {isAdmin && (
@@ -383,24 +385,33 @@ export default function MasseSalariale() {
                           </button>
                         </td>
                         <td style={{ padding: "0.6rem 0.5rem" }}>
-                          <strong>{s.nom}</strong>
-                          <span className="badge" style={{ marginLeft: "0.5rem", fontSize: "0.7rem", backgroundColor: "#e0f2fe", color: "#075985" }}>
-                            {s.typeContrat}
-                          </span>
-                        </td>
-                        <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">
-                          {s.nbHeuresAnnuel.toLocaleString("fr-FR")}
-                          {s.typeContrat === "CDI" && (
-                            <span style={{ color: "#9ca3af", fontSize: "0.8rem" }} title="Heures réelles (151,67 × 12 × h / 1582)">
-                              {" "}→ {base.heuresAnnuelEffectif.toLocaleString("fr-FR")} réelles
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                            <strong>{s.nom}</strong>
+                            <span className="badge" style={{ fontSize: "0.7rem", backgroundColor: "#e0f2fe", color: "#075985" }}>
+                              {s.typeContrat}
                             </span>
-                          )}
-                          <span style={{ color: "#9ca3af", fontSize: "0.8rem" }}> ({base.heuresMensuel.toLocaleString("fr-FR")}/mois)</span>
+                          </div>
+                        </td>
+                        <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>
+                          <div className="font-mono">
+                            {s.nbHeuresAnnuel.toLocaleString("fr-FR")}
+                            {s.typeContrat === "CDI" && (
+                              <span style={{ color: "#9ca3af", fontSize: "0.8rem" }} title="Heures réelles (151,67 × 12 × h / 1582)">
+                                {" "}→ {base.heuresAnnuelEffectif.toLocaleString("fr-FR")} réelles
+                              </span>
+                            )}
+                            <span style={{ color: "#9ca3af", fontSize: "0.8rem" }}> ({base.heuresMensuel.toLocaleString("fr-FR")}/mois)</span>
+                          </div>
                           {s.heuresAuto && (
-                            <div style={{ color: "#9ca3af", fontSize: "0.75rem" }}>
+                            <div style={{ color: "#9ca3af", fontSize: "0.75rem", marginTop: "0.1rem" }}>
                               Loisir {s.heuresLoisir.toLocaleString("fr-FR")} · Compét. {s.heuresCompetition.toLocaleString("fr-FR")}
                             </div>
                           )}
+                          {s.heuresSup?.map((hs, i) => (
+                            <div key={i} style={{ color: "#9ca3af", fontSize: "0.72rem" }}>
+                              + {hs.nbHeures} h — {hs.designation}{hs.competition ? " (compét.)" : ""}
+                            </div>
+                          ))}
                         </td>
                         <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">
                           {eur(s.tauxHoraireBrut)}
@@ -492,17 +503,19 @@ export default function MasseSalariale() {
                   {comparaison.lignes.map((l) => (
                     <tr key={l.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
                       <td style={{ padding: "0.6rem 0.5rem" }}>
-                        <strong>{l.nom}</strong>
-                        <span className="badge" style={{ marginLeft: "0.5rem", fontSize: "0.7rem", backgroundColor: "#e0f2fe", color: "#075985" }}>
-                          {l.typeContrat}
-                        </span>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
+                          <strong>{l.nom}</strong>
+                          <span className="badge" style={{ fontSize: "0.7rem", backgroundColor: "#e0f2fe", color: "#075985" }}>
+                            {l.typeContrat}
+                          </span>
+                        </div>
                         {l.statut === "arrivee" && (
-                          <span className="badge" style={{ marginLeft: "0.4rem", fontSize: "0.7rem", backgroundColor: "#dcfce7", color: "#166534", display: "inline-flex", alignItems: "center", gap: "0.2rem" }}>
+                          <span className="badge" style={{ marginTop: "0.25rem", fontSize: "0.7rem", backgroundColor: "#dcfce7", color: "#166534", display: "inline-flex", alignItems: "center", gap: "0.2rem" }}>
                             <ArrowUpRight size={12} /> Arrivée
                           </span>
                         )}
                         {l.statut === "depart" && (
-                          <span className="badge" style={{ marginLeft: "0.4rem", fontSize: "0.7rem", backgroundColor: "#fee2e2", color: "#991b1b", display: "inline-flex", alignItems: "center", gap: "0.2rem" }}>
+                          <span className="badge" style={{ marginTop: "0.25rem", fontSize: "0.7rem", backgroundColor: "#fee2e2", color: "#991b1b", display: "inline-flex", alignItems: "center", gap: "0.2rem" }}>
                             <ArrowDownRight size={12} /> Départ
                           </span>
                         )}
