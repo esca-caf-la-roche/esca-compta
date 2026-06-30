@@ -64,6 +64,10 @@ export default defineSchema({
     tarifAnnuel: v.number(),
     lienPaiementCB: v.optional(v.string()),
     nbElevesMax: v.number(),
+    // Nombre de semaines du cours (niveau « type de cours »). Partagé par cascade
+    // entre tous les créneaux de même nom. Optionnel : à défaut, on retombe sur la
+    // somme des semaines des moniteurs.
+    nbSemaines: v.optional(v.number()),
     moniteurs: v.array(
       v.object({
         salarieId: v.id("salaries"),

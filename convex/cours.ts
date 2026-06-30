@@ -31,6 +31,45 @@ function heuresParSemaine(seances: Array<{ dureeHeures: number }>): number {
   return seances.reduce((acc, s) => acc + s.dureeHeures, 0);
 }
 
+type Seance = { jour: number; heureDebut: string; dureeHeures: number };
+
+/** Aligne les séances d'un créneau « cible » sur un modèle (même nombre de séances
+ *  et mêmes durées que `modele`) tout en conservant les jours/horaires propres de la
+ *  cible quand ils existent. Sert à la cascade par type de cours. */
+function alignerSeances(modele: Seance[], cible: Seance[]): Seance[] {
+  return modele.map((m, i) => ({
+    jour: cible[i]?.jour ?? m.jour,
+    heureDebut: cible[i]?.heureDebut ?? m.heureDebut,
+    dureeHeures: m.dureeHeures,
+  }));
+}
+
+/** Propage les attributs « type de cours » (tarif, élèves max, semaines, gabarit de
+ *  séances) à tous les autres créneaux de même nom dans la saison. Chaque créneau
+ *  garde ses propres jours/horaires et ses moniteurs. */
+async function cascadeTypeCours(
+  ctx: MutationCtx,
+  saison: string,
+  nom: string,
+  exclureId: Id<"cours">,
+  shared: { tarifAnnuel: number; nbElevesMax: number; nbSemaines: number; seances: Seance[] }
+): Promise<number> {
+  const siblings = (await ctx.db
+    .query("cours")
+    .withIndex("by_saison", (q) => q.eq("saison", saison))
+    .collect()).filter((c) => c._id !== exclureId && c.nom === nom);
+
+  for (const sib of siblings) {
+    await ctx.db.patch(sib._id, {
+      tarifAnnuel: shared.tarifAnnuel,
+      nbElevesMax: shared.nbElevesMax,
+      nbSemaines: shared.nbSemaines,
+      seances: alignerSeances(shared.seances, sib.seances),
+    });
+  }
+  return siblings.length;
+}
+
 export const getPlanning = query({
   args: { saison: v.string() },
   handler: async (ctx, args) => {
@@ -74,6 +113,8 @@ export const getPlanning = query({
 
     const cours = coursDocs.map((c) => ({
       ...c,
+      // nb semaines effectif : champ « type de cours » sinon somme des moniteurs.
+      nbSemaines: c.nbSemaines ?? c.moniteurs.reduce((a, m) => a + m.nbSemaines, 0),
       moniteurs: c.moniteurs.map((m) => ({
         ...m,
         nom: nomById.get(m.salarieId) ?? "Inconnu",
@@ -111,6 +152,7 @@ export const addCours = mutation({
     tarifAnnuel: v.number(),
     lienPaiementCB: v.optional(v.string()),
     nbElevesMax: v.number(),
+    nbSemaines: v.number(),
     moniteurs: v.array(moniteurValidator),
     seances: v.array(seanceValidator),
   },
@@ -125,20 +167,31 @@ export const addCours = mutation({
       throw new Error("Un cours doit avoir au moins un moniteur.");
     }
 
-    const count = (await ctx.db
+    const tousCours = await ctx.db
       .query("cours")
       .withIndex("by_saison", (q) => q.eq("saison", args.saison))
-      .collect()).length;
+      .collect();
+
+    // Cascade « type de cours » : si un créneau de même nom existe déjà, le nouveau
+    // hérite de son gabarit (tarif, élèves max, semaines, durées/nombre de séances)
+    // pour garantir des valeurs « toujours identiques ». Jours/horaires/moniteurs
+    // restent ceux saisis.
+    const modele = tousCours.find((c) => c.nom === nom);
+    const tarifAnnuel = modele ? modele.tarifAnnuel : args.tarifAnnuel;
+    const nbElevesMax = modele ? modele.nbElevesMax : args.nbElevesMax;
+    const nbSemaines = modele ? (modele.nbSemaines ?? args.nbSemaines) : args.nbSemaines;
+    const seances = modele ? alignerSeances(modele.seances, args.seances) : args.seances;
 
     return await ctx.db.insert("cours", {
       saison: args.saison,
       nom,
-      tarifAnnuel: args.tarifAnnuel,
+      tarifAnnuel,
       lienPaiementCB: args.lienPaiementCB?.trim() || undefined,
-      nbElevesMax: args.nbElevesMax,
+      nbElevesMax,
+      nbSemaines,
       moniteurs: args.moniteurs,
-      seances: args.seances,
-      ordre: count,
+      seances,
+      ordre: tousCours.length,
     });
   },
 });
@@ -150,6 +203,7 @@ export const updateCours = mutation({
     tarifAnnuel: v.optional(v.number()),
     lienPaiementCB: v.optional(v.string()),
     nbElevesMax: v.optional(v.number()),
+    nbSemaines: v.optional(v.number()),
     moniteurs: v.optional(v.array(moniteurValidator)),
     seances: v.optional(v.array(seanceValidator)),
   },
@@ -168,6 +222,7 @@ export const updateCours = mutation({
     if (args.lienPaiementCB !== undefined)
       updates.lienPaiementCB = args.lienPaiementCB.trim() || undefined;
     if (args.nbElevesMax !== undefined) updates.nbElevesMax = args.nbElevesMax;
+    if (args.nbSemaines !== undefined) updates.nbSemaines = args.nbSemaines;
     if (args.moniteurs !== undefined) {
       if (args.moniteurs.length === 0) {
         throw new Error("Un cours doit avoir au moins un moniteur.");
@@ -183,6 +238,20 @@ export const updateCours = mutation({
 
     if (Object.keys(updates).length > 0) {
       await ctx.db.patch(args.coursId, updates);
+    }
+
+    // Cascade « type de cours » : les autres créneaux de même nom adoptent le tarif,
+    // les élèves max, les semaines et le gabarit de séances (durées + nombre), en
+    // conservant leurs propres jours/horaires et moniteurs.
+    const nomFinal = (updates.nom as string | undefined) ?? cours.nom;
+    const finalCours = await ctx.db.get(args.coursId);
+    if (finalCours) {
+      await cascadeTypeCours(ctx, finalCours.saison, nomFinal, args.coursId, {
+        tarifAnnuel: finalCours.tarifAnnuel,
+        nbElevesMax: finalCours.nbElevesMax,
+        nbSemaines: finalCours.nbSemaines ?? finalCours.moniteurs.reduce((a, m) => a + m.nbSemaines, 0),
+        seances: finalCours.seances,
+      });
     }
   },
 });
@@ -229,6 +298,7 @@ export const reprendrePlanningSaisonPrecedente = mutation({
         tarifAnnuel: c.tarifAnnuel,
         lienPaiementCB: c.lienPaiementCB,
         nbElevesMax: c.nbElevesMax,
+        nbSemaines: c.nbSemaines,
         moniteurs: c.moniteurs,
         seances: c.seances,
         ordre: c.ordre,
@@ -261,6 +331,7 @@ export const importPlanning = internalMutation({
         tarifAnnuel: v.number(),
         lienPaiementCB: v.optional(v.string()),
         nbElevesMax: v.number(),
+        nbSemaines: v.number(),
         seances: v.array(seanceValidator),
         moniteurs: v.array(
           v.object({ prenom: v.string(), nbSemaines: v.number() })
@@ -311,6 +382,7 @@ export const importPlanning = internalMutation({
         tarifAnnuel: c.tarifAnnuel,
         lienPaiementCB: c.lienPaiementCB,
         nbElevesMax: c.nbElevesMax,
+        nbSemaines: c.nbSemaines,
         moniteurs: c.moniteurs.map((m) => ({
           salarieId: resolve(m.prenom),
           nbSemaines: m.nbSemaines,

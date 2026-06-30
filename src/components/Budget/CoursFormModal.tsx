@@ -23,6 +23,7 @@ export interface CoursRow {
   tarifAnnuel: number;
   lienPaiementCB?: string;
   nbElevesMax: number;
+  nbSemaines: number;
   moniteurs: CoursMoniteur[];
   seances: Seance[];
 }
@@ -53,6 +54,7 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
   const [tarifAnnuel, setTarifAnnuel] = useState("");
   const [lienPaiementCB, setLienPaiementCB] = useState("");
   const [nbElevesMax, setNbElevesMax] = useState("");
+  const [nbSemaines, setNbSemaines] = useState("");
   const [moniteurLignes, setMoniteurLignes] = useState<MoniteurForm[]>([]);
   const [seances, setSeances] = useState<SeanceForm[]>([emptySeance()]);
   const [saving, setSaving] = useState(false);
@@ -65,6 +67,7 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
       setTarifAnnuel(String(coursToEdit.tarifAnnuel));
       setLienPaiementCB(coursToEdit.lienPaiementCB ?? "");
       setNbElevesMax(String(coursToEdit.nbElevesMax));
+      setNbSemaines(String(coursToEdit.nbSemaines));
       setMoniteurLignes(
         coursToEdit.moniteurs.map((m) => ({
           salarieId: m.salarieId,
@@ -83,6 +86,7 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
       setTarifAnnuel("");
       setLienPaiementCB("");
       setNbElevesMax("");
+      setNbSemaines("30");
       setMoniteurLignes([{ salarieId: moniteurs[0]?.salarieId ?? "", nbSemaines: "30" }]);
       setSeances([emptySeance()]);
     }
@@ -108,10 +112,11 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nom.trim() || !nbElevesMax || !tarifAnnuel) {
+    if (!nom.trim() || !nbElevesMax || !tarifAnnuel || !nbSemaines) {
       alert("Veuillez remplir tous les champs obligatoires.");
       return;
     }
+    const nbSemainesNum = parseInt(nbSemaines, 10);
     const parsedSeances = seances
       .filter((s) => s.heureDebut && s.dureeHeures)
       .map((s) => ({ jour: s.jour, heureDebut: s.heureDebut, dureeHeures: parseFloat(s.dureeHeures) }));
@@ -119,11 +124,16 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
       alert("Ajoutez au moins une séance valide (jour, heure, durée).");
       return;
     }
-    const parsedMoniteurs = moniteurLignes
-      .filter((m) => m.salarieId && m.nbSemaines)
-      .map((m) => ({ salarieId: m.salarieId as Id<"salaries">, nbSemaines: parseInt(m.nbSemaines, 10) }));
+    const moniteursValides = moniteurLignes.filter((m) => m.salarieId);
+    // Un seul moniteur : il couvre toutes les semaines du cours. Plusieurs : on
+    // utilise la répartition saisie (ex. 12 / 11 / 11).
+    const unSeulMoniteur = moniteursValides.length === 1;
+    const parsedMoniteurs = moniteursValides.map((m) => ({
+      salarieId: m.salarieId as Id<"salaries">,
+      nbSemaines: unSeulMoniteur ? nbSemainesNum : parseInt(m.nbSemaines, 10) || 0,
+    }));
     if (parsedMoniteurs.length === 0) {
-      alert("Ajoutez au moins un moniteur avec son nombre de semaines.");
+      alert("Ajoutez au moins un moniteur.");
       return;
     }
 
@@ -134,6 +144,7 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
         tarifAnnuel: parseFloat(tarifAnnuel),
         lienPaiementCB: lienPaiementCB.trim() || undefined,
         nbElevesMax: parseInt(nbElevesMax, 10),
+        nbSemaines: nbSemainesNum,
         moniteurs: parsedMoniteurs,
         seances: parsedSeances,
       };
@@ -195,7 +206,7 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
                 placeholder="Ex: 280"
               />
             </div>
-            <div className="form-group" style={{ flex: "1 1 140px" }}>
+            <div className="form-group" style={{ flex: "1 1 120px" }}>
               <label className="form-label" htmlFor="cours-eleves">
                 Nb élèves max <span className="text-red-500">*</span>
               </label>
@@ -208,6 +219,21 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
                 onChange={(e) => setNbElevesMax(e.target.value)}
                 required
                 placeholder="Ex: 12"
+              />
+            </div>
+            <div className="form-group" style={{ flex: "1 1 120px" }}>
+              <label className="form-label" htmlFor="cours-semaines">
+                Nb semaines <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="cours-semaines"
+                type="number"
+                step="1"
+                className="input-field"
+                value={nbSemaines}
+                onChange={(e) => setNbSemaines(e.target.value)}
+                required
+                placeholder="Ex: 34"
               />
             </div>
           </div>
@@ -232,7 +258,8 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
               <span>
                 Moniteurs <span className="text-red-500">*</span>{" "}
                 <span style={{ color: "#6b7280", fontWeight: "normal" }}>
-                  ({moniteurLignes.length} · {totalSemaines} sem. au total)
+                  ({moniteurLignes.length}
+                  {moniteurLignes.length > 1 ? ` · ${totalSemaines} sem. réparties` : ""})
                 </span>
               </span>
               <button
@@ -262,17 +289,19 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
                       </option>
                     ))}
                   </select>
-                  <input
-                    type="number"
-                    step="1"
-                    min="1"
-                    className="input-field"
-                    style={{ flex: "1 1 110px", margin: 0 }}
-                    value={m.nbSemaines}
-                    onChange={(e) => updateMoniteur(idx, { nbSemaines: e.target.value })}
-                    title="Nombre de semaines couvertes par ce moniteur"
-                    placeholder="Semaines"
-                  />
+                  {moniteurLignes.length > 1 && (
+                    <input
+                      type="number"
+                      step="1"
+                      min="1"
+                      className="input-field"
+                      style={{ flex: "1 1 110px", margin: 0 }}
+                      value={m.nbSemaines}
+                      onChange={(e) => updateMoniteur(idx, { nbSemaines: e.target.value })}
+                      title="Nombre de semaines couvertes par ce moniteur"
+                      placeholder="Semaines"
+                    />
+                  )}
                   <button
                     type="button"
                     className="btn-icon danger"

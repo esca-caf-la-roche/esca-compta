@@ -34,6 +34,17 @@ interface Props {
   isAdmin: boolean;
 }
 
+type CoursDisplay = {
+  _id: string;
+  nom: string;
+  tarifAnnuel: number;
+  lienPaiementCB?: string;
+  nbElevesMax: number;
+  nbSemaines: number;
+  moniteurs: Array<{ salarieId: Id<"salaries">; nbSemaines: number; nom: string }>;
+  seances: Array<{ jour: number; heureDebut: string; dureeHeures: number }>;
+};
+
 export default function PlanningCours({ isAdmin }: Props) {
   const { season } = useSeason();
   const data = useQuery(api.cours.getPlanning, { saison: season });
@@ -86,6 +97,7 @@ export default function PlanningCours({ isAdmin }: Props) {
       coursId: string;
       coursNom: string;
       salarieId: Id<"salaries">;
+      jour: number;
       debut: number;
       fin: number;
       color: string;
@@ -109,6 +121,7 @@ export default function PlanningCours({ isAdmin }: Props) {
               coursId: c._id,
               coursNom: c.nom,
               salarieId: m.salarieId,
+              jour: j,
               debut,
               fin: debut + s.dureeHeures,
               color: colorByCours.get(c._id) ?? PALETTE[0],
@@ -142,11 +155,34 @@ export default function PlanningCours({ isAdmin }: Props) {
       tarifAnnuel: c.tarifAnnuel,
       lienPaiementCB: c.lienPaiementCB,
       nbElevesMax: c.nbElevesMax,
+      nbSemaines: c.nbSemaines,
       moniteurs: c.moniteurs.map((m) => ({ salarieId: m.salarieId, nbSemaines: m.nbSemaines })),
       seances: c.seances,
     });
     setIsModalOpen(true);
   };
+  const openEditById = (coursId: string) => {
+    const c = cours.find((x) => x._id === coursId);
+    if (c) openEdit(c);
+  };
+
+  // Index cours pour l'info-bulle du Gantt (toutes les infos d'un créneau).
+  const coursById = useMemo(() => {
+    const map = new Map<string, CoursDisplay>();
+    for (const c of cours) {
+      map.set(c._id, {
+        _id: c._id,
+        nom: c.nom,
+        tarifAnnuel: c.tarifAnnuel,
+        lienPaiementCB: c.lienPaiementCB,
+        nbElevesMax: c.nbElevesMax,
+        nbSemaines: c.nbSemaines,
+        moniteurs: c.moniteurs,
+        seances: c.seances,
+      });
+    }
+    return map;
+  }, [cours]);
   const openNew = () => {
     setCoursToEdit(null);
     setIsModalOpen(true);
@@ -218,8 +254,19 @@ export default function PlanningCours({ isAdmin }: Props) {
       ) : (
         <>
           {/* Diagramme de Gantt par jour de semaine */}
+          {isAdmin && (
+            <p style={{ color: "#6b7280", fontSize: "0.85rem", margin: "0 0 0.75rem" }}>
+              Survolez un créneau pour le détail · cliquez dessus pour le modifier.
+            </p>
+          )}
           {planningParJour.map((jourData) => (
-            <GanttJour key={jourData.jour} jourData={jourData} />
+            <GanttJour
+              key={jourData.jour}
+              jourData={jourData}
+              coursById={coursById}
+              isAdmin={isAdmin}
+              onEdit={openEditById}
+            />
           ))}
 
           {/* Cohérence des heures : planning vs masse salariale */}
@@ -289,7 +336,6 @@ export default function PlanningCours({ isAdmin }: Props) {
               <tbody>
                 {cours.map((c) => {
                   const hSem = c.seances.reduce((a, s) => a + s.dureeHeures, 0);
-                  const totalSem = c.moniteurs.reduce((a, m) => a + m.nbSemaines, 0);
                   return (
                     <tr key={c._id} style={{ borderBottom: "1px solid #f0f0f0" }}>
                       <td style={{ padding: "0.6rem 0.5rem" }}>
@@ -320,7 +366,7 @@ export default function PlanningCours({ isAdmin }: Props) {
                       </td>
                       <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">{eur0(c.tarifAnnuel)}</td>
                       <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">{c.nbElevesMax}</td>
-                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">{totalSem}</td>
+                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">{c.nbSemaines}</td>
                       <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">{hSem.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}</td>
                       {isAdmin && (
                         <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>
@@ -349,24 +395,33 @@ export default function PlanningCours({ isAdmin }: Props) {
   );
 }
 
+type GanttItem = {
+  coursId: string;
+  coursNom: string;
+  salarieId: Id<"salaries">;
+  jour: number;
+  debut: number;
+  fin: number;
+  color: string;
+};
+
 /** Une journée du Gantt : lignes = moniteurs, axe horizontal = horaires. */
 function GanttJour({
   jourData,
+  coursById,
+  isAdmin,
+  onEdit,
 }: {
   jourData: {
     jour: number;
-    items: Array<{
-      coursId: string;
-      coursNom: string;
-      salarieId: Id<"salaries">;
-      debut: number;
-      fin: number;
-      color: string;
-    }>;
+    items: GanttItem[];
     moniteurs: Array<{ salarieId: Id<"salaries">; nom: string }>;
     min: number;
     max: number;
   };
+  coursById: Map<string, CoursDisplay>;
+  isAdmin: boolean;
+  onEdit: (coursId: string) => void;
 }) {
   const { jour, items, moniteurs, min, max } = jourData;
   const span = Math.max(max - min, 1);
@@ -375,6 +430,8 @@ function GanttJour({
 
   const pct = (v: number) => `${((v - min) / span) * 100}%`;
   const LABEL_W = 140;
+
+  const [hover, setHover] = useState<{ item: GanttItem; x: number; y: number } | null>(null);
 
   return (
     <section className="card glass-card" style={{ marginBottom: "1.5rem" }}>
@@ -416,7 +473,10 @@ function GanttJour({
                   {seances.map((s, i) => (
                     <div
                       key={i}
-                      title={`${s.coursNom} · ${fmtHeure(s.debut)}–${fmtHeure(s.fin)}`}
+                      onMouseEnter={(e) => setHover({ item: s, x: e.clientX, y: e.clientY })}
+                      onMouseMove={(e) => setHover({ item: s, x: e.clientX, y: e.clientY })}
+                      onMouseLeave={() => setHover(null)}
+                      onClick={() => isAdmin && onEdit(s.coursId)}
                       style={{
                         position: "absolute",
                         left: pct(s.debut),
@@ -434,6 +494,7 @@ function GanttJour({
                         whiteSpace: "nowrap",
                         textOverflow: "ellipsis",
                         boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
+                        cursor: isAdmin ? "pointer" : "default",
                       }}
                     >
                       {s.coursNom}
@@ -445,6 +506,82 @@ function GanttJour({
           })}
         </div>
       </div>
+
+      {hover && <GanttTooltip hover={hover} cours={coursById.get(hover.item.coursId)} />}
     </section>
+  );
+}
+
+/** Info-bulle affichant toutes les informations d'un créneau survolé. */
+function GanttTooltip({
+  hover,
+  cours,
+}: {
+  hover: { item: GanttItem; x: number; y: number };
+  cours: CoursDisplay | undefined;
+}) {
+  if (!cours) return null;
+  const { item } = hover;
+  // Positionnement près du curseur, en restant dans l'écran.
+  const left = Math.min(hover.x + 14, window.innerWidth - 280);
+  const top = Math.min(hover.y + 14, window.innerHeight - 220);
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        left,
+        top,
+        zIndex: 1000,
+        width: 260,
+        background: "#fff",
+        border: "1px solid #e5e7eb",
+        borderRadius: 8,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+        padding: "0.75rem 0.85rem",
+        fontSize: "0.8rem",
+        color: "#374151",
+        pointerEvents: "none",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: "0.9rem", marginBottom: 6 }}>
+        <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: item.color }} />
+        {cours.nom}
+      </div>
+      <TipLine label="Créneau survolé" value={`${JOURS[item.jour]} · ${fmtHeure(item.debut)}–${fmtHeure(item.fin)}`} />
+      <TipLine label="Tarif annuel" value={eur0(cours.tarifAnnuel)} />
+      <TipLine label="Élèves max" value={String(cours.nbElevesMax)} />
+      <TipLine label="Semaines" value={String(cours.nbSemaines)} />
+      <TipLine label="Séances/sem." value={String(cours.seances.length)} />
+      <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid #f0f0f0" }}>
+        <div style={{ color: "#6b7280", marginBottom: 2 }}>Séances :</div>
+        {cours.seances.map((s, i) => (
+          <div key={i}>
+            {JOURS[s.jour]} {fmtHeure(toDecimal(s.heureDebut))} · {s.dureeHeures} h
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid #f0f0f0" }}>
+        <div style={{ color: "#6b7280", marginBottom: 2 }}>Moniteur(s) :</div>
+        {cours.moniteurs.map((m, i) => (
+          <div key={i}>
+            {m.nom}
+            {cours.moniteurs.length > 1 && <span style={{ color: "#9ca3af" }}> ({m.nbSemaines} sem.)</span>}
+          </div>
+        ))}
+      </div>
+      {cours.lienPaiementCB && (
+        <div style={{ marginTop: 6, color: "#2563eb", wordBreak: "break-all" }}>{cours.lienPaiementCB}</div>
+      )}
+    </div>
+  );
+}
+
+function TipLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+      <span style={{ color: "#6b7280" }}>{label}</span>
+      <span style={{ fontWeight: 600 }}>{value}</span>
+    </div>
   );
 }
