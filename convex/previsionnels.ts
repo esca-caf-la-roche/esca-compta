@@ -166,6 +166,57 @@ export const get = query({
   },
 });
 
+// Liste complète (non paginée) des lignes prévisionnelles d'une saison, avec le nom
+// de l'analytique, triée par analytique (alphabétique) puis par montant décroissant.
+// Mêmes filtres que `get`. Le volume par saison reste modeste (budget d'un club).
+export const getSorted = query({
+  args: {
+    saison: v.string(),
+    filterAnalytiqueId: v.optional(v.string()),
+    filterEtat: v.optional(v.string()), // "Tous", "Réalisé", "Non Réalisé"
+    filterCompetition: v.optional(v.string()), // "Tous", "Oui", "Non"
+  },
+  handler: async (ctx, args) => {
+    const previsionnels = await ctx.db
+      .query("previsionnels")
+      .withIndex("by_saison", (q) => q.eq("saison", args.saison))
+      .collect();
+
+    const filtreAna = args.filterAnalytiqueId && args.filterAnalytiqueId !== "Tous"
+      ? args.filterAnalytiqueId
+      : null;
+    const filtreEtat = args.filterEtat && args.filterEtat !== "Tous"
+      ? args.filterEtat === "Réalisé"
+      : null;
+    const filtreCompet = args.filterCompetition && args.filterCompetition !== "Tous"
+      ? args.filterCompetition === "Oui"
+      : null;
+
+    const anaNomCache = new Map<string, string>();
+    const getNom = async (id: Id<"analytiques">) => {
+      if (anaNomCache.has(id)) return anaNomCache.get(id)!;
+      const a = await ctx.db.get(id);
+      const nom = a?.nom ?? "Inconnu";
+      anaNomCache.set(id, nom);
+      return nom;
+    };
+
+    const rows = [];
+    for (const p of previsionnels) {
+      if (filtreAna && p.analytiqueId !== filtreAna) continue;
+      if (filtreEtat !== null && p.etat !== filtreEtat) continue;
+      if (filtreCompet !== null && (p.competition ?? false) !== filtreCompet) continue;
+      rows.push({ ...p, analytiqueNom: await getNom(p.analytiqueId as Id<"analytiques">) });
+    }
+
+    rows.sort(
+      (a, b) =>
+        a.analytiqueNom.localeCompare(b.analytiqueNom, "fr") || b.montant - a.montant
+    );
+    return rows;
+  },
+});
+
 export const add = mutation({
   args: {
     nom: v.string(),

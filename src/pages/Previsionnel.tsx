@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQuery, useMutation, usePaginatedQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Plus, Edit2, Trash2, CheckCircle, Circle, Filter, Lock } from "lucide-react";
 import PrevisionnelFormModal from "../components/PrevisionnelFormModal";
@@ -59,16 +59,12 @@ export default function Previsionnel({
     filterCompetition: filterCompetition,
   });
 
-  const { results: previsionnels, status, loadMore } = usePaginatedQuery(
-    api.previsionnels.get,
-    {
-      saison: season,
-      filterAnalytiqueId: filterAnalytique,
-      filterEtat: filterEtat,
-      filterCompetition: filterCompetition
-    },
-    { initialNumItems: 50 }
-  );
+  const previsionnels = useQuery(api.previsionnels.getSorted, {
+    saison: season,
+    filterAnalytiqueId: filterAnalytique,
+    filterEtat: filterEtat,
+    filterCompetition: filterCompetition,
+  });
 
   const uniqueAnalytiques = statsQuery?.uniqueAnalytiques || [];
 
@@ -133,6 +129,32 @@ export default function Previsionnel({
       }
     : stats;
 
+
+  // Liste unifiée affichée : masse salariale (calculée), inscriptions auto et lignes
+  // manuelles, toutes triées par analytique (alphabétique) puis montant décroissant.
+  const displayLines = useMemo(() => {
+    const masse = visibleAutoLines.map((l) => ({
+      key: l._id,
+      nom: l.nom,
+      montant: l.montant,
+      analytiqueNom: l.analytiqueNom,
+      competition: l.competition,
+      kind: "masse" as const,
+      record: null as PrevisionnelRecord | null,
+    }));
+    const db = (previsionnels ?? []).map((p) => ({
+      key: p._id,
+      nom: p.nom,
+      montant: p.montant,
+      analytiqueNom: p.analytiqueNom,
+      competition: p.competition ?? false,
+      kind: (p.auto ? "auto" : "manual") as "auto" | "manual",
+      record: p as PrevisionnelRecord,
+    }));
+    return [...masse, ...db].sort(
+      (a, b) => a.analytiqueNom.localeCompare(b.analytiqueNom, "fr") || b.montant - a.montant
+    );
+  }, [visibleAutoLines, previsionnels]);
 
   const handleDelete = async (id: Id<"previsionnels">) => {
     if (window.confirm("Êtes-vous sûr de vouloir supprimer ce prévisionnel ?")) {
@@ -255,40 +277,46 @@ export default function Previsionnel({
         
         {previsionnels === undefined ? (
           <div className="loading">Chargement des données...</div>
-        ) : previsionnels.length === 0 && visibleAutoLines.length === 0 ? (
+        ) : displayLines.length === 0 ? (
           <div className="empty-state">
             <p>Aucun prévisionnel ne correspond à ce filtre.</p>
           </div>
         ) : (
           <div className="transactions-list">
-            {visibleAutoLines.map((line) => (
-              <div key={line._id} className="transaction-card" style={{ borderLeft: "4px solid #2563eb" }}>
-                <div className="tc-header">
-                  <div className="tc-header-main">
-                    <div className="tc-title" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                      <Lock size={20} color="#2563eb" aria-label="Ligne automatique (lecture seule)" />
-                      <span>{line.nom}</span>
+            {displayLines.map((line) => {
+              // Ligne masse salariale (calculée, lecture seule, toujours une dépense).
+              if (line.kind === "masse") {
+                return (
+                  <div key={line.key} className="transaction-card" style={{ borderLeft: "4px solid #2563eb" }}>
+                    <div className="tc-header">
+                      <div className="tc-header-main">
+                        <div className="tc-title" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                          <Lock size={20} color="#2563eb" aria-label="Ligne automatique (lecture seule)" />
+                          <span>{line.nom}</span>
+                        </div>
+                      </div>
+                      <div className="tc-amount depense">
+                        - {Math.abs(line.montant).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+                      </div>
+                    </div>
+                    <div className="tc-badges" style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                      <span className="badge facture" style={{ backgroundColor: getPastelColor(line.analytiqueNom), boxShadow: "2px 2px 0px 0px #000", color: "#1a1a1a", border: "1px solid #1a1a1a" }}>
+                        {line.analytiqueNom}
+                      </span>
+                      <span className="badge" style={{ backgroundColor: "#dbeafe", color: "#1e40af", border: "1px solid #1e40af" }}>
+                        Auto · masse salariale
+                      </span>
+                      {line.competition && <CompetitionBadge />}
                     </div>
                   </div>
-                  <div className="tc-amount depense">
-                    - {Math.abs(line.montant).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
-                  </div>
-                </div>
-                <div className="tc-badges" style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                  <span className="badge facture" style={{ backgroundColor: getPastelColor(line.analytiqueNom), boxShadow: "2px 2px 0px 0px #000", color: "#1a1a1a", border: "1px solid #1a1a1a" }}>
-                    {line.analytiqueNom}
-                  </span>
-                  <span className="badge" style={{ backgroundColor: "#dbeafe", color: "#1e40af", border: "1px solid #1e40af" }}>
-                    Auto · masse salariale
-                  </span>
-                  {line.competition && <CompetitionBadge />}
-                </div>
-              </div>
-            ))}
-            {previsionnels.map((prev: PrevisionnelRecord) => {
+                );
+              }
+
+              // Lignes en base : inscriptions auto (lecture seule) ou saisies à la main.
+              const prev = line.record!;
               const isDepense = prev.montant < 0;
               return (
-                <div key={prev._id} className="transaction-card" style={prev.auto ? { borderLeft: "4px solid #16a34a" } : undefined}>
+                <div key={line.key} className="transaction-card" style={prev.auto ? { borderLeft: "4px solid #16a34a" } : undefined}>
                   <div className="tc-header">
                     <div className="tc-header-main">
                       <div className="tc-title" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -335,14 +363,6 @@ export default function Previsionnel({
                 </div>
               );
             })}
-          </div>
-        )}
-
-        {status === "CanLoadMore" && (
-          <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
-            <button className="btn-secondary" onClick={() => loadMore(50)}>
-              Charger plus de prévisionnels
-            </button>
           </div>
         )}
       </section>
