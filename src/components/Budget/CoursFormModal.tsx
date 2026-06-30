@@ -275,6 +275,12 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
                       <option key={opt.salarieId} value={opt.salarieId}>{opt.nom}</option>
                     ))}
                   </select>
+                  <span
+                    title="Réparti automatiquement (non modifiable)"
+                    style={{ flexShrink: 0, minWidth: 86, textAlign: "right", fontSize: "0.82rem", color: "#6b7280", fontVariantNumeric: "tabular-nums" }}
+                  >
+                    {partSemaines.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} sem.
+                  </span>
                   <button type="button" className="btn-icon danger" onClick={() => removeMoniteur(idx)} title="Retirer le moniteur" disabled={moniteurIds.length <= 1}>
                     <Trash2 size={16} />
                   </button>
