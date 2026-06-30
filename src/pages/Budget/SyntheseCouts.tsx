@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Save, Users, Trophy, Wallet } from "lucide-react";
+import { Save, Users, Trophy, Wallet, Clock } from "lucide-react";
 import { useSeason } from "../../contexts/SeasonContext";
 
 const eur0 = (n: number) =>
@@ -13,12 +13,18 @@ const COMPET_COLOR = "#d97706";
 interface Props {
   masseSalarialeLoisir?: number;
   masseSalarialeCompetition?: number;
+  etpTotal?: number;
+  etpLoisir?: number;
+  etpCompetition?: number;
   isAdmin: boolean;
 }
 
 export default function SyntheseCouts({
   masseSalarialeLoisir,
   masseSalarialeCompetition,
+  etpTotal,
+  etpLoisir,
+  etpCompetition,
   isAdmin,
 }: Props) {
   const { season } = useSeason();
@@ -173,7 +179,7 @@ export default function SyntheseCouts({
         </p>
       </section>
 
-      <section className="card glass-card">
+      <section className="card glass-card" style={{ marginBottom: "1.5rem" }}>
         <h2 style={{ marginBottom: "1.25rem" }}>Répartition des membres</h2>
         <RepartitionBar
           loisir={nbLoisir}
@@ -181,6 +187,48 @@ export default function SyntheseCouts({
           format={(n) => String(n)}
         />
       </section>
+
+      {etpTotal != null && (
+        <section className="card glass-card">
+          <h2 style={{ marginBottom: "1.25rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <Clock size={20} /> Répartition ETP
+          </h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "1.5rem", marginBottom: "1.25rem" }}>
+            <div>
+              <p style={{ fontSize: "0.78rem", color: "#6b7280", margin: "0 0 0.25rem" }}>Total ETP</p>
+              <p className="font-mono" style={{ fontSize: "1.4rem", fontWeight: 700, margin: 0 }}>
+                {etpTotal.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+            </div>
+            {etpLoisir != null && (
+              <div>
+                <p style={{ fontSize: "0.78rem", color: "#6b7280", margin: "0 0 0.25rem" }}>Loisir</p>
+                <p className="font-mono" style={{ fontSize: "1.4rem", color: LOISIR_COLOR, margin: 0 }}>
+                  {etpLoisir.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+              </div>
+            )}
+            {etpCompetition != null && (
+              <div>
+                <p style={{ fontSize: "0.78rem", color: "#6b7280", margin: "0 0 0.25rem" }}>Compétition</p>
+                <p className="font-mono" style={{ fontSize: "1.4rem", color: COMPET_COLOR, margin: 0 }}>
+                  {etpCompetition.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+              </div>
+            )}
+          </div>
+          {etpLoisir != null && etpCompetition != null && (
+            <RepartitionBar
+              loisir={etpLoisir}
+              competition={etpCompetition}
+              format={(n) => n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            />
+          )}
+          <p style={{ fontSize: "0.78rem", color: "#6b7280", marginTop: "0.75rem", marginBottom: 0 }}>
+            Basé sur 1 582 h/an (convention collective du sport).
+          </p>
+        </section>
+      )}
     </div>
   );
 }

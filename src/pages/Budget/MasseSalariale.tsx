@@ -258,6 +258,9 @@ export default function MasseSalariale() {
         <SyntheseCouts
           masseSalarialeLoisir={masseSalarialeSplit?.loisir}
           masseSalarialeCompetition={masseSalarialeSplit?.competition}
+          etpTotal={seasonHasHours ? rows.reduce((sum, { s }) => sum + s.nbHeuresAnnuel, 0) / 1582 : undefined}
+          etpLoisir={rows.some(({ s }) => s.heuresLoisir > 0) ? rows.reduce((sum, { s }) => sum + s.heuresLoisir, 0) / 1582 : undefined}
+          etpCompetition={rows.some(({ s }) => s.heuresCompetition > 0) ? rows.reduce((sum, { s }) => sum + s.heuresCompetition, 0) / 1582 : undefined}
           isAdmin={isAdmin}
         />
       ) : data === undefined ? (
