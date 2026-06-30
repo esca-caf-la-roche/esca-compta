@@ -319,7 +319,7 @@ export default function MasseSalariale() {
                     <td style={{ padding: "0.6rem 0.5rem" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                         <strong>{s.nom}</strong>
-                        <span className="badge" style={{ fontSize: "0.7rem", backgroundColor: "#e0f2fe", color: "#075985" }}>{s.typeContrat}</span>
+                        <ContratBadge type={s.typeContrat} />
                       </div>
                     </td>
                     <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">{eur(s.tauxHoraireBrut)}</td>
@@ -387,9 +387,7 @@ export default function MasseSalariale() {
                         <td style={{ padding: "0.6rem 0.5rem" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                             <strong>{s.nom}</strong>
-                            <span className="badge" style={{ fontSize: "0.7rem", backgroundColor: "#e0f2fe", color: "#075985" }}>
-                              {s.typeContrat}
-                            </span>
+                            <ContratBadge type={s.typeContrat} />
                           </div>
                         </td>
                         <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>
@@ -505,20 +503,10 @@ export default function MasseSalariale() {
                       <td style={{ padding: "0.6rem 0.5rem" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
                           <strong>{l.nom}</strong>
-                          <span className="badge" style={{ fontSize: "0.7rem", backgroundColor: "#e0f2fe", color: "#075985" }}>
-                            {l.typeContrat}
-                          </span>
+                          <ContratBadge type={l.typeContrat} />
+                          {l.statut === "arrivee" && <ArrowUpRight size={15} style={{ color: "#16a34a", flexShrink: 0 }} title="Arrivée" />}
+                          {l.statut === "depart" && <ArrowDownRight size={15} style={{ color: "#dc2626", flexShrink: 0 }} title="Départ" />}
                         </div>
-                        {l.statut === "arrivee" && (
-                          <span className="badge" style={{ marginTop: "0.25rem", fontSize: "0.7rem", backgroundColor: "#dcfce7", color: "#166534", display: "inline-flex", alignItems: "center", gap: "0.2rem" }}>
-                            <ArrowUpRight size={12} /> Arrivée
-                          </span>
-                        )}
-                        {l.statut === "depart" && (
-                          <span className="badge" style={{ marginTop: "0.25rem", fontSize: "0.7rem", backgroundColor: "#fee2e2", color: "#991b1b", display: "inline-flex", alignItems: "center", gap: "0.2rem" }}>
-                            <ArrowDownRight size={12} /> Départ
-                          </span>
-                        )}
                       </td>
                       <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">
                         {l.coutN1 == null ? "—" : eur0(l.coutN1)}
@@ -561,6 +549,18 @@ export default function MasseSalariale() {
         salarieToEdit={salarieToEdit}
       />
     </div>
+  );
+}
+
+function ContratBadge({ type }: { type: "CDI" | "CDII" }) {
+  const style =
+    type === "CDI"
+      ? { backgroundColor: "#dcfce7", color: "#166534" }
+      : { backgroundColor: "#fef3c7", color: "#92400e" };
+  return (
+    <span className="badge" style={{ fontSize: "0.7rem", ...style }}>
+      {type}
+    </span>
   );
 }
 
