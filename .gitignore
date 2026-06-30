@@ -44,6 +44,7 @@ backups/
 
 # Fichiers sources de données (budget / salaires)
 Salaire be.csv
+planning_cours.csv
 Budget_Escalade_2024-25.xlsx
 *.xlsx
 .~lock.*#

@@ -46,6 +46,10 @@ export default function PlanningCours({ isAdmin }: Props) {
   const [autoSeason, setAutoSeason] = useState<string | null>(null);
 
   const cours = useMemo(() => data?.cours ?? [], [data]);
+  const moniteurs = useMemo(
+    () => (data?.salaries ?? []).map((s) => ({ salarieId: s.salarieId, nom: s.nom })),
+    [data]
+  );
 
   // Règle de saison (comme la masse salariale) : si la saison courante n'a pas de
   // cours mais que la précédente en contient, on reprend automatiquement le planning.
@@ -67,10 +71,6 @@ export default function PlanningCours({ isAdmin }: Props) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, data, season]);
-  const moniteurs = useMemo(
-    () => (data?.salaries ?? []).map((s) => ({ salarieId: s.salarieId, nom: s.nom })),
-    [data]
-  );
 
   // Couleur par cours (index dans la liste triée).
   const colorByCours = useMemo(() => {
@@ -80,12 +80,12 @@ export default function PlanningCours({ isAdmin }: Props) {
   }, [cours]);
 
   // Construction des séances par jour (0=Lundi … 6=Dimanche) pour le Gantt.
+  // Une séance partagée par plusieurs moniteurs apparaît sur la ligne de chacun.
   const planningParJour = useMemo(() => {
     type Item = {
       coursId: string;
       coursNom: string;
       salarieId: Id<"salaries">;
-      moniteurNom: string;
       debut: number;
       fin: number;
       color: string;
@@ -104,15 +104,16 @@ export default function PlanningCours({ isAdmin }: Props) {
         for (const s of c.seances) {
           if (s.jour !== j) continue;
           const debut = toDecimal(s.heureDebut);
-          items.push({
-            coursId: c._id,
-            coursNom: c.nom,
-            salarieId: c.salarieId,
-            moniteurNom: c.moniteurNom,
-            debut,
-            fin: debut + s.dureeHeures,
-            color: colorByCours.get(c._id) ?? PALETTE[0],
-          });
+          for (const m of c.moniteurs) {
+            items.push({
+              coursId: c._id,
+              coursNom: c.nom,
+              salarieId: m.salarieId,
+              debut,
+              fin: debut + s.dureeHeures,
+              color: colorByCours.get(c._id) ?? PALETTE[0],
+            });
+          }
         }
       }
       if (items.length === 0) continue;
@@ -141,8 +142,7 @@ export default function PlanningCours({ isAdmin }: Props) {
       tarifAnnuel: c.tarifAnnuel,
       lienPaiementCB: c.lienPaiementCB,
       nbElevesMax: c.nbElevesMax,
-      nbSemaines: c.nbSemaines,
-      salarieId: c.salarieId,
+      moniteurs: c.moniteurs.map((m) => ({ salarieId: m.salarieId, nbSemaines: m.nbSemaines })),
       seances: c.seances,
     });
     setIsModalOpen(true);
@@ -265,7 +265,7 @@ export default function PlanningCours({ isAdmin }: Props) {
               </tbody>
             </table>
             <p style={{ color: "#6b7280", fontSize: "0.85rem", marginTop: "0.75rem", marginBottom: 0 }}>
-              Heures planning = Σ (durée des séances × nombre de semaines) de chaque cours du moniteur.
+              Heures planning = Σ (durée hebdo du cours × semaines couvertes par le moniteur).
               Cet écart est informatif et ne modifie pas la masse salariale.
             </p>
           </section>
@@ -273,11 +273,11 @@ export default function PlanningCours({ isAdmin }: Props) {
           {/* Tableau des cours (CRUD) */}
           <section className="card glass-card" style={{ marginTop: "2rem", overflowX: "auto" }}>
             <h2 style={{ marginBottom: "1rem" }}>Liste des cours</h2>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "820px" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "880px" }}>
               <thead>
                 <tr style={{ borderBottom: "2px solid #e5e7eb", textAlign: "left" }}>
                   <th style={{ padding: "0.6rem 0.5rem" }}>Cours</th>
-                  <th style={{ padding: "0.6rem 0.5rem" }}>Moniteur</th>
+                  <th style={{ padding: "0.6rem 0.5rem" }}>Moniteur(s)</th>
                   <th style={{ padding: "0.6rem 0.5rem" }}>Séances</th>
                   <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Tarif/an</th>
                   <th style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>Élèves max</th>
@@ -289,6 +289,7 @@ export default function PlanningCours({ isAdmin }: Props) {
               <tbody>
                 {cours.map((c) => {
                   const hSem = c.seances.reduce((a, s) => a + s.dureeHeures, 0);
+                  const totalSem = c.moniteurs.reduce((a, m) => a + m.nbSemaines, 0);
                   return (
                     <tr key={c._id} style={{ borderBottom: "1px solid #f0f0f0" }}>
                       <td style={{ padding: "0.6rem 0.5rem" }}>
@@ -300,7 +301,16 @@ export default function PlanningCours({ isAdmin }: Props) {
                           </a>
                         )}
                       </td>
-                      <td style={{ padding: "0.6rem 0.5rem" }}>{c.moniteurNom}</td>
+                      <td style={{ padding: "0.6rem 0.5rem", fontSize: "0.85rem" }}>
+                        {c.moniteurs.map((m, i) => (
+                          <span key={i} style={{ display: "block", color: "#374151" }}>
+                            {m.nom}
+                            {c.moniteurs.length > 1 && (
+                              <span style={{ color: "#9ca3af" }}> ({m.nbSemaines} sem.)</span>
+                            )}
+                          </span>
+                        ))}
+                      </td>
                       <td style={{ padding: "0.6rem 0.5rem", fontSize: "0.85rem" }}>
                         {c.seances.map((s, i) => (
                           <span key={i} style={{ display: "block", color: "#374151" }}>
@@ -310,7 +320,7 @@ export default function PlanningCours({ isAdmin }: Props) {
                       </td>
                       <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">{eur0(c.tarifAnnuel)}</td>
                       <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">{c.nbElevesMax}</td>
-                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">{c.nbSemaines}</td>
+                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">{totalSem}</td>
                       <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }} className="font-mono">{hSem.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}</td>
                       {isAdmin && (
                         <td style={{ padding: "0.6rem 0.5rem", textAlign: "right" }}>
@@ -349,7 +359,6 @@ function GanttJour({
       coursId: string;
       coursNom: string;
       salarieId: Id<"salaries">;
-      moniteurNom: string;
       debut: number;
       fin: number;
       color: string;

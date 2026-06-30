@@ -12,14 +12,18 @@ export interface Seance {
   dureeHeures: number;
 }
 
+export interface CoursMoniteur {
+  salarieId: Id<"salaries">;
+  nbSemaines: number;
+}
+
 export interface CoursRow {
   _id: Id<"cours">;
   nom: string;
   tarifAnnuel: number;
   lienPaiementCB?: string;
   nbElevesMax: number;
-  nbSemaines: number;
-  salarieId: Id<"salaries">;
+  moniteurs: CoursMoniteur[];
   seances: Seance[];
 }
 
@@ -36,6 +40,7 @@ interface Props {
 }
 
 type SeanceForm = { jour: number; heureDebut: string; dureeHeures: string };
+type MoniteurForm = { salarieId: string; nbSemaines: string };
 
 const emptySeance = (): SeanceForm => ({ jour: 0, heureDebut: "18:00", dureeHeures: "1.5" });
 
@@ -48,8 +53,7 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
   const [tarifAnnuel, setTarifAnnuel] = useState("");
   const [lienPaiementCB, setLienPaiementCB] = useState("");
   const [nbElevesMax, setNbElevesMax] = useState("");
-  const [nbSemaines, setNbSemaines] = useState("");
-  const [salarieId, setSalarieId] = useState<string>("");
+  const [moniteurLignes, setMoniteurLignes] = useState<MoniteurForm[]>([]);
   const [seances, setSeances] = useState<SeanceForm[]>([emptySeance()]);
   const [saving, setSaving] = useState(false);
 
@@ -61,8 +65,12 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
       setTarifAnnuel(String(coursToEdit.tarifAnnuel));
       setLienPaiementCB(coursToEdit.lienPaiementCB ?? "");
       setNbElevesMax(String(coursToEdit.nbElevesMax));
-      setNbSemaines(String(coursToEdit.nbSemaines));
-      setSalarieId(coursToEdit.salarieId);
+      setMoniteurLignes(
+        coursToEdit.moniteurs.map((m) => ({
+          salarieId: m.salarieId,
+          nbSemaines: String(m.nbSemaines),
+        }))
+      );
       setSeances(
         coursToEdit.seances.map((s) => ({
           jour: s.jour,
@@ -75,8 +83,7 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
       setTarifAnnuel("");
       setLienPaiementCB("");
       setNbElevesMax("");
-      setNbSemaines("");
-      setSalarieId(moniteurs[0]?.salarieId ?? "");
+      setMoniteurLignes([{ salarieId: moniteurs[0]?.salarieId ?? "", nbSemaines: "30" }]);
       setSeances([emptySeance()]);
     }
   }, [isOpen, coursToEdit, moniteurs]);
@@ -91,21 +98,32 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
   const removeSeance = (idx: number) =>
     setSeances((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev));
 
+  const updateMoniteur = (idx: number, patch: Partial<MoniteurForm>) => {
+    setMoniteurLignes((prev) => prev.map((m, i) => (i === idx ? { ...m, ...patch } : m)));
+  };
+  const addMoniteur = () =>
+    setMoniteurLignes((prev) => [...prev, { salarieId: moniteurs[0]?.salarieId ?? "", nbSemaines: "30" }]);
+  const removeMoniteur = (idx: number) =>
+    setMoniteurLignes((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev));
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nom.trim() || !salarieId || !nbSemaines || !nbElevesMax || !tarifAnnuel) {
+    if (!nom.trim() || !nbElevesMax || !tarifAnnuel) {
       alert("Veuillez remplir tous les champs obligatoires.");
       return;
     }
     const parsedSeances = seances
       .filter((s) => s.heureDebut && s.dureeHeures)
-      .map((s) => ({
-        jour: s.jour,
-        heureDebut: s.heureDebut,
-        dureeHeures: parseFloat(s.dureeHeures),
-      }));
+      .map((s) => ({ jour: s.jour, heureDebut: s.heureDebut, dureeHeures: parseFloat(s.dureeHeures) }));
     if (parsedSeances.length === 0) {
       alert("Ajoutez au moins une séance valide (jour, heure, durée).");
+      return;
+    }
+    const parsedMoniteurs = moniteurLignes
+      .filter((m) => m.salarieId && m.nbSemaines)
+      .map((m) => ({ salarieId: m.salarieId as Id<"salaries">, nbSemaines: parseInt(m.nbSemaines, 10) }));
+    if (parsedMoniteurs.length === 0) {
+      alert("Ajoutez au moins un moniteur avec son nombre de semaines.");
       return;
     }
 
@@ -116,8 +134,7 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
         tarifAnnuel: parseFloat(tarifAnnuel),
         lienPaiementCB: lienPaiementCB.trim() || undefined,
         nbElevesMax: parseInt(nbElevesMax, 10),
-        nbSemaines: parseInt(nbSemaines, 10),
-        salarieId: salarieId as Id<"salaries">,
+        moniteurs: parsedMoniteurs,
         seances: parsedSeances,
       };
       if (coursToEdit) {
@@ -133,6 +150,8 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
       setSaving(false);
     }
   };
+
+  const totalSemaines = moniteurLignes.reduce((a, m) => a + (parseInt(m.nbSemaines, 10) || 0), 0);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -156,30 +175,8 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
               value={nom}
               onChange={(e) => setNom(e.target.value)}
               required
-              placeholder="Ex: Cours enfants débutants"
+              placeholder="Ex: Primaires (débutants)"
             />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="cours-moniteur">
-              Moniteur <span className="text-red-500">*</span>
-            </label>
-            <select
-              id="cours-moniteur"
-              className="input-field"
-              value={salarieId}
-              onChange={(e) => setSalarieId(e.target.value)}
-              required
-            >
-              <option value="" disabled>
-                {moniteurs.length === 0 ? "Aucun moniteur pour cette saison" : "Sélectionner…"}
-              </option>
-              {moniteurs.map((m) => (
-                <option key={m.salarieId} value={m.salarieId}>
-                  {m.nom}
-                </option>
-              ))}
-            </select>
           </div>
 
           <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
@@ -213,21 +210,6 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
                 placeholder="Ex: 12"
               />
             </div>
-            <div className="form-group" style={{ flex: "1 1 140px" }}>
-              <label className="form-label" htmlFor="cours-semaines">
-                Nb semaines <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="cours-semaines"
-                type="number"
-                step="1"
-                className="input-field"
-                value={nbSemaines}
-                onChange={(e) => setNbSemaines(e.target.value)}
-                required
-                placeholder="Ex: 30"
-              />
-            </div>
           </div>
 
           <div className="form-group">
@@ -244,6 +226,71 @@ export default function CoursFormModal({ isOpen, onClose, coursToEdit, moniteurs
             />
           </div>
 
+          {/* Moniteurs : un ou plusieurs, chacun avec le nb de semaines couvertes */}
+          <div className="form-group">
+            <label className="form-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>
+                Moniteurs <span className="text-red-500">*</span>{" "}
+                <span style={{ color: "#6b7280", fontWeight: "normal" }}>
+                  ({moniteurLignes.length} · {totalSemaines} sem. au total)
+                </span>
+              </span>
+              <button
+                type="button"
+                className="btn-secondary"
+                style={{ width: "auto", padding: "0.25rem 0.6rem", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+                onClick={addMoniteur}
+              >
+                <Plus size={14} /> Moniteur
+              </button>
+            </label>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.5rem" }}>
+              {moniteurLignes.map((m, idx) => (
+                <div key={idx} style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                  <select
+                    className="input-field"
+                    style={{ flex: "1 1 160px", margin: 0 }}
+                    value={m.salarieId}
+                    onChange={(e) => updateMoniteur(idx, { salarieId: e.target.value })}
+                  >
+                    <option value="" disabled>
+                      {moniteurs.length === 0 ? "Aucun moniteur" : "Sélectionner…"}
+                    </option>
+                    {moniteurs.map((opt) => (
+                      <option key={opt.salarieId} value={opt.salarieId}>
+                        {opt.nom}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    className="input-field"
+                    style={{ flex: "1 1 110px", margin: 0 }}
+                    value={m.nbSemaines}
+                    onChange={(e) => updateMoniteur(idx, { nbSemaines: e.target.value })}
+                    title="Nombre de semaines couvertes par ce moniteur"
+                    placeholder="Semaines"
+                  />
+                  <button
+                    type="button"
+                    className="btn-icon danger"
+                    onClick={() => removeMoniteur(idx)}
+                    title="Retirer le moniteur"
+                    disabled={moniteurLignes.length <= 1}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <p style={{ fontSize: "0.78rem", color: "#6b7280", marginTop: "0.4rem", marginBottom: 0 }}>
+              Plusieurs moniteurs = répartition de l'année (ex. 11 / 11 / 12 semaines).
+            </p>
+          </div>
+
+          {/* Séances par semaine */}
           <div className="form-group">
             <label className="form-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span>
