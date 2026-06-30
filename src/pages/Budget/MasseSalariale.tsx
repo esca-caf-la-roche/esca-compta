@@ -348,6 +348,21 @@ export default function MasseSalariale() {
                 <h3 className="font-mono mt-2" style={{ fontSize: "1.6rem" }}>{totaux!.nbSalaries}</h3>
               </div>
             </div>
+            <div className="tile-card" style={{ padding: "1.5rem", backgroundColor: "#fef3c7" }}>
+              <div className="tile-content">
+                <p style={{ fontSize: "0.8rem", color: "#000", textTransform: "uppercase" }}>ETP (équivalent temps plein)</p>
+                <h3 className="font-mono mt-2" style={{ fontSize: "1.6rem" }}>
+                  {(rows.reduce((sum, { s }) => sum + s.nbHeuresAnnuel, 0) / 1582).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </h3>
+                {rows.some(({ s }) => s.heuresLoisir > 0 || s.heuresCompetition > 0) && (
+                  <div style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "#92400e", display: "flex", gap: "0.75rem" }}>
+                    <span>Loisir : {(rows.reduce((sum, { s }) => sum + s.heuresLoisir, 0) / 1582).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span>·</span>
+                    <span>Compét. : {(rows.reduce((sum, { s }) => sum + s.heuresCompetition, 0) / 1582).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Tableau par salarié */}
