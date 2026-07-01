@@ -80,6 +80,13 @@ export default function Compta() {
   const uniqueTiers = statsQuery?.uniqueTiers || [];
   const uniqueAnalytiques = statsQuery?.uniqueAnalytiques || [];
 
+  // Un filtre ou une recherche est actif : on garde la barre de filtres visible
+  // même si la recherche ne renvoie aucun résultat.
+  const hasActiveFilters =
+    filterTiers !== "Tous" ||
+    filterAnalytique !== "Tous" ||
+    debouncedSearchQuery.trim() !== "";
+
   // Fonction pour formater les dates proprement
   const formatDate = (dateStr: string) => {
     try {
@@ -236,7 +243,7 @@ export default function Compta() {
         </div>
       </header>
 
-      {transactions !== undefined && transactions.length > 0 && (
+      {transactions !== undefined && (transactions.length > 0 || hasActiveFilters) && (
         <div className="filter-bar fade-in" style={{ marginBottom: "2rem" }}>
           <div className="filter-group">
             <Filter size={18} color="#000" />

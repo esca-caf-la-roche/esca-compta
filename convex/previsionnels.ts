@@ -1,8 +1,12 @@
 import { authenticatedQuery as query, authenticatedMutation as mutation } from "./customFunctions";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import { computeMasseSalarialeSplit } from "./paie";
 
 import { paginationOptsValidator } from "convex/server";
+
+/** Analytique alimentée automatiquement par la masse salariale (cf. front). */
+const ANALYTIQUE_SALAIRES = "SAL01 : Salariés";
 
 export const getStats = query({
   args: {
@@ -105,6 +109,29 @@ export const getTrends = query({
       if (!statsByAna[anaName]) statsByAna[anaName] = { reel: 0, prev: 0, allRealized: false, hasPrev: false };
       statsByAna[anaName].reel += t.realise;
     });
+
+    // La masse salariale (coût employeur, calculée depuis la paie de la saison) est
+    // reportée en dépense prévisionnelle sous « SAL01 : Salariés », exactement comme
+    // les lignes automatiques de l'onglet Prévisionnel du budget. Sans cela, la
+    // tendance sous-évaluerait le prévisionnel des salaires.
+    const masse = await computeMasseSalarialeSplit(ctx, args.saison);
+    if (masse) {
+      const analytiques = await ctx.db.query("analytiques").collect();
+      const salAna =
+        analytiques.find((a) => a.nom === ANALYTIQUE_SALAIRES) ??
+        analytiques.find((a) => a.nom.startsWith("SAL01"));
+      if (salAna) {
+        // Deux lignes auto arrondies séparément côté front : on reproduit le même total.
+        const montant = -(Math.round(masse.loisir) + Math.round(masse.competition));
+        if (!statsByAna[salAna.nom]) {
+          statsByAna[salAna.nom] = { reel: 0, prev: 0, allRealized: true, hasPrev: false };
+        }
+        statsByAna[salAna.nom].prev += montant;
+        statsByAna[salAna.nom].hasPrev = true;
+        // Ligne calculée, jamais « cochée » : l'analytique n'est pas entièrement réalisé.
+        statsByAna[salAna.nom].allRealized = false;
+      }
+    }
 
     return Object.entries(statsByAna).map(([anaName, stats]) => {
       return {

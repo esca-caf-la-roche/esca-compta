@@ -1,9 +1,10 @@
 import { authenticatedQuery as query, authenticatedMutation as mutation } from "./customFunctions";
 import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { previousSaison, nextSaison } from "./saisonUtils";
+import { computePaie, type ParametresPaie } from "../src/utils/paieCompute";
 
 const typeContratValidator = v.union(v.literal("CDII"), v.literal("CDI"));
 
@@ -182,6 +183,129 @@ async function heuresCoursParMoniteur(
   return { map, hasCours: cours.length > 0 };
 }
 
+/** Construit une ligne de salaire enrichie (infos salarié + ventilation horaire
+ *  loisir/compétition). Partagé entre `getMasseSalariale` et le calcul de la masse
+ *  salariale reportée dans le prévisionnel / les tendances. */
+function makeToRow(
+  ctx: QueryCtx,
+  heures: { map: Map<Id<"salaries">, HeuresCat>; hasCours: boolean }
+) {
+  return async (ligne: Doc<"salairesSaison">) => {
+    const salarie = await ctx.db.get(ligne.salarieId);
+    const base = heures.map.get(ligne.salarieId) ?? { loisir: 0, competition: 0 };
+    const heuresSup = ligne.heuresSup ?? [];
+
+    let heuresLoisir: number;
+    let heuresCompetition: number;
+    let nbHeuresAnnuel: number;
+    if (heures.hasCours) {
+      // Cours (par catégorie) + 5h de réunion (loisir) + heures sup déclarées.
+      let loisir = base.loisir + HEURES_REUNION;
+      let competition = base.competition;
+      for (const hs of heuresSup) {
+        if (hs.competition) competition += hs.nbHeures;
+        else loisir += hs.nbHeures;
+      }
+      // Totaux annuels arrondis (pas de virgule).
+      heuresLoisir = Math.round(loisir);
+      heuresCompetition = Math.round(competition);
+      nbHeuresAnnuel = heuresLoisir + heuresCompetition;
+    } else {
+      nbHeuresAnnuel = ligne.nbHeuresAnnuel;
+      heuresLoisir = ligne.nbHeuresAnnuel;
+      heuresCompetition = 0;
+    }
+
+    return {
+      ligneId: ligne._id,
+      salarieId: ligne.salarieId,
+      nom: salarie?.nom ?? "Inconnu",
+      typeContrat: salarie?.typeContrat ?? "CDII",
+      ordre: salarie?.ordre ?? 0,
+      nbHeuresAnnuel,
+      heuresLoisir,
+      heuresCompetition,
+      heuresSup,
+      heuresAuto: heures.hasCours,
+      nbMois: ligne.nbMois,
+      tauxHoraireBrut: ligne.tauxHoraireBrut,
+      augmentationPct: ligne.augmentationPct ?? null,
+      actif: ligne.actif ?? true,
+    };
+  };
+}
+
+/** Convertit les paramètres bruts (Convex) vers le type attendu par `computePaie`. */
+function toParametresPaie(params: Doc<"parametresPaie">): ParametresPaie {
+  return {
+    margeSecurite: params.margeSecurite,
+    indemniteCpPct: params.indemniteCpPct,
+    mutuelleSalarie: params.mutuelleSalarie,
+    mutuelleEmployeur: params.mutuelleEmployeur,
+    primeEquipementAnnuelle: params.primeEquipementAnnuelle,
+    fraisBulletin: params.fraisBulletin,
+    cotisationsSalariales: params.cotisationsSalariales.map((c) => ({
+      label: c.label,
+      taux: c.taux,
+      base: c.base as ParametresPaie["cotisationsSalariales"][number]["base"],
+    })),
+    cotisationsPatronales: params.cotisationsPatronales,
+  };
+}
+
+/** Coût employeur annuel de la masse salariale d'une saison, ventilé loisir /
+ *  compétition au prorata des heures de chaque moniteur. Reproduit fidèlement le
+ *  calcul `masseSalarialeSplit` de la page Masse salariale, mais côté serveur, afin
+ *  de reporter la masse salariale dans les tendances du budget.
+ *  Renvoie `null` si la saison n'a pas d'heures (saison de référence) — dans ce cas
+ *  aucun coût employeur n'est affiché, comme sur le front. */
+export async function computeMasseSalarialeSplit(
+  ctx: QueryCtx,
+  saison: string
+): Promise<{ loisir: number; competition: number } | null> {
+  const params = await ctx.db
+    .query("parametresPaie")
+    .withIndex("by_saison", (q) => q.eq("saison", saison))
+    .first();
+  if (!params) return null;
+
+  const lignes = await ctx.db
+    .query("salairesSaison")
+    .withIndex("by_saison", (q) => q.eq("saison", saison))
+    .collect();
+  if (lignes.length === 0) return null;
+
+  const heuresCours = await heuresCoursParMoniteur(ctx, saison);
+  const rows = await Promise.all(lignes.map(makeToRow(ctx, heuresCours)));
+
+  const seasonHasHours = rows.some((r) => r.nbHeuresAnnuel > 0);
+  if (!seasonHasHours) return null;
+
+  const p = toParametresPaie(params);
+  let loisir = 0;
+  let competition = 0;
+  for (const s of rows) {
+    const base = computePaie(
+      {
+        nom: s.nom,
+        typeContrat: s.typeContrat,
+        nbHeuresAnnuel: s.nbHeuresAnnuel,
+        nbMois: s.nbMois,
+        tauxHoraireBrut: s.tauxHoraireBrut,
+      },
+      p
+    );
+    const total = s.heuresLoisir + s.heuresCompetition;
+    if (total > 0) {
+      loisir += base.coutAnnuel * (s.heuresLoisir / total);
+      competition += base.coutAnnuel * (s.heuresCompetition / total);
+    } else {
+      loisir += base.coutAnnuel;
+    }
+  }
+  return { loisir, competition };
+}
+
 export const getMasseSalariale = query({
   args: { saison: v.string() },
   handler: async (ctx, args) => {
@@ -218,55 +342,8 @@ export const getMasseSalariale = query({
       ? await heuresCoursParMoniteur(ctx, prevSaison)
       : { map: new Map<Id<"salaries">, HeuresCat>(), hasCours: false };
 
-    // Construit une ligne enrichie (avec les infos du salarié + ventilation horaire).
-    const makeToRow =
-      (heures: { map: Map<Id<"salaries">, HeuresCat>; hasCours: boolean }) =>
-      async (ligne: (typeof lignes)[number]) => {
-        const salarie = await ctx.db.get(ligne.salarieId);
-        const base = heures.map.get(ligne.salarieId) ?? { loisir: 0, competition: 0 };
-        const heuresSup = ligne.heuresSup ?? [];
-
-        let heuresLoisir: number;
-        let heuresCompetition: number;
-        let nbHeuresAnnuel: number;
-        if (heures.hasCours) {
-          // Cours (par catégorie) + 5h de réunion (loisir) + heures sup déclarées.
-          let loisir = base.loisir + HEURES_REUNION;
-          let competition = base.competition;
-          for (const hs of heuresSup) {
-            if (hs.competition) competition += hs.nbHeures;
-            else loisir += hs.nbHeures;
-          }
-          // Totaux annuels arrondis (pas de virgule).
-          heuresLoisir = Math.round(loisir);
-          heuresCompetition = Math.round(competition);
-          nbHeuresAnnuel = heuresLoisir + heuresCompetition;
-        } else {
-          nbHeuresAnnuel = ligne.nbHeuresAnnuel;
-          heuresLoisir = ligne.nbHeuresAnnuel;
-          heuresCompetition = 0;
-        }
-
-        return {
-          ligneId: ligne._id,
-          salarieId: ligne.salarieId,
-          nom: salarie?.nom ?? "Inconnu",
-          typeContrat: salarie?.typeContrat ?? "CDII",
-          ordre: salarie?.ordre ?? 0,
-          nbHeuresAnnuel,
-          heuresLoisir,
-          heuresCompetition,
-          heuresSup,
-          heuresAuto: heures.hasCours,
-          nbMois: ligne.nbMois,
-          tauxHoraireBrut: ligne.tauxHoraireBrut,
-          augmentationPct: ligne.augmentationPct ?? null,
-          actif: ligne.actif ?? true,
-        };
-      };
-
-    const toRow = makeToRow(heuresCours);
-    const prevToRow = makeToRow(prevHeuresCours);
+    const toRow = makeToRow(ctx, heuresCours);
+    const prevToRow = makeToRow(ctx, prevHeuresCours);
 
     const prevSalaries = await Promise.all(prevLignes.map(prevToRow));
     const prevBySalarie = new Map(prevSalaries.map((p) => [p.salarieId, p]));
