@@ -33,8 +33,21 @@ audit_convex.md
 
 # Agents & Skills
 .agents/
-.claude/
 skills-lock.json
+
+# Config Claude Code : on ignore tout .claude/ par défaut...
+.claude/*
+# ...mais on versionne la config partagée (hooks + réglages du projet).
+!.claude/settings.json
+!.claude/hooks/
+# settings.local.json reste ignoré (permissions/chemins propres à la machine).
+
+# Skills : seulement ceux écrits pour le projet (pas les skills Convex
+# auto-installés via `npx convex ai-files install`, régénérables).
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/gestion-utilisateurs/
+!.claude/skills/tuile-saison/
 
 # Projet de référence (suivi paiement - source Supabase)
 suivi-paiement-cours/
