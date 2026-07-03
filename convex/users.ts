@@ -2,7 +2,9 @@ import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { authenticatedQuery, authenticatedMutation } from "./customFunctions";
+import { requireAdmin } from "./access";
 
+// PUBLIC: renvoie uniquement l'utilisateur connecté (null sinon) — sans risque.
 export const current = query({
   args: {},
   handler: async (ctx) => {
@@ -14,6 +16,8 @@ export const current = query({
   },
 });
 
+// PUBLIC: appelé AVANT connexion par le provider google-otp pour gater l'envoi
+// de l'OTP aux emails pré-enregistrés. Ne renvoie qu'un booléen.
 export const checkEmailExists = query({
   args: { email: v.string() },
   handler: async (ctx, args) => {
@@ -28,6 +32,9 @@ export const checkEmailExists = query({
 export const listUsers = authenticatedQuery({
   args: {},
   handler: async (ctx) => {
+    // Expose tous les emails/accès : réservé à la page Configurations (admin).
+    await requireAdmin(ctx, ctx.userId);
+
     const users = await ctx.db.query("users").collect();
     const userSettings = await ctx.db.query("userSettings").collect();
     
@@ -55,14 +62,7 @@ export const getCurrentUserSettings = authenticatedQuery({
 export const addUser = authenticatedMutation({
   args: { email: v.string(), name: v.string() },
   handler: async (ctx, args) => {
-    const callerSettings = await ctx.db
-      .query("userSettings")
-      .withIndex("by_userId", (q) => q.eq("userId", ctx.userId))
-      .first();
-
-    if (callerSettings?.role !== "admin") {
-      throw new Error("Seul un administrateur peut ajouter un utilisateur.");
-    }
+    await requireAdmin(ctx, ctx.userId);
 
     const name = args.name.trim();
     if (!name) {
@@ -96,15 +96,8 @@ export const addUser = authenticatedMutation({
 export const removeUser = authenticatedMutation({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    const callerSettings = await ctx.db
-      .query("userSettings")
-      .withIndex("by_userId", (q) => q.eq("userId", ctx.userId))
-      .first();
-      
-    if (callerSettings?.role !== "admin") {
-      throw new Error("Seul un administrateur peut supprimer un utilisateur.");
-    }
-    
+    await requireAdmin(ctx, ctx.userId);
+
     const settings = await ctx.db
       .query("userSettings")
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
@@ -126,14 +119,7 @@ export const updateUserSettings = authenticatedMutation({
     name: v.string()
   },
   handler: async (ctx, args) => {
-    const callerSettings = await ctx.db
-      .query("userSettings")
-      .withIndex("by_userId", (q) => q.eq("userId", ctx.userId))
-      .first();
-
-    if (callerSettings?.role !== "admin") {
-      throw new Error("Seul un administrateur peut modifier les accès.");
-    }
+    await requireAdmin(ctx, ctx.userId);
 
     const name = args.name.trim();
     if (!name) {

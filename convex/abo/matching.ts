@@ -1,0 +1,192 @@
+// Matching scrap → personnes (runtime Convex par défaut, PAS de "use node").
+// Portage de matcher_scrap_personnes() (migration licence-first 20260614) :
+//   - Passe 1 LICENCE-FIRST : personnes ayant une licence ↔ scrap par licence
+//     (abo_abonnes_scrap.licence est unique → au plus 1 match).
+//   - Passe 2 SECOURS nom+prénom : personnes SANS licence ↔ scrap par
+//     nom_prenom_normalise, uniquement les noms NON ambigus (1 seule ligne scrap).
+//     Cette passe RÉSOUT aussi leur licence (statut annuaire_auto).
+//   - etape_paiement : NON piloté par le scrap (la migration licence-first l'a
+//     retiré) mais par HelloAsso — matching payeur/inscrit du formulaire abo.
+//
+// Réservé aux appels internes (scrap Phase H) : internalMutation, pas d'API
+// publique. Volume borné par la taille du club (scrap ≈ places, personnes = saison).
+
+import { v } from "convex/values";
+import { internalMutation } from "../_generated/server";
+import { canoniserLicence, normaliserNomPrenom } from "./lib";
+import { trouverLienAbo, estRemboursement } from "./paiements";
+
+// ── upsertAbonnesScrapBatch : miroir brut de la page club (par licence) ──
+// Comme le scrap Supabase, on n'écrit QUE les lignes ayant une licence (clé
+// d'unicité) ; les autres sont comptées et ignorées. Idempotent (patch/insert).
+export const upsertAbonnesScrapBatch = internalMutation({
+  args: {
+    lignes: v.array(
+      v.object({
+        licence: v.optional(v.string()),
+        nom: v.optional(v.string()),
+        prenom: v.optional(v.string()),
+        email: v.optional(v.string()),
+        age: v.optional(v.number()),
+        micro_perf: v.optional(v.string()),
+        nb_seances: v.optional(v.string()),
+        adhesion: v.optional(v.string()),
+        autonomie: v.optional(v.string()),
+        photo: v.optional(v.string()),
+        paiement: v.optional(v.string()),
+        abonnement_valide: v.boolean(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const maintenant = new Date().toISOString();
+    let upsertees = 0;
+    let sansLicence = 0;
+    for (const l of args.lignes) {
+      const licence = canoniserLicence(l.licence);
+      if (!licence) {
+        sansLicence++;
+        continue;
+      }
+      const nom = (l.nom ?? "").trim() || undefined;
+      const prenom = (l.prenom ?? "").trim() || undefined;
+      const doc = {
+        licence,
+        nom,
+        prenom,
+        nom_prenom_normalise: normaliserNomPrenom(nom, prenom),
+        email: (l.email ?? "").trim() || undefined,
+        age: l.age,
+        micro_perf: (l.micro_perf ?? "").trim() || undefined,
+        nb_seances: (l.nb_seances ?? "").trim() || undefined,
+        adhesion: (l.adhesion ?? "").trim() || undefined,
+        autonomie: (l.autonomie ?? "").trim() || undefined,
+        photo: (l.photo ?? "").trim() || undefined,
+        paiement: (l.paiement ?? "").trim() || undefined,
+        abonnement_valide: l.abonnement_valide,
+        last_scrap_at: maintenant,
+      };
+      const existant = await ctx.db
+        .query("abo_abonnes_scrap")
+        .withIndex("by_licence", (q) => q.eq("licence", licence))
+        .first();
+      if (existant) {
+        await ctx.db.patch(existant._id, doc);
+      } else {
+        await ctx.db.insert("abo_abonnes_scrap", doc);
+      }
+      upsertees++;
+    }
+    return { upsertees, sansLicence };
+  },
+});
+
+// Traduction de la colonne « Autonomie » du club → etape_test_autonomie.
+function testAutonomieDepuisScrap(
+  autonomie?: string,
+): "non_requis" | "requis" | "valide" | undefined {
+  switch (autonomie) {
+    case "OK":
+      return "valide";
+    case "Trop jeune":
+      return "non_requis";
+    case "Doit passer le test":
+    case "Recherche du test en cours":
+      return "requis";
+    default:
+      return undefined;
+  }
+}
+
+// ── matcherScrapPersonnes : met à jour les etape_* des personnes ─────────
+// Un seul balayage borné. Renvoie le nombre de personnes mises à jour.
+export const matcherScrapPersonnes = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const personnes = await ctx.db.query("abo_personnes").collect();
+    const scrap = await ctx.db.query("abo_abonnes_scrap").collect();
+
+    // Index licence → ligne scrap (licence unique dans abo_abonnes_scrap).
+    const parLicence = new Map<string, (typeof scrap)[number]>();
+    // Comptage nom_prenom_normalise pour ne garder que les noms NON ambigus.
+    const compteNom = new Map<string, number>();
+    for (const s of scrap) {
+      if (s.licence) parLicence.set(s.licence, s);
+      const clé = s.nom_prenom_normalise;
+      if (clé) compteNom.set(clé, (compteNom.get(clé) ?? 0) + 1);
+    }
+    const parNomUnique = new Map<string, (typeof scrap)[number]>();
+    for (const s of scrap) {
+      const clé = s.nom_prenom_normalise;
+      if (clé && compteNom.get(clé) === 1) parNomUnique.set(clé, s);
+    }
+
+    // Identités « payées » (HelloAsso, formulaire abo) : nom_prenom_normalise
+    // de l'inscrit ET du payeur, hors commandes intégralement remboursées.
+    const payes = new Set<string>();
+    const cible = await trouverLienAbo(ctx);
+    if (cible?.link) {
+      const dossiers = await ctx.db
+        .query("dossiers")
+        .withIndex("by_link", (q) => q.eq("helloasso_link_id", cible.link!._id))
+        .collect();
+      for (const d of dossiers) {
+        const txs = await ctx.db
+          .query("helloasso_transactions")
+          .withIndex("by_dossier", (q) => q.eq("dossier_id", d.dossier_id))
+          .collect();
+        const principales = txs.filter((t) => !estRemboursement(t));
+        const totalRemb = txs
+          .filter(estRemboursement)
+          .reduce((s, t) => s + Math.abs(t.amount), 0);
+        const totalPaye = principales.reduce((s, t) => s + t.amount, 0);
+        // Payé si au moins une transaction non-remboursée subsiste (net > 0).
+        if (principales.length === 0 || totalPaye - totalRemb <= 0) continue;
+        payes.add(normaliserNomPrenom(d.last_name, d.first_name));
+        payes.add(normaliserNomPrenom(d.payer_last_name, d.payer_first_name));
+      }
+    }
+
+    let maj = 0;
+    for (const p of personnes) {
+      // Passe 1 (licence) puis passe 2 (nom/prénom unique, personnes sans licence).
+      let s: (typeof scrap)[number] | undefined;
+      let licenceResolue: string | undefined;
+      if (p.licence) {
+        s = parLicence.get(p.licence);
+      } else {
+        s = parNomUnique.get(p.nom_prenom_normalise);
+        if (s?.licence) licenceResolue = s.licence;
+      }
+
+      const etapePaiement = payes.has(p.nom_prenom_normalise);
+      if (!s) {
+        // Pas de correspondance scrap : on met tout de même à jour etape_paiement
+        // (source HelloAsso indépendante du scrap) si elle change.
+        if (p.etape_paiement !== etapePaiement) {
+          await ctx.db.patch(p._id, { etape_paiement: etapePaiement });
+          maj++;
+        }
+        continue;
+      }
+
+      const patch: Record<string, unknown> = {
+        age: s.age,
+        etape_licence: s.adhesion === "OK",
+        etape_inscription_site: true,
+        etape_photo: s.photo === "OK",
+        etape_abonnement_valide: s.abonnement_valide,
+        etape_test_autonomie: testAutonomieDepuisScrap(s.autonomie),
+        etape_paiement: etapePaiement,
+      };
+      if (licenceResolue) {
+        patch.licence = licenceResolue;
+        patch.licence_statut = "annuaire_auto";
+      }
+      await ctx.db.patch(p._id, patch);
+      maj++;
+    }
+
+    return maj;
+  },
+});

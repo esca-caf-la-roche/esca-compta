@@ -1,6 +1,7 @@
 import { Outlet, Navigate, useLocation } from "react-router-dom";
-import { useConvexAuth } from "convex/react";
+import { useConvexAuth, useQuery } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
+import { api } from "../../convex/_generated/api";
 import { useSeason } from "../contexts/SeasonContext";
 import { LogOut } from "lucide-react";
 
@@ -9,6 +10,9 @@ export default function Layout() {
   const { signOut } = useAuthActions();
   const { season, setSeason, availableSeasons } = useSeason();
   const location = useLocation();
+  // Discriminant staff vs abonné public : un abonné public (auto-inscrit via
+  // abo-otp) n'a pas de userSettings et ne doit jamais voir l'app compta.
+  const me = useQuery(api.abo.identity.me);
 
   // La partie Paiements ne fonctionne pas avec les saisons :
   // on masque le sélecteur de saison sur ces écrans.
@@ -20,6 +24,15 @@ export default function Layout() {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" />;
+  }
+
+  // Authentifié mais pas staff → abonné public : on le renvoie vers son espace
+  // (sans révéler l'existence du portail compta).
+  if (me === undefined) {
+    return <div className="loading-screen">Chargement...</div>;
+  }
+  if (me && !me.isStaff) {
+    return <Navigate to="/abonnements" replace />;
   }
 
   return (

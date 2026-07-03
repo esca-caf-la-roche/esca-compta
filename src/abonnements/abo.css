@@ -1,0 +1,527 @@
+/* Styles de l'espace public abonnés — néo-brutaliste minimaliste, mobile-first.
+   Tout est scopé sous .abo-root pour ne pas interférer avec le thème compta. */
+
+.abo-root {
+  --abo-bg: #f4f4f0;
+  --abo-ink: #111;
+  --abo-accent: #ff5a1f;
+  --abo-border: #111;
+  min-height: 100vh;
+  background: var(--abo-bg);
+  color: var(--abo-ink);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.abo-root * {
+  box-sizing: border-box;
+}
+
+.abo-loading {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  font-weight: 700;
+}
+
+/* ── Login ─────────────────────────────────────────────── */
+.abo-login {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 1.25rem;
+}
+
+.abo-card {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border: 3px solid var(--abo-border);
+  box-shadow: 6px 6px 0 0 var(--abo-border);
+  padding: 1.75rem 1.5rem;
+}
+
+.abo-card h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+}
+
+.abo-subtitle {
+  margin: 0 0 1.25rem;
+  color: #555;
+  font-size: 0.95rem;
+}
+
+.abo-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.abo-card label {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.abo-card input {
+  border: 2px solid var(--abo-border);
+  padding: 0.7rem 0.75rem;
+  font-size: 1rem;
+  background: #fff;
+}
+
+.abo-card input:focus {
+  outline: 3px solid var(--abo-accent);
+  outline-offset: 1px;
+}
+
+.abo-otp-input {
+  text-align: center;
+  letter-spacing: 0.4em;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.4rem;
+}
+
+.abo-hint {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 0.82rem;
+  color: #666;
+}
+
+.abo-btn {
+  margin-top: 0.5rem;
+  background: var(--abo-accent);
+  color: #fff;
+  border: 2px solid var(--abo-border);
+  box-shadow: 4px 4px 0 0 var(--abo-border);
+  padding: 0.75rem 1rem;
+  font-weight: 800;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.abo-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 0 var(--abo-border);
+}
+
+.abo-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.abo-link {
+  background: none;
+  border: none;
+  color: #555;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0.5rem 0;
+  font-size: 0.9rem;
+  align-self: flex-start;
+}
+
+.abo-msg {
+  border: 2px solid var(--abo-border);
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.abo-msg-error {
+  background: #ffe0d6;
+  border-color: #b3260a;
+  color: #7a1a06;
+}
+
+/* ── Espace connecté ───────────────────────────────────── */
+.abo-espace {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1rem 1.25rem 3rem;
+}
+
+.abo-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  border-bottom: 3px solid var(--abo-border);
+  margin-bottom: 1.5rem;
+}
+
+.abo-brand {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.abo-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.abo-email {
+  font-size: 0.8rem;
+  color: #555;
+}
+
+.abo-content h1 {
+  margin: 0 0 0.75rem;
+}
+
+/* ── Demande / suivi ───────────────────────────────────── */
+.abo-historique,
+.abo-vague-info {
+  border: 2px solid var(--abo-border);
+  background: #fff;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+.abo-fermee {
+  border: 3px solid var(--abo-border);
+  background: #fff;
+  padding: 1rem;
+  box-shadow: 4px 4px 0 0 var(--abo-border);
+}
+
+.abo-placeholder {
+  color: #666;
+  font-style: italic;
+}
+
+.abo-form,
+.abo-ajout-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.abo-fieldset {
+  border: 2px solid var(--abo-border);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.abo-fieldset legend {
+  font-weight: 800;
+  padding: 0 0.4rem;
+}
+
+.abo-personne-ligne,
+.abo-ajout-form {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.abo-input {
+  border: 2px solid var(--abo-border);
+  padding: 0.6rem 0.7rem;
+  font-size: 1rem;
+  background: #fff;
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
+.abo-input:focus {
+  outline: 3px solid var(--abo-accent);
+  outline-offset: 1px;
+}
+
+textarea.abo-input {
+  flex-basis: 100%;
+  resize: vertical;
+}
+
+.abo-retirer {
+  border: 2px solid var(--abo-border);
+  background: #fff;
+  cursor: pointer;
+  padding: 0.4rem 0.6rem;
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+
+.abo-retirer:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Cartes de suivi ───────────────────────────────────── */
+.abo-suivi {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.abo-suivi-personne {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.abo-carte {
+  border: 3px solid var(--abo-border);
+  background: #fff;
+  box-shadow: 4px 4px 0 0 var(--abo-border);
+  padding: 1rem;
+}
+
+.abo-carte h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.15rem;
+}
+
+.abo-statut-badge {
+  display: inline-block;
+  border: 2px solid var(--abo-border);
+  padding: 0.3rem 0.6rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.abo-statut-badge--waiting {
+  background: #fff4d6;
+}
+.abo-statut-badge--attente {
+  background: #ffe9c7;
+}
+.abo-statut-badge--rejected {
+  background: #ffe0d6;
+}
+
+.abo-final-intro {
+  font-size: 0.9rem;
+  margin: 0 0 0.75rem;
+}
+
+.abo-finalisation {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.abo-fstep {
+  display: flex;
+  gap: 0.6rem;
+  border: 2px solid var(--abo-border);
+  padding: 0.6rem;
+  background: #fafafa;
+}
+
+.abo-fstep--done {
+  background: #e7f6e7;
+}
+
+.abo-fstep-num {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--abo-border);
+  border-radius: 999px;
+  font-weight: 800;
+  background: #fff;
+}
+
+.abo-fstep--done .abo-fstep-num {
+  background: #16a34a;
+  color: #fff;
+  border-color: #16a34a;
+}
+
+.abo-fstep-body {
+  flex: 1;
+}
+
+.abo-fstep-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+
+.abo-fstep-title {
+  font-weight: 700;
+}
+
+.abo-fstep-state {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--abo-border);
+}
+
+.abo-fstep-state--done {
+  background: #16a34a;
+  color: #fff;
+  border-color: #16a34a;
+}
+
+.abo-fstep-body p {
+  margin: 0.25rem 0;
+  font-size: 0.88rem;
+}
+
+.abo-fstep-liens {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.abo-fstep-lien {
+  color: var(--abo-accent);
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.abo-fstep-lien--vide {
+  color: #999;
+  text-decoration: none;
+  font-style: italic;
+}
+
+.abo-note {
+  border: 2px dashed var(--abo-border);
+  background: #fffdf0;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+  font-size: 0.88rem;
+}
+
+.abo-note ul {
+  margin: 0.3rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.abo-ajout {
+  border-top: 3px solid var(--abo-border);
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+}
+
+.abo-ajout h2 {
+  margin: 0 0 0.5rem;
+}
+
+/* ── Réservation du test d'autonomie ───────────────────────── */
+.abo-resa {
+  margin-top: 0.6rem;
+}
+
+.abo-resa-active {
+  border: 2px solid var(--abo-border);
+  background: #e7f6e7;
+  padding: 0.5rem 0.7rem;
+}
+
+.abo-resa-active p {
+  margin: 0 0 0.3rem;
+}
+
+.abo-resa-annulee {
+  border: 2px solid #b3260a;
+  background: #ffe0d6;
+  color: #7a1a06;
+  padding: 0.5rem 0.7rem;
+  margin: 0 0 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.abo-resa-ouvrir {
+  margin-top: 0;
+}
+
+/* Modal de choix de créneau */
+.abo-modal-fond {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  z-index: 1000;
+}
+
+.abo-modal {
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: #fff;
+  border: 3px solid var(--abo-border);
+  box-shadow: 6px 6px 0 0 var(--abo-border);
+  padding: 1.25rem;
+}
+
+.abo-modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.abo-modal-head h3 {
+  margin: 0;
+}
+
+.abo-resa-jours {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.abo-resa-jour h4 {
+  margin: 0 0 0.4rem;
+  text-transform: capitalize;
+}
+
+.abo-resa-tranches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.abo-resa-tranche {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  border: 2px solid var(--abo-border);
+  background: #fff;
+  padding: 0.5rem 0.7rem;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.abo-resa-tranche:hover:not(:disabled) {
+  background: var(--abo-accent);
+  color: #fff;
+}
+
+.abo-resa-tranche:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.abo-resa-places {
+  font-size: 0.72rem;
+  font-weight: 600;
+  opacity: 0.8;
+}

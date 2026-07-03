@@ -8,10 +8,25 @@
  * @module
  */
 
+import type * as abo_auth from "../abo/auth.js";
+import type * as abo_compteur from "../abo/compteur.js";
+import type * as abo_config from "../abo/config.js";
+import type * as abo_demandes from "../abo/demandes.js";
+import type * as abo_emails from "../abo/emails.js";
+import type * as abo_identity from "../abo/identity.js";
+import type * as abo_lib from "../abo/lib.js";
+import type * as abo_licences from "../abo/licences.js";
+import type * as abo_matching from "../abo/matching.js";
+import type * as abo_messages from "../abo/messages.js";
+import type * as abo_paiements from "../abo/paiements.js";
+import type * as abo_scrap from "../abo/scrap.js";
+import type * as abo_tests from "../abo/tests.js";
+import type * as access from "../access.js";
 import type * as analytiques from "../analytiques.js";
 import type * as auth from "../auth.js";
 import type * as bootstrap from "../bootstrap.js";
 import type * as cours from "../cours.js";
+import type * as crons from "../crons.js";
 import type * as customFunctions from "../customFunctions.js";
 import type * as drive from "../drive.js";
 import type * as effectifs from "../effectifs.js";
@@ -37,10 +52,25 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "abo/auth": typeof abo_auth;
+  "abo/compteur": typeof abo_compteur;
+  "abo/config": typeof abo_config;
+  "abo/demandes": typeof abo_demandes;
+  "abo/emails": typeof abo_emails;
+  "abo/identity": typeof abo_identity;
+  "abo/lib": typeof abo_lib;
+  "abo/licences": typeof abo_licences;
+  "abo/matching": typeof abo_matching;
+  "abo/messages": typeof abo_messages;
+  "abo/paiements": typeof abo_paiements;
+  "abo/scrap": typeof abo_scrap;
+  "abo/tests": typeof abo_tests;
+  access: typeof access;
   analytiques: typeof analytiques;
   auth: typeof auth;
   bootstrap: typeof bootstrap;
   cours: typeof cours;
+  crons: typeof crons;
   customFunctions: typeof customFunctions;
   drive: typeof drive;
   effectifs: typeof effectifs;

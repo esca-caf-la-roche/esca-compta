@@ -1,6 +1,7 @@
 import { HashRouter, Routes, Route } from "react-router-dom";
 import { SeasonProvider } from "./contexts/SeasonContext";
 import Layout from "./components/Layout";
+import RequireAccess from "./components/RequireAccess";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Compta from "./pages/Compta";
@@ -12,6 +13,9 @@ import ValidationPaiements from "./pages/Paiements/Validation";
 import ConfigPaiements from "./pages/Paiements/Configurations";
 import ApprobationsPaiements from "./pages/Paiements/Approbations";
 import AttentePaiements from "./pages/Paiements/Attente";
+import AboApp from "./abonnements/AboApp";
+import AboAdmin from "./abonnements/admin/AboAdmin";
+import Compteur from "./abonnements/Compteur";
 
 // Composant temporaire pour les routes non implémentées
 const Placeholder = ({ title }: { title: string }) => (
@@ -27,17 +31,28 @@ function App() {
         <HashRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
-            
-            {/* Routes protégées */}
+
+            {/* Espace PUBLIC abonnés — isolé, hors du Layout compta.
+                Les abonnés n'ont pas connaissance de l'outil de gestion. */}
+            <Route path="/abonnements" element={<AboApp />} />
+
+            {/* Compteur public ANONYME (iframe embarquable sur le site club) —
+                hors Layout et hors auth ; ne renvoie que des nombres. */}
+            <Route path="/compteur" element={<Compteur />} />
+
+            {/* Routes protégées. Chaque module est gardé par RequireAccess :
+                accès uniquement si la tuile est cochée (même pour un admin). */}
             <Route element={<Layout />}>
+              {/* Gestion des abonnements (staff), atteinte par la tuile */}
+              <Route path="/gestion-abonnements" element={<RequireAccess tile="abonnements"><AboAdmin /></RequireAccess>} />
               <Route path="/" element={<Dashboard />} />
-              <Route path="/compta" element={<Compta />} />
-              <Route path="/budget" element={<MasseSalariale />} />
-              <Route path="/budget/parametres" element={<ParametresPaie />} />
-              <Route path="/configurations" element={<Configurations />} />
-              
+              <Route path="/compta" element={<RequireAccess tile="compta"><Compta /></RequireAccess>} />
+              <Route path="/budget" element={<RequireAccess tile="budget"><MasseSalariale /></RequireAccess>} />
+              <Route path="/budget/parametres" element={<RequireAccess tile="budget"><ParametresPaie /></RequireAccess>} />
+              <Route path="/configurations" element={<RequireAccess admin><Configurations /></RequireAccess>} />
+
               {/* Routes Paiements */}
-              <Route path="/paiements" element={<PaiementsLayout />}>
+              <Route path="/paiements" element={<RequireAccess tile="paiements"><PaiementsLayout /></RequireAccess>}>
                 <Route index element={<ValidationPaiements />} />
                 <Route path="config" element={<ConfigPaiements />} />
                 <Route path="approbations" element={<ApprobationsPaiements />} />

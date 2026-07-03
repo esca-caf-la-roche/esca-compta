@@ -1,0 +1,41 @@
+import { useAuthActions } from "@convex-dev/auth/react";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import Demande from "./pages/Demande";
+import Suivi from "./pages/Suivi";
+
+// Espace de l'abonné connecté (route /abonnements, authentifié). Aiguillage selon
+// l'existence d'un dossier (getMonDossier, réactif) :
+//   - pas de dossier → formulaire de demande ;
+//   - dossier présent → tableau de suivi.
+export default function AboEspace() {
+  const { signOut } = useAuthActions();
+  const me = useQuery(api.abo.identity.me);
+  const dossier = useQuery(api.abo.demandes.getMonDossier);
+
+  return (
+    <div className="abo-espace">
+      <header className="abo-topbar">
+        <span className="abo-brand">Abonnements Escalade</span>
+        <div className="abo-topbar-right">
+          {me?.email && <code className="abo-email">{me.email}</code>}
+          <button className="abo-link" onClick={() => void signOut()}>
+            Se déconnecter
+          </button>
+        </div>
+      </header>
+
+      <main>
+        {dossier === undefined ? (
+          <div className="abo-content">
+            <p>Chargement…</p>
+          </div>
+        ) : dossier === null ? (
+          <Demande />
+        ) : (
+          <Suivi dossier={dossier} />
+        )}
+      </main>
+    </div>
+  );
+}

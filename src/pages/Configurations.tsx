@@ -164,6 +164,7 @@ export default function Configurations() {
     { id: "compta", label: "Comptabilité" },
     { id: "paiements", label: "Paiements Escalade" },
     { id: "budget", label: "Budget prévisionnel" },
+    { id: "abonnements", label: "Abonnements Escalade" },
   ];
 
   return (

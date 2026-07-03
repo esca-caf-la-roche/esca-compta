@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { internalMutation, internalQuery } from "./_generated/server";
+import { internalMutation, internalQuery, internalAction } from "./_generated/server";
+import type { ActionCtx } from "./_generated/server";
 import { authenticatedAction } from "./customFunctions";
 import { internal } from "./_generated/api";
 
@@ -210,9 +211,12 @@ export const upsertTransactions = internalMutation({
 });
 
 // --- ACTION : synchronisation HelloAsso → dossiers + transactions ---
-export const syncHelloAsso = authenticatedAction({
-  args: {},
-  handler: async (ctx) => {
+// Cœur de la synchro, SANS garde d'auth : réutilisé par l'action publique
+// (staff connecté) et par l'action interne des crons (Phase H abonnements).
+// La sync préserve les champs locaux des dossiers (local_status/comment…).
+async function runHelloAssoSync(
+  ctx: ActionCtx,
+): Promise<{ synced_count: number; errors: string[] }> {
     const clientId = process.env.HELLOASSO_CLIENT_ID;
     const clientSecret = process.env.HELLOASSO_CLIENT_SECRET;
 
@@ -375,5 +379,16 @@ export const syncHelloAsso = authenticatedAction({
     }
 
     return { synced_count, errors };
-  },
+}
+
+// Action publique (staff connecté) — inchangée côté appelants.
+export const syncHelloAsso = authenticatedAction({
+  args: {},
+  handler: async (ctx) => runHelloAssoSync(ctx),
+});
+
+// Version interne (sans garde d'auth) pour les crons Convex (Phase H).
+export const syncHelloAssoInternal = internalAction({
+  args: {},
+  handler: async (ctx) => runHelloAssoSync(ctx),
 });

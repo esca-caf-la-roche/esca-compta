@@ -233,4 +233,204 @@ export default defineSchema({
     reset_at: v.string(),
     reset_by: v.id("users"),
   }),
+
+  // ===================================================================
+  // MODULE ABONNEMENTS ESCALADE (portage de abo-esca-new / Supabase)
+  // Toutes les tables sont préfixées `abo_` pour éviter la collision avec
+  // la table `dossiers` (commandes HelloAsso des cours) déjà présente.
+  // Réf. module : docs/5-module-abonnements.md (spec source abo-esca-new supprimée)
+  // Pas de RLS/triggers/vues en Convex : la sécurité et la normalisation
+  // (nom_prenom_normalise, canonisation licence) sont portées dans les
+  // endpoints/mutations (voir convex/abo/*).
+  // ===================================================================
+
+  // Profil applicatif d'un abonné public (role toujours "utilisateur").
+  // Les admins abo sont des comptes staff avec la tuile "abonnements" cochée
+  // (userSettings.allowedTiles) et n'ont pas d'abo_profiles — getAboIdentity()
+  // dérive leur rôle côté serveur. Le rôle admin ne donne pas ce droit.
+  abo_profiles: defineTable({
+    userId: v.id("users"),
+    email: v.string(),
+    role: v.union(v.literal("utilisateur"), v.literal("admin")),
+    prenom: v.optional(v.string()),
+    nom: v.optional(v.string()),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_email", ["email"]),
+
+  // Dossier de demande, regroupé par email (1 dossier par compte).
+  abo_dossiers: defineTable({
+    email: v.string(),
+    statut_dossier: v.union(
+      v.literal("nouvelle_demande"),
+      v.literal("validee"),
+      v.literal("liste_attente"),
+      v.literal("refusee"),
+      v.literal("complete"),
+    ),
+    date_soumission: v.string(),
+    date_validation: v.optional(v.string()),
+    commentaire: v.optional(v.string()),
+    owner_id: v.id("users"),
+  })
+    .index("by_owner", ["owner_id"])
+    .index("by_email", ["email"]),
+
+  // Personnes rattachées à un dossier ; portent les 8 étapes (CDC §5.1).
+  abo_personnes: defineTable({
+    dossier_id: v.id("abo_dossiers"),
+    nom: v.string(),
+    prenom: v.string(),
+    nom_prenom_normalise: v.string(),
+    age: v.optional(v.number()),
+    licence: v.optional(v.string()), // canonique (12 chiffres)
+    licence_statut: v.union(
+      v.literal("saisie"),
+      v.literal("annuaire_auto"),
+      v.literal("annuaire_valide"),
+      v.literal("inconnu"),
+    ),
+    etape_demande: v.boolean(),
+    etape_validation: v.union(
+      v.literal("en_attente"),
+      v.literal("validee"),
+      v.literal("liste_attente"),
+      v.literal("refusee"),
+    ),
+    etape_licence: v.boolean(),
+    // NULL tant que l'âge est inconnu (scrap) ; sinon non_requis/requis/valide.
+    etape_test_autonomie: v.optional(
+      v.union(
+        v.literal("non_requis"),
+        v.literal("requis"),
+        v.literal("valide"),
+      ),
+    ),
+    etape_inscription_site: v.boolean(),
+    etape_photo: v.boolean(),
+    etape_paiement: v.boolean(),
+    etape_abonnement_valide: v.boolean(),
+  })
+    .index("by_dossier", ["dossier_id"])
+    .index("by_nom_prenom_normalise", ["nom_prenom_normalise"])
+    .index("by_licence", ["licence"]),
+
+  // Fil de discussion par dossier (un fil partagé user ↔ admins), temps réel.
+  abo_messages: defineTable({
+    dossier_id: v.id("abo_dossiers"),
+    auteur_id: v.id("users"),
+    auteur_role: v.union(v.literal("utilisateur"), v.literal("admin")),
+    contenu: v.string(),
+    lu_par_admin: v.boolean(),
+    lu_par_user: v.boolean(),
+  }).index("by_dossier", ["dossier_id"]),
+
+  // Historique des demandes retirées par leur auteur (audit léger).
+  abo_demandes_supprimees: defineTable({
+    email: v.string(),
+    owner_id: v.id("users"),
+    personnes: v.optional(v.string()), // « Prénom Nom, … » au moment du retrait
+    supprime_le: v.string(),
+  }).index("by_owner", ["owner_id"]),
+
+  // Miroir brut de la vraie page club, alimenté par le scrap (cron).
+  abo_abonnes_scrap: defineTable({
+    licence: v.optional(v.string()), // clé technique d'upsert (canonique)
+    nom: v.optional(v.string()),
+    prenom: v.optional(v.string()),
+    nom_prenom_normalise: v.string(),
+    email: v.optional(v.string()),
+    age: v.optional(v.number()),
+    micro_perf: v.optional(v.string()),
+    nb_seances: v.optional(v.string()),
+    adhesion: v.optional(v.string()),
+    autonomie: v.optional(v.string()),
+    photo: v.optional(v.string()),
+    paiement: v.optional(v.string()),
+    abonnement_valide: v.boolean(),
+    last_scrap_at: v.optional(v.string()),
+  })
+    .index("by_licence", ["licence"])
+    .index("by_nom_prenom_normalise", ["nom_prenom_normalise"]),
+
+  // Archive N-1 (écrasée à chaque reset de saison).
+  abo_abonnes_archive: defineTable({
+    licence: v.optional(v.string()),
+    nom: v.optional(v.string()),
+    prenom: v.optional(v.string()),
+    nom_prenom_normalise: v.string(),
+    abonnement_valide: v.boolean(),
+    saison: v.string(),
+  }).index("by_licence", ["licence"]),
+
+  // Élèves « en cours d'escalade » (passe-droit vague 2), importés de l'Excel.
+  abo_eleves_en_cours: defineTable({
+    licence: v.optional(v.string()),
+    nom: v.optional(v.string()),
+    prenom: v.optional(v.string()),
+    nom_prenom_normalise: v.string(),
+    horaire: v.optional(v.string()),
+    saison: v.optional(v.string()),
+    imported_at: v.string(),
+  })
+    .index("by_licence", ["licence"])
+    .index("by_nom_prenom_normalise", ["nom_prenom_normalise"]),
+
+  // Annuaire licence ↔ nom/prénom (résolution des licences des demandes).
+  abo_licences: defineTable({
+    licence: v.string(),
+    nom: v.optional(v.string()),
+    prenom: v.optional(v.string()),
+    nom_prenom_normalise: v.string(),
+    imported_at: v.string(),
+  })
+    .index("by_licence", ["licence"])
+    .index("by_nom_prenom_normalise", ["nom_prenom_normalise"]),
+
+  // Journal des emails envoyés (anti-doublons).
+  abo_email_log: defineTable({
+    dossier_id: v.id("abo_dossiers"),
+    type_email: v.union(
+      v.literal("accuse"),
+      v.literal("validation"),
+      v.literal("liste_attente"),
+      v.literal("refus"),
+      v.literal("nouveau_message"),
+      v.literal("test_annule"),
+    ),
+    destinataire: v.string(),
+    sent_at: v.string(),
+  }).index("by_dossier", ["dossier_id"]),
+
+  // Disponibilités proposées par un admin pour le test d'autonomie.
+  abo_test_creneaux: defineTable({
+    admin_id: v.id("users"),
+    date_jour: v.string(), // 'YYYY-MM-DD'
+    heure_debut: v.string(), // 'HH:mm'
+    heure_fin: v.string(), // 'HH:mm'
+  })
+    .index("by_admin", ["admin_id"])
+    .index("by_date", ["date_jour"]),
+
+  // Réservation d'une tranche horaire de test par une personne (anonyme côté
+  // encadrant). Une seule réservation "active" par personne (contrôlé en mutation).
+  abo_test_reservations: defineTable({
+    personne_id: v.id("abo_personnes"),
+    tranche: v.string(), // début de tranche, instant ISO (Europe/Paris)
+    tranche_fin: v.optional(v.string()),
+    statut: v.union(v.literal("active"), v.literal("annulee")),
+    annulee_le: v.optional(v.string()),
+    annulee_raison: v.optional(
+      v.union(v.literal("candidat"), v.literal("creneau_admin_annule")),
+    ),
+  })
+    .index("by_personne", ["personne_id"])
+    .index("by_tranche", ["tranche"]),
+
+  // Configuration applicative clé/valeur (vagues, liens, places_max, helloasso).
+  abo_app_config: defineTable({
+    cle: v.string(),
+    valeur: v.optional(v.string()),
+    updated_at: v.optional(v.string()),
+  }).index("by_cle", ["cle"]),
 });
