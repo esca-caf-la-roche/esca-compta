@@ -1,5 +1,5 @@
 import { authenticatedQuery as query, authenticatedMutation as mutation } from "./customFunctions";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { nextSaison } from "./saisonUtils";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
@@ -10,7 +10,7 @@ async function requireAdmin(ctx: MutationCtx, userId: Id<"users">) {
     .withIndex("by_userId", (q) => q.eq("userId", userId))
     .first();
   if (settings?.role !== "admin") {
-    throw new Error("Seul un administrateur peut effectuer cette action.");
+    throw new ConvexError("Seul un administrateur peut effectuer cette action.");
   }
 }
 
@@ -51,7 +51,7 @@ export const createNext = mutation({
 
     const all = await ctx.db.query("saisons").collect();
     if (all.length === 0) {
-      throw new Error("Aucune saison existante : créez une première saison manuellement.");
+      throw new ConvexError("Aucune saison existante : créez une première saison manuellement.");
     }
     // La plus récente au format "YYYY-YY".
     const latest = all
@@ -59,14 +59,14 @@ export const createNext = mutation({
       .filter((n) => /^\d{4}-\d{2}$/.test(n))
       .sort((a, b) => b.localeCompare(a))[0];
     if (!latest) {
-      throw new Error("Format de saison non reconnu (attendu : AAAA-AA).");
+      throw new ConvexError("Format de saison non reconnu (attendu : AAAA-AA).");
     }
     const suivante = nextSaison(latest);
     if (!suivante) {
-      throw new Error("Impossible de calculer la saison suivante.");
+      throw new ConvexError("Impossible de calculer la saison suivante.");
     }
     if (all.some((s) => s.nom === suivante)) {
-      throw new Error(`La saison ${suivante} existe déjà.`);
+      throw new ConvexError(`La saison ${suivante} existe déjà.`);
     }
 
     const newId = await ctx.db.insert("saisons", { nom: suivante, isDefault: false });
@@ -120,23 +120,66 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("saisons") },
   handler: async (ctx, args) => {
-    // Vérification de sécurité: ne pas supprimer si utilisé ?
-    // Dans Convex, il n'y a pas de contrainte de clé étrangère automatique, 
-    // mais on peut faire une recherche dans les transactions et prévisionnels
+    // NB : on lève des `ConvexError` (et non `Error`) car en production Convex
+    // masque le message des `Error` classiques ("Server Error"). La charge utile
+    // d'une `ConvexError` est, elle, transmise au client (error.data).
     const saison = await ctx.db.get(args.id);
-    if (!saison) throw new Error("Saison introuvable");
-
-    const usedInTx = await ctx.db.query("transactions").withIndex("by_saison", q => q.eq("saison", saison.nom)).first();
-    const usedInPrev = await ctx.db.query("previsionnels").withIndex("by_saison", q => q.eq("saison", saison.nom)).first();
-
-    if (usedInTx || usedInPrev) {
-      throw new Error("Cette saison contient des données et ne peut pas être supprimée.");
-    }
+    if (!saison) throw new ConvexError("Saison introuvable.");
 
     if (saison.isDefault) {
-      throw new Error("Impossible de supprimer la saison par défaut. Définissez une autre saison par défaut d'abord.");
+      throw new ConvexError(
+        "Impossible de supprimer la saison par défaut. Définissez une autre saison par défaut d'abord.",
+      );
     }
+
+    // Donnée comptable « réelle » saisie à la main : on refuse la suppression et
+    // on indique précisément ce qui bloque.
+    const txs = await ctx.db
+      .query("transactions")
+      .withIndex("by_saison", (q) => q.eq("saison", saison.nom))
+      .collect();
+    const prevsManuels = (
+      await ctx.db
+        .query("previsionnels")
+        .withIndex("by_saison", (q) => q.eq("saison", saison.nom))
+        .collect()
+    ).filter((p) => !p.auto); // les lignes `auto` sont régénérées depuis les cours
+    if (txs.length > 0 || prevsManuels.length > 0) {
+      const parts: string[] = [];
+      if (txs.length > 0) parts.push(`${txs.length} transaction(s)`);
+      if (prevsManuels.length > 0) parts.push(`${prevsManuels.length} ligne(s) de prévisionnel`);
+      throw new ConvexError(
+        `Cette saison contient ${parts.join(" et ")} : supprimez-les d'abord.`,
+      );
+    }
+
+    // Données dérivées, générées automatiquement (createNext / planning des cours) :
+    // on les nettoie en cascade pour ne pas laisser d'orphelins.
+    await deleteBySaison(ctx, "previsionnels", saison.nom); // lignes auto restantes
+    await deleteBySaison(ctx, "parametresPaie", saison.nom);
+    await deleteBySaison(ctx, "salairesSaison", saison.nom);
+    await deleteBySaison(ctx, "cours", saison.nom);
+    await deleteBySaison(ctx, "budgetEffectifs", saison.nom);
 
     await ctx.db.delete(args.id);
   },
 });
+
+// Supprime toutes les lignes d'une table saisonnière (index `by_saison`) pour un
+// nom de saison donné. Réservé aux tables indexées par `saison`.
+type SaisonTable =
+  | "previsionnels"
+  | "parametresPaie"
+  | "salairesSaison"
+  | "cours"
+  | "budgetEffectifs";
+
+async function deleteBySaison(ctx: MutationCtx, table: SaisonTable, saison: string) {
+  const rows = await ctx.db
+    .query(table)
+    .withIndex("by_saison", (q) => q.eq("saison", saison))
+    .collect();
+  for (const row of rows) {
+    await ctx.db.delete(row._id);
+  }
+}

@@ -5,6 +5,19 @@ import { api } from "../../convex/_generated/api";
 import { Save, Star, Trash2, Users, Calendar, Shield, Edit2, X, Check, ArrowLeft, Plus } from "lucide-react";
 import type { Id } from "../../convex/_generated/dataModel";
 
+/** Message d'erreur lisible : privilégie la charge utile d'une ConvexError
+ * (error.data), transmise même en production, sinon retombe sur error.message. */
+function errMessage(err: unknown, fallback: string): string {
+  const data = (err as { data?: unknown })?.data;
+  if (typeof data === "string" && data) return data;
+  if (data && typeof data === "object" && "message" in data) {
+    const m = (data as { message?: unknown }).message;
+    if (typeof m === "string" && m) return m;
+  }
+  const msg = (err as { message?: unknown })?.message;
+  return typeof msg === "string" && msg ? msg : fallback;
+}
+
 /** Saison suivante au format "YYYY-YY" (ex: "2026-27" -> "2027-28"). */
 function nextSaisonLabel(noms: string[]): string | null {
   const latest = noms.filter((n) => /^\d{4}-\d{2}$/.test(n)).sort((a, b) => b.localeCompare(a))[0];
@@ -46,9 +59,9 @@ export default function Configurations() {
     try {
       const res = await createNextSaison({});
       alert(`Saison ${res.nom} créée (${res.lignesReprises} moniteurs repris de la saison précédente).`);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      alert(err.message || "Erreur lors de la création.");
+      alert(errMessage(err, "Erreur lors de la création."));
     } finally {
       setIsSubmittingSaison(false);
     }
@@ -89,9 +102,9 @@ export default function Configurations() {
     if (window.confirm("Êtes-vous sûr de vouloir supprimer cette saison ? Elle ne doit contenir aucune donnée.")) {
       try {
         await removeSaison({ id });
-      } catch (err: any) {
+      } catch (err) {
         console.error(err);
-        alert(err.message || "Erreur lors de la suppression.");
+        alert(errMessage(err, "Erreur lors de la suppression."));
       }
     }
   };
