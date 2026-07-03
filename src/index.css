@@ -176,6 +176,24 @@ h1, h2, h3 {
   box-shadow: 4px 4px 0px 0px #000;
 }
 
+.not-member-notice {
+  text-align: left;
+}
+
+.not-member-notice p {
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+/* btn-primary appliqué à un <a> (Link) : forcer le rendu bouton */
+a.btn-primary {
+  display: block;
+  box-sizing: border-box;
+  text-align: center;
+  text-decoration: none;
+  margin-top: 0.5rem;
+}
+
 /* Layout Global */
 .app-layout {
   display: flex;
