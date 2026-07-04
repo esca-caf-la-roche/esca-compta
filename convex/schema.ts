@@ -164,6 +164,11 @@ export default defineSchema({
     label: v.string(),
     responsible_id: v.optional(v.id("users")), // responsable assigné (null = aucun)
     is_installment: v.boolean(), // lien de paiement fractionné (3x)
+    // Distingue le lien du formulaire abonnements de ceux des cours : la sync
+    // partagée (convex/helloasso.ts) traite tous les liens, mais chaque module
+    // (paiements cours vs abonnements) ne doit lire/gérer QUE les siens.
+    // undefined = cours (valeur historique), "abonnement" = posé par convex/abo/paiements.ts.
+    type: v.optional(v.union(v.literal("cours"), v.literal("abonnement"))),
   }),
 
   groups: defineTable({

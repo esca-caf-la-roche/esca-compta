@@ -14,9 +14,11 @@ export default function Layout() {
   // abo-otp) n'a pas de userSettings et ne doit jamais voir l'app compta.
   const me = useQuery(api.abo.identity.me);
 
-  // La partie Paiements ne fonctionne pas avec les saisons :
-  // on masque le sélecteur de saison sur ces écrans.
-  const showSeasonSelector = !location.pathname.startsWith("/paiements");
+  // Les parties Paiements et Abonnements ne fonctionnent pas avec les saisons
+  // (chacune gère son propre reset manuel) : on masque le sélecteur sur ces écrans.
+  const showSeasonSelector =
+    !location.pathname.startsWith("/paiements") &&
+    !location.pathname.startsWith("/gestion-abonnements");
 
   if (isLoading) {
     return <div className="loading-screen">Chargement...</div>;

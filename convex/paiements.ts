@@ -1,14 +1,36 @@
 import { v } from "convex/values";
 import { authenticatedMutation, authenticatedQuery } from "./customFunctions";
+import type { QueryCtx, MutationCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { trouverLienAbo } from "./abo/paiements";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELLOASSO LINKS
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Un lien appartient au module Abonnements s'il est marqué `type: "abonnement"`
+// OU s'il correspond au lien actuellement configuré côté abo (self-heal pour
+// les liens créés avant l'introduction du champ `type`). Ce côté (cours) ne
+// doit jamais lire/modifier/supprimer ces liens ni leurs dossiers.
+async function getAboLinkIds(
+  ctx: QueryCtx | MutationCtx
+): Promise<Set<Id<"helloasso_links">>> {
+  const links = await ctx.db.query("helloasso_links").collect();
+  const ids = new Set<Id<"helloasso_links">>();
+  for (const l of links) {
+    if (l.type === "abonnement") ids.add(l._id);
+  }
+  const cible = await trouverLienAbo(ctx);
+  if (cible?.link) ids.add(cible.link._id);
+  return ids;
+}
+
 export const getLinks = authenticatedQuery({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("helloasso_links").collect();
+    const aboIds = await getAboLinkIds(ctx);
+    const links = await ctx.db.query("helloasso_links").collect();
+    return links.filter((l) => !aboIds.has(l._id));
   },
 });
 
@@ -39,6 +61,11 @@ export const updateLink = authenticatedMutation({
   },
   handler: async (ctx, args) => {
     const { id, ...data } = args;
+    if ((await getAboLinkIds(ctx)).has(id)) {
+      throw new Error(
+        "Ce lien appartient au formulaire abonnements : à gérer depuis Gestion abonnements."
+      );
+    }
     await ctx.db.patch(id, data);
   },
 });
@@ -46,6 +73,11 @@ export const updateLink = authenticatedMutation({
 export const deleteLink = authenticatedMutation({
   args: { id: v.id("helloasso_links") },
   handler: async (ctx, args) => {
+    if ((await getAboLinkIds(ctx)).has(args.id)) {
+      throw new Error(
+        "Ce lien appartient au formulaire abonnements : à gérer depuis Gestion abonnements."
+      );
+    }
     // Cascade : liaisons de groupe
     const groupLinks = await ctx.db
       .query("group_links")
@@ -201,8 +233,11 @@ export const getResponsibles = authenticatedQuery({
 export const getDossiers = authenticatedQuery({
   args: {},
   handler: async (ctx) => {
+    const aboIds = await getAboLinkIds(ctx);
     const dossiers = await ctx.db.query("dossiers").collect();
-    const links = await ctx.db.query("helloasso_links").collect();
+    const links = (await ctx.db.query("helloasso_links").collect()).filter(
+      (l) => !aboIds.has(l._id)
+    );
     const groups = await ctx.db.query("groups").collect();
     const groupLinks = await ctx.db.query("group_links").collect();
 
@@ -357,13 +392,20 @@ export const resetSeason = authenticatedMutation({
       throw new Error("Seul un administrateur peut réinitialiser la saison.");
     }
 
+    // Ne touche jamais aux dossiers/transactions du formulaire abonnements :
+    // ce reset ne concerne que les paiements des cours.
+    const aboIds = await getAboLinkIds(ctx);
     const dossiers = await ctx.db.query("dossiers").collect();
     for (const d of dossiers) {
+      if (aboIds.has(d.helloasso_link_id)) continue;
+      const txs = await ctx.db
+        .query("helloasso_transactions")
+        .withIndex("by_dossier", (q) => q.eq("dossier_id", d.dossier_id))
+        .collect();
+      for (const t of txs) {
+        await ctx.db.delete(t._id);
+      }
       await ctx.db.delete(d._id);
-    }
-    const txs = await ctx.db.query("helloasso_transactions").collect();
-    for (const t of txs) {
-      await ctx.db.delete(t._id);
     }
 
     await ctx.db.insert("season_resets", {

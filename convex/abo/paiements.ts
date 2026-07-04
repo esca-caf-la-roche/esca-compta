@@ -211,12 +211,18 @@ export async function poserLienAbo(ctx: MutationCtx, url: string): Promise<void>
   const links = await ctx.db.query("helloasso_links").collect();
   const existant = links.find((l) => memeLien(l.url, url));
   if (existant) {
-    if (existant.url !== url) await ctx.db.patch(existant._id, { url });
+    // Self-heal : marque "abonnement" même si le lien existait déjà avant
+    // l'introduction du champ `type` (évite qu'il apparaisse côté cours).
+    const patch: Record<string, unknown> = {};
+    if (existant.url !== url) patch.url = url;
+    if (existant.type !== "abonnement") patch.type = "abonnement";
+    if (Object.keys(patch).length > 0) await ctx.db.patch(existant._id, patch);
   } else {
     await ctx.db.insert("helloasso_links", {
       url,
       label: "Abonnements escalade",
       is_installment: false,
+      type: "abonnement",
     });
   }
 }
