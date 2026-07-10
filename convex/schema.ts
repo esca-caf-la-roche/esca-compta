@@ -369,6 +369,8 @@ export default defineSchema({
   }).index("by_licence", ["licence"]),
 
   // Élèves « en cours d'escalade » (passe-droit vague 2), importés de l'Excel.
+  // Colonnes mappées 1:1 sur l'export cours-export-xlsx.php du site club
+  // (structure stable d'une saison à l'autre).
   abo_eleves_en_cours: defineTable({
     licence: v.optional(v.string()),
     nom: v.optional(v.string()),
@@ -377,8 +379,36 @@ export default defineSchema({
     horaire: v.optional(v.string()),
     saison: v.optional(v.string()),
     imported_at: v.string(),
-    // Toutes les colonnes brutes de l'export xlsx (en-tête → valeur texte),
-    // y compris celles non exploitées par le matching (licence/nom/prenom/horaire).
+    // Colonne "Age".
+    age: v.optional(v.string()),
+    // Colonne "Cours".
+    cours: v.optional(v.string()),
+    // Colonne "Date de naissance".
+    date_naissance: v.optional(v.string()),
+    // Colonne "Encadrant(s)".
+    encadrants: v.optional(v.string()),
+    // Colonne "Inscription" (date d'inscription au cours).
+    date_inscription: v.optional(v.string()),
+    // Colonne "Licence <saison>" (ex: "Licence 2026 / 2027" — libellé variable).
+    licence_saison: v.optional(v.string()),
+    // Colonne "N° Licence saisi" (licence ressaisie manuellement, ≠ licence officielle).
+    licence_saisie: v.optional(v.string()),
+    // Colonne "Paiement reçu ?".
+    paiement_recu: v.optional(v.string()),
+    // Colonne "Paiements du dossier".
+    paiements_dossier: v.optional(v.string()),
+    // Colonne "Saison précédente".
+    saison_precedente: v.optional(v.string()),
+    // Colonne "Téléphone (Élève)".
+    telephone_eleve: v.optional(v.string()),
+    // Colonne "Téléphone (Gestion du dossier)".
+    telephone_gestion: v.optional(v.string()),
+    // Colonne "email (Élève)".
+    email_eleve: v.optional(v.string()),
+    // Colonne "email (Gestion du dossier)".
+    email_gestion: v.optional(v.string()),
+    // TODO(widen→migrate→narrow) : ancienne capture générique, à retirer une
+    // fois migrateSupprimerColonnesElevesEnCours passée en prod.
     colonnes: v.optional(v.record(v.string(), v.string())),
   })
     .index("by_licence", ["licence"])

@@ -49,6 +49,18 @@ export const migrateTypesDocuments = migrations.define({
   },
 });
 
+// Widen→migrate→narrow : abo_eleves_en_cours.colonnes (capture générique
+// remplacée par des champs mappés explicitement) est vidé avant d'être retiré
+// du schéma.
+export const migrateSupprimerColonnesElevesEnCours = migrations.define({
+  table: "abo_eleves_en_cours",
+  migrateOne: async (ctx, e) => {
+    if ("colonnes" in e) {
+      await ctx.db.patch(e._id, { colonnes: undefined });
+    }
+  },
+});
+
 export const seedSaisons = mutation({
   args: {},
   handler: async (ctx) => {

@@ -249,26 +249,6 @@ function normHeader(s: unknown): string {
     .trim();
 }
 
-// Clé de champ Convex valide (ASCII imprimable uniquement, ex: "N° Licence" →
-// "N Licence") ; dédoublonnée si deux en-têtes distincts se réduisent à la même clé.
-function cleColonne(entete: string, dejaVues: Set<string>): string {
-  let cle = entete
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^\x20-\x7E]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!cle || cle.startsWith("$") || cle.startsWith("_")) cle = `col_${cle}`;
-  let unique = cle;
-  let n = 2;
-  while (dejaVues.has(unique)) {
-    unique = `${cle}_${n}`;
-    n++;
-  }
-  dejaVues.add(unique);
-  return unique;
-}
-
 // Saison sportive courante (démarre vers septembre). Surchargée par IMPORT_SAISON.
 function saisonCourante(d = new Date()): string {
   if (process.env.IMPORT_SAISON) return process.env.IMPORT_SAISON;
@@ -281,7 +261,55 @@ interface LigneEleve {
   nom?: string;
   prenom?: string;
   horaire?: string;
-  colonnes: Record<string, string>;
+  age?: string;
+  cours?: string;
+  date_naissance?: string;
+  encadrants?: string;
+  date_inscription?: string;
+  licence_saison?: string;
+  licence_saisie?: string;
+  paiement_recu?: string;
+  paiements_dossier?: string;
+  saison_precedente?: string;
+  telephone_eleve?: string;
+  telephone_gestion?: string;
+  email_eleve?: string;
+  email_gestion?: string;
+}
+
+// Mapping des 18 colonnes de l'export cours-export-xlsx.php (Columns=0..17).
+// Détection par motif sur l'en-tête normalisé plutôt que par position, pour
+// rester robuste si le site club réordonne les colonnes ; le libellé "Licence
+// <saison>" change chaque année (ex: "Licence 2026 / 2027"), d'où le motif "/".
+function colonnesExport(head: string[]) {
+  return {
+    licence: head.findIndex(
+      (h) => h.includes("licence") && !h.includes("saisi") && !h.includes("/"),
+    ),
+    prenom: head.findIndex((h) => h === "prenom"),
+    nom: head.findIndex((h) => h === "nom"),
+    horaire: head.findIndex((h) => h.includes("horaire")),
+    age: head.findIndex((h) => h === "age"),
+    cours: head.findIndex((h) => h === "cours"),
+    date_naissance: head.findIndex((h) => h.includes("date de naissance")),
+    encadrants: head.findIndex((h) => h.includes("encadrant")),
+    date_inscription: head.findIndex((h) => h.includes("inscription")),
+    licence_saison: head.findIndex((h) => h.includes("licence") && h.includes("/")),
+    licence_saisie: head.findIndex((h) => h.includes("licence") && h.includes("saisi")),
+    paiement_recu: head.findIndex((h) => h.includes("paiement") && h.includes("recu")),
+    paiements_dossier: head.findIndex(
+      (h) => h.includes("paiement") && h.includes("dossier"),
+    ),
+    saison_precedente: head.findIndex(
+      (h) => h.includes("saison") && h.includes("precedente"),
+    ),
+    telephone_eleve: head.findIndex((h) => h.includes("telephone") && h.includes("eleve")),
+    telephone_gestion: head.findIndex(
+      (h) => h.includes("telephone") && h.includes("gestion"),
+    ),
+    email_eleve: head.findIndex((h) => h.includes("email") && h.includes("eleve")),
+    email_gestion: head.findIndex((h) => h.includes("email") && h.includes("gestion")),
+  };
 }
 
 function parserExport(buf: Buffer): LigneEleve[] {
@@ -298,19 +326,7 @@ function parserExport(buf: Buffer): LigneEleve[] {
   );
   if (iHead < 0) return [];
   const head = grille[iHead].map(normHeader);
-  const col = {
-    licence: head.findIndex((h) => h.includes("licence")),
-    prenom: head.findIndex((h) => h === "prenom"),
-    nom: head.findIndex((h) => h === "nom"),
-    horaire: head.findIndex((h) => h.includes("horaire")),
-  };
-  // Clés de colonnes assainies (ASCII valide), calculées une fois pour toutes
-  // les lignes à partir de la ligne d'en-tête.
-  const dejaVues = new Set<string>();
-  const clesColonnes = grille[iHead].map((entete) => {
-    const brut = String(entete ?? "").trim();
-    return brut ? cleColonne(brut, dejaVues) : null;
-  });
+  const col = colonnesExport(head);
 
   const out: LigneEleve[] = [];
   for (const row of grille.slice(iHead + 1)) {
@@ -318,18 +334,25 @@ function parserExport(buf: Buffer): LigneEleve[] {
     const nom = cell(col.nom);
     const prenom = cell(col.prenom);
     if (!nom && !prenom) continue;
-    // Toutes les colonnes brutes (en-tête d'origine → valeur), pas seulement
-    // celles exploitées par le matching (licence/nom/prenom/horaire).
-    const colonnes: Record<string, string> = {};
-    clesColonnes.forEach((cle, i) => {
-      if (cle) colonnes[cle] = cell(i);
-    });
     out.push({
       licence: cell(col.licence) || undefined,
       nom: nom || undefined,
       prenom: prenom || undefined,
       horaire: cell(col.horaire) || undefined,
-      colonnes,
+      age: cell(col.age) || undefined,
+      cours: cell(col.cours) || undefined,
+      date_naissance: cell(col.date_naissance) || undefined,
+      encadrants: cell(col.encadrants) || undefined,
+      date_inscription: cell(col.date_inscription) || undefined,
+      licence_saison: cell(col.licence_saison) || undefined,
+      licence_saisie: cell(col.licence_saisie) || undefined,
+      paiement_recu: cell(col.paiement_recu) || undefined,
+      paiements_dossier: cell(col.paiements_dossier) || undefined,
+      saison_precedente: cell(col.saison_precedente) || undefined,
+      telephone_eleve: cell(col.telephone_eleve) || undefined,
+      telephone_gestion: cell(col.telephone_gestion) || undefined,
+      email_eleve: cell(col.email_eleve) || undefined,
+      email_gestion: cell(col.email_gestion) || undefined,
     });
   }
   return out;
