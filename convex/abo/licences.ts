@@ -14,7 +14,7 @@ import {
   authenticatedMutation,
   authenticatedAction,
 } from "../customFunctions";
-import { internalMutation } from "../_generated/server";
+import { internalMutation, internalAction } from "../_generated/server";
 import type { MutationCtx } from "../_generated/server";
 import type { Doc } from "../_generated/dataModel";
 import { api, internal } from "../_generated/api";
@@ -231,7 +231,14 @@ export const importerAnnuaireLicences = authenticatedAction({
     if (!me || me.aboRole !== "admin") {
       throw new Error("Réservé aux administrateurs.");
     }
+    return await ctx.runAction(internal.abo.licences.importerAnnuaireLicencesInternal, {});
+  },
+});
 
+// ── importerAnnuaireLicencesInternal : logique partagée (cron + action admin) ──
+export const importerAnnuaireLicencesInternal = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ upsertees: number; recus: number }> => {
     const user = process.env.LICENCES_USER;
     const pass = process.env.LICENCES_PASSWORD;
     if (!user || !pass) {

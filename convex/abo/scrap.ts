@@ -261,6 +261,7 @@ interface LigneEleve {
   nom?: string;
   prenom?: string;
   horaire?: string;
+  colonnes: Record<string, string>;
 }
 
 function parserExport(buf: Buffer): LigneEleve[] {
@@ -289,11 +290,20 @@ function parserExport(buf: Buffer): LigneEleve[] {
     const nom = cell(col.nom);
     const prenom = cell(col.prenom);
     if (!nom && !prenom) continue;
+    // Toutes les colonnes brutes (en-tête d'origine → valeur), pas seulement
+    // celles exploitées par le matching (licence/nom/prenom/horaire).
+    const colonnes: Record<string, string> = {};
+    grille[iHead].forEach((entete, i) => {
+      const cle = String(entete ?? "").trim();
+      if (!cle) return;
+      colonnes[cle] = cell(i);
+    });
     out.push({
       licence: cell(col.licence) || undefined,
       nom: nom || undefined,
       prenom: prenom || undefined,
       horaire: cell(col.horaire) || undefined,
+      colonnes,
     });
   }
   return out;

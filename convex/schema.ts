@@ -377,6 +377,9 @@ export default defineSchema({
     horaire: v.optional(v.string()),
     saison: v.optional(v.string()),
     imported_at: v.string(),
+    // Toutes les colonnes brutes de l'export xlsx (en-tête → valeur texte),
+    // y compris celles non exploitées par le matching (licence/nom/prenom/horaire).
+    colonnes: v.optional(v.record(v.string(), v.string())),
   })
     .index("by_licence", ["licence"])
     .index("by_nom_prenom_normalise", ["nom_prenom_normalise"]),

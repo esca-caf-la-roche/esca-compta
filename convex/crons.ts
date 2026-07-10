@@ -30,10 +30,21 @@ crons.interval(
 );
 
 // Export « élèves en cours » (change rarement : cadence plus lâche).
-crons.interval(
+// Horaire fixe (UTC) pour garantir un écart réel avec l'annuaire des licences
+// ci-dessous (crons.interval ne permet pas de décalage relatif entre deux jobs).
+crons.cron(
   "abo import eleves en cours",
-  { hours: 6 },
+  "0 0,6,12,18 * * *",
   internal.abo.scrap.importerElevesEnCours,
+  {},
+);
+
+// Annuaire des licences club — 30 min avant l'import des élèves en cours,
+// pour que les licences soient à jour au moment du matching.
+crons.cron(
+  "abo import annuaire licences",
+  "30 23,5,11,17 * * *",
+  internal.abo.licences.importerAnnuaireLicencesInternal,
   {},
 );
 

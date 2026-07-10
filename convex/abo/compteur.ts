@@ -231,6 +231,7 @@ export const remplacerElevesEnCours = internalMutation({
         nom: v.optional(v.string()),
         prenom: v.optional(v.string()),
         horaire: v.optional(v.string()),
+        colonnes: v.optional(v.record(v.string(), v.string())),
       }),
     ),
   },
@@ -248,6 +249,7 @@ export const remplacerElevesEnCours = internalMutation({
         horaire: (l.horaire ?? "").trim() || undefined,
         saison: args.saison,
         imported_at: maintenant,
+        colonnes: l.colonnes,
       };
     };
 
