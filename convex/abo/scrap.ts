@@ -249,6 +249,26 @@ function normHeader(s: unknown): string {
     .trim();
 }
 
+// Clé de champ Convex valide (ASCII imprimable uniquement, ex: "N° Licence" →
+// "N Licence") ; dédoublonnée si deux en-têtes distincts se réduisent à la même clé.
+function cleColonne(entete: string, dejaVues: Set<string>): string {
+  let cle = entete
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^\x20-\x7E]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cle || cle.startsWith("$") || cle.startsWith("_")) cle = `col_${cle}`;
+  let unique = cle;
+  let n = 2;
+  while (dejaVues.has(unique)) {
+    unique = `${cle}_${n}`;
+    n++;
+  }
+  dejaVues.add(unique);
+  return unique;
+}
+
 // Saison sportive courante (démarre vers septembre). Surchargée par IMPORT_SAISON.
 function saisonCourante(d = new Date()): string {
   if (process.env.IMPORT_SAISON) return process.env.IMPORT_SAISON;
@@ -284,6 +304,14 @@ function parserExport(buf: Buffer): LigneEleve[] {
     nom: head.findIndex((h) => h === "nom"),
     horaire: head.findIndex((h) => h.includes("horaire")),
   };
+  // Clés de colonnes assainies (ASCII valide), calculées une fois pour toutes
+  // les lignes à partir de la ligne d'en-tête.
+  const dejaVues = new Set<string>();
+  const clesColonnes = grille[iHead].map((entete) => {
+    const brut = String(entete ?? "").trim();
+    return brut ? cleColonne(brut, dejaVues) : null;
+  });
+
   const out: LigneEleve[] = [];
   for (const row of grille.slice(iHead + 1)) {
     const cell = (i: number) => (i >= 0 ? String(row[i] ?? "").trim() : "");
@@ -293,10 +321,8 @@ function parserExport(buf: Buffer): LigneEleve[] {
     // Toutes les colonnes brutes (en-tête d'origine → valeur), pas seulement
     // celles exploitées par le matching (licence/nom/prenom/horaire).
     const colonnes: Record<string, string> = {};
-    grille[iHead].forEach((entete, i) => {
-      const cle = String(entete ?? "").trim();
-      if (!cle) return;
-      colonnes[cle] = cell(i);
+    clesColonnes.forEach((cle, i) => {
+      if (cle) colonnes[cle] = cell(i);
     });
     out.push({
       licence: cell(col.licence) || undefined,
