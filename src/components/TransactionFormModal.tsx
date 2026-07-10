@@ -137,8 +137,8 @@ export default function TransactionFormModal({ isOpen, onClose, transactionToEdi
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content fade-in" onClick={e => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="modal-content fade-in">
         <div className="modal-header">
           <h2 className="modal-title">
             {transactionToEdit ? "Modifier la Transaction" : "Nouvelle Transaction"}
