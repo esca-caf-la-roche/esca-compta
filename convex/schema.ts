@@ -407,9 +407,6 @@ export default defineSchema({
     email_eleve: v.optional(v.string()),
     // Colonne "email (Gestion du dossier)".
     email_gestion: v.optional(v.string()),
-    // TODO(widen→migrate→narrow) : ancienne capture générique, à retirer une
-    // fois migrateSupprimerColonnesElevesEnCours passée en prod.
-    colonnes: v.optional(v.record(v.string(), v.string())),
   })
     .index("by_licence", ["licence"])
     .index("by_nom_prenom_normalise", ["nom_prenom_normalise"]),
