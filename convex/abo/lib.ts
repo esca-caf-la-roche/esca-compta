@@ -32,25 +32,32 @@ export function licenceFormatOk(licence?: string | null): boolean {
   return len === 12 || len === 14;
 }
 
-// Trigrammes (avec padding, façon pg_trgm) d'une chaîne normalisée.
-function trigrammes(s: string): Set<string> {
+// Trigrammes (avec padding, façon pg_trgm) d'une chaîne normalisée. Exporté
+// pour permettre aux appelants de pré-calculer un annuaire une seule fois
+// (évite le O(n×m) de recalcul quand on compare beaucoup de candidats).
+export function trigrammes(s: string): Set<string> {
   const t = `  ${s.trim().toLowerCase()} `;
   const set = new Set<string>();
   for (let i = 0; i < t.length - 2; i++) set.add(t.slice(i, i + 3));
   return set;
 }
 
-// Similarité trigramme (Jaccard) ∈ [0,1], portage approché de pg_trgm.similarity
-// pour classer les candidats licence par proximité nom/prénom.
-export function similarite(a: string, b: string): number {
-  if (!a || !b) return 0;
-  const ta = trigrammes(a);
-  const tb = trigrammes(b);
+// Similarité trigramme (Jaccard) ∈ [0,1] à partir de deux jeux de trigrammes
+// déjà calculés — cœur de similarite(), réutilisable pour éviter de refaire
+// trigrammes() à chaque comparaison quand un côté est fixe (ex: annuaire).
+export function similariteTrigrammes(ta: Set<string>, tb: Set<string>): number {
   if (ta.size === 0 || tb.size === 0) return 0;
   let inter = 0;
   for (const g of ta) if (tb.has(g)) inter++;
   const union = ta.size + tb.size - inter;
   return union === 0 ? 0 : inter / union;
+}
+
+// Similarité trigramme (Jaccard) ∈ [0,1], portage approché de pg_trgm.similarity
+// pour classer les candidats licence par proximité nom/prénom.
+export function similarite(a: string, b: string): number {
+  if (!a || !b) return 0;
+  return similariteTrigrammes(trigrammes(a), trigrammes(b));
 }
 
 // Vrai si on est en septembre en Europe/Paris (fenêtre de tolérance licence

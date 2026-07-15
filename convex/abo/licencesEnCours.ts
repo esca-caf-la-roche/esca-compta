@@ -13,7 +13,12 @@
 
 import { authenticatedQuery } from "../customFunctions";
 import { requireTile } from "../access";
-import { normaliserNomPrenom, similarite, estSeptembreParis } from "./lib";
+import {
+  normaliserNomPrenom,
+  estSeptembreParis,
+  trigrammes,
+  similariteTrigrammes,
+} from "./lib";
 
 const SEUIL_TRGM = 0.3;
 const MAX_CANDIDATS = 5;
@@ -42,6 +47,13 @@ export const getElevesLicenceInvalide = authenticatedQuery({
     if (invalides.length === 0) return { total: 0, eleves: [] };
 
     const annuaire = await ctx.db.query("abo_licences").collect();
+    // Trigrammes de l'annuaire pré-calculés une seule fois (pas à chaque élève
+    // invalide comparé) : évite le O(n_invalides × n_annuaire) recalculs qui
+    // faisait dépasser le budget d'exécution d'une query (1s).
+    const annuaireTg = annuaire.map((l) => ({
+      l,
+      tg: trigrammes(l.nom_prenom_normalise),
+    }));
 
     const eleves = invalides.map((e) => {
       const raison: Raison =
@@ -57,13 +69,14 @@ export const getElevesLicenceInvalide = authenticatedQuery({
       }> = [];
 
       if ((e.licence ?? "").trim() === "") {
-        const inverse = normaliserNomPrenom(e.prenom, e.nom);
-        candidats = annuaire
-          .map((l) => ({
+        const tgDirecte = trigrammes(e.nom_prenom_normalise);
+        const tgInverse = trigrammes(normaliserNomPrenom(e.prenom, e.nom));
+        candidats = annuaireTg
+          .map(({ l, tg }) => ({
             l,
             score: Math.max(
-              similarite(e.nom_prenom_normalise, l.nom_prenom_normalise),
-              similarite(inverse, l.nom_prenom_normalise),
+              similariteTrigrammes(tgDirecte, tg),
+              similariteTrigrammes(tgInverse, tg),
             ),
           }))
           .filter((x) => x.score >= SEUIL_TRGM)
