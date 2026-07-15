@@ -1,7 +1,18 @@
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { ArrowLeft } from "lucide-react";
 import { api } from "../../convex/_generated/api";
+
+function errMessage(err: unknown, fallback: string): string {
+  const data = (err as { data?: unknown })?.data;
+  if (data && typeof data === "object" && "message" in data) {
+    const m = (data as { message?: unknown }).message;
+    if (typeof m === "string" && m) return m;
+  }
+  const msg = (err as { message?: unknown })?.message;
+  return typeof msg === "string" && msg ? msg : fallback;
+}
 
 // Vérification des licences FFCAM des élèves EN COURS (abo_eleves_en_cours) :
 // - Liste d'attente exclue (pas en cours).
@@ -19,6 +30,21 @@ const RAISON_LABEL: Record<string, string> = {
 
 export default function LicencesEnCours() {
   const data = useQuery(api.abo.licencesEnCours.getElevesLicenceInvalide);
+  const synchroniser = useAction(api.abo.licencesEnCours.synchroniserElevesEnCours);
+  const [syncStatut, setSyncStatut] = useState<"en_cours" | "ok" | "erreur">("en_cours");
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const lance = useRef(false);
+
+  useEffect(() => {
+    if (lance.current) return;
+    lance.current = true;
+    synchroniser({})
+      .then(() => setSyncStatut("ok"))
+      .catch((err) => {
+        setSyncStatut("erreur");
+        setSyncMsg(errMessage(err, "Échec de la synchronisation avec le site club."));
+      });
+  }, [synchroniser]);
 
   return (
     <div className="licences-cours-page" style={{ padding: "1.5rem", maxWidth: "1100px", margin: "0 auto" }}>
@@ -29,6 +55,11 @@ export default function LicencesEnCours() {
         <h1>Licences élèves en cours</h1>
         <p className="subtitle">
           Élèves en cours (hors liste d'attente) sans licence FFCAM valide pour la saison.
+        </p>
+        <p style={{ fontSize: "0.8rem", color: syncStatut === "erreur" ? "#b91c1c" : "#6b7280" }}>
+          {syncStatut === "en_cours" && "Synchronisation avec le site club en cours…"}
+          {syncStatut === "ok" && "Données à jour (synchronisées avec le site club)."}
+          {syncStatut === "erreur" && `Synchronisation échouée : ${syncMsg} — données potentiellement obsolètes.`}
         </p>
       </header>
 

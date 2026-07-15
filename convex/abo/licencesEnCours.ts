@@ -11,8 +11,10 @@
 // club, ce n'est pas la table d'identité canonique — aucune résolution n'y
 // est persistée ici (à la différence de abo/licences.ts sur abo_personnes).
 
-import { authenticatedQuery } from "../customFunctions";
+import { ConvexError } from "convex/values";
+import { authenticatedQuery, authenticatedAction } from "../customFunctions";
 import { requireTile } from "../access";
+import { api, internal } from "../_generated/api";
 import {
   normaliserNomPrenom,
   estSeptembreParis,
@@ -20,7 +22,9 @@ import {
   similariteTrigrammes,
 } from "./lib";
 
-const SEUIL_TRGM = 0.3;
+// Seuil relevé par rapport au défaut pg_trgm (0.3) : à 0.3 la liste remonte
+// beaucoup de candidats peu pertinents, peu utiles pour le suivi manuel.
+const SEUIL_TRGM = 0.5;
 const MAX_CANDIDATS = 5;
 
 type Raison = "licence_absente_hors_fenetre" | "nouvel_eleve_sans_licence";
@@ -103,10 +107,34 @@ export const getElevesLicenceInvalide = authenticatedQuery({
       };
     });
 
-    eleves.sort((a, b) =>
-      `${a.nom} ${a.prenom}`.localeCompare(`${b.nom} ${b.prenom}`, "fr"),
-    );
+    // Élèves avec une piste de correspondance d'abord (meilleur score en tête),
+    // puis les autres — plus utile pour le suivi manuel que l'ordre alpha seul.
+    eleves.sort((a, b) => {
+      const scoreA = a.candidats[0]?.score ?? -1;
+      const scoreB = b.candidats[0]?.score ?? -1;
+      if (scoreA !== scoreB) return scoreB - scoreA;
+      return `${a.nom} ${a.prenom}`.localeCompare(`${b.nom} ${b.prenom}`, "fr");
+    });
 
     return { total: eleves.length, eleves };
+  },
+});
+
+// ── synchroniserElevesEnCours : bouton "rafraîchir" / chargement de page ──
+// Relance le scrape des élèves en cours du site club avant de recalculer la
+// liste des licences invalides, pour travailler sur des données à jour.
+export const synchroniserElevesEnCours = authenticatedAction({
+  args: {},
+  handler: async (
+    ctx,
+  ): Promise<{ avecLicence: number; sansLicence: number; enAttente: number }> => {
+    const settings = await ctx.runQuery(api.users.getCurrentUserSettings, {});
+    if (!settings.allowedTiles?.includes("licences_cours")) {
+      throw new ConvexError({
+        code: "42501",
+        message: "Accès refusé : ce module ne vous est pas attribué.",
+      });
+    }
+    return await ctx.runAction(internal.abo.scrap.importerElevesEnCours, {});
   },
 });
