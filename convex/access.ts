@@ -13,7 +13,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 
 // Identifiants des tuiles/modules. Doit rester aligné avec TILE_OPTIONS
 // (src/pages/Configurations.tsx) et les tuiles du Dashboard.
-export const TILES = ["compta", "paiements", "budget", "abonnements"] as const;
+export const TILES = ["compta", "paiements", "budget", "abonnements", "licences_cours"] as const;
 export type Tile = (typeof TILES)[number];
 
 export async function getUserSettings(

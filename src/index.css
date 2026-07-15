@@ -301,6 +301,7 @@ a.btn-primary {
 .tile-card.bg-success { background-color: var(--success); }
 .tile-card.bg-warning { background-color: var(--warning); }
 .tile-card.bg-primary { background-color: var(--primary); }
+.tile-card.bg-danger { background-color: var(--danger); }
 
 .tile-card:hover {
   transform: translate(4px, 4px);

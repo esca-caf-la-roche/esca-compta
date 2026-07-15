@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import Tile from "../components/Tile";
-import { Calculator, Settings, CreditCard, PiggyBank, Mountain } from "lucide-react";
+import { Calculator, Settings, CreditCard, PiggyBank, Mountain, ShieldCheck } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 
@@ -69,6 +69,16 @@ export default function Dashboard() {
               icon={Mountain}
               to="/gestion-abonnements"
               colorClass="bg-primary"
+            />
+          )}
+
+          {userSettings.allowedTiles?.includes("licences_cours") && (
+            <Tile
+              title="Licences élèves en cours"
+              description="Vérifie les élèves en cours sans licence valide pour la saison."
+              icon={ShieldCheck}
+              to="/licences-cours"
+              colorClass="bg-danger"
             />
           )}
 

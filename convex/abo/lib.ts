@@ -52,3 +52,13 @@ export function similarite(a: string, b: string): number {
   const union = ta.size + tb.size - inter;
   return union === 0 ? 0 : inter / union;
 }
+
+// Vrai si on est en septembre en Europe/Paris (fenêtre de tolérance licence
+// N-1 pour les élèves déjà en cours la saison précédente).
+export function estSeptembreParis(nowMs: number): boolean {
+  const mois = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Paris",
+    month: "numeric",
+  }).format(new Date(nowMs));
+  return Number(mois) === 9;
+}

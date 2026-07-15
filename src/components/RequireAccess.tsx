@@ -7,7 +7,7 @@ import { api } from "../../convex/_generated/api";
 type Props = {
   children: ReactNode;
   /** Tuile requise (cochée dans Configurations > Utilisateurs). */
-  tile?: "compta" | "paiements" | "budget" | "abonnements";
+  tile?: "compta" | "paiements" | "budget" | "abonnements" | "licences_cours";
   /** Réservé au rôle admin (page Configurations uniquement). */
   admin?: boolean;
 };

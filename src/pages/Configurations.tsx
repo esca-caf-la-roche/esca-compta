@@ -4,6 +4,9 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Save, Star, Trash2, Users, Calendar, Shield, Edit2, X, Check, ArrowLeft, Plus } from "lucide-react";
 import type { Id } from "../../convex/_generated/dataModel";
+import type { FunctionReturnType } from "convex/server";
+
+type ListedUser = FunctionReturnType<typeof api.users.listUsers>[number];
 
 /** Message d'erreur lisible : privilégie la charge utile d'une ConvexError
  * (error.data), transmise même en production, sinon retombe sur error.message. */
@@ -121,9 +124,9 @@ export default function Configurations() {
       await addUser({ email, name });
       setNewUserEmail("");
       setNewUserName("");
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      alert(err.message || "Erreur lors de l'ajout.");
+      alert(errMessage(err, "Erreur lors de l'ajout."));
     } finally {
       setIsSubmittingUser(false);
     }
@@ -133,14 +136,14 @@ export default function Configurations() {
     if (window.confirm("Êtes-vous sûr de vouloir supprimer cet utilisateur ? Il ne pourra plus se connecter.")) {
       try {
         await removeUser({ userId: id });
-      } catch (err: any) {
+      } catch (err) {
         console.error(err);
-        alert(err.message || "Erreur lors de la suppression.");
+        alert(errMessage(err, "Erreur lors de la suppression."));
       }
     }
   };
 
-  const startEditingUser = (user: any) => {
+  const startEditingUser = (user: ListedUser) => {
     setEditingUserId(user._id);
     setEditName(user.name || "");
     setEditRole(user.settings?.role || "user");
@@ -161,9 +164,9 @@ export default function Configurations() {
         allowedTiles: editTiles,
       });
       setEditingUserId(null);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      alert(err.message || "Erreur lors de la mise à jour.");
+      alert(errMessage(err, "Erreur lors de la mise à jour."));
     }
   };
 
@@ -178,6 +181,7 @@ export default function Configurations() {
     { id: "paiements", label: "Paiements Escalade" },
     { id: "budget", label: "Budget prévisionnel" },
     { id: "abonnements", label: "Abonnements Escalade" },
+    { id: "licences_cours", label: "Licences élèves en cours" },
   ];
 
   return (

@@ -18,7 +18,8 @@ export default function Layout() {
   // (chacune gère son propre reset manuel) : on masque le sélecteur sur ces écrans.
   const showSeasonSelector =
     !location.pathname.startsWith("/paiements") &&
-    !location.pathname.startsWith("/gestion-abonnements");
+    !location.pathname.startsWith("/gestion-abonnements") &&
+    !location.pathname.startsWith("/licences-cours");
 
   if (isLoading) {
     return <div className="loading-screen">Chargement...</div>;
