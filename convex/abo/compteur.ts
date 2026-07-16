@@ -16,6 +16,7 @@ import { authenticatedQuery, authenticatedMutation } from "../customFunctions";
 import { requireAboAdmin } from "./auth";
 import { vagueCourante, getConfigValeur } from "./config";
 import { canoniserLicence, normaliserNomPrenom } from "./lib";
+import { champsModifies } from "../dbUtils";
 
 const PLACES_MAX_DEFAUT = 350;
 
@@ -289,7 +290,13 @@ export const remplacerElevesEnCours = internalMutation({
         .withIndex("by_licence", (q) => q.eq("licence", licence))
         .first();
       if (existant) {
-        await ctx.db.patch(existant._id, doc(l, licence));
+        // `imported_at` change à chaque import : ignoré pour ne réécrire (et ne
+        // réinvalider la tuile "licences élèves en cours") qu'en cas de vrai
+        // changement des données de l'élève.
+        const nouveau = doc(l, licence);
+        if (champsModifies(existant, nouveau, ["imported_at"])) {
+          await ctx.db.patch(existant._id, nouveau);
+        }
       } else {
         await ctx.db.insert("abo_eleves_en_cours", doc(l, licence));
       }

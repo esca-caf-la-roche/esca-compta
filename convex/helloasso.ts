@@ -1,8 +1,12 @@
+/* eslint-disable @typescript-eslint/no-explicit-any --
+   Les payloads de l'API HelloAsso (paiements, payeur, items…) ne sont pas typés :
+   on les manipule en `any` de façon délibérée et bornée dans ce fichier. */
 import { v } from "convex/values";
 import { internalMutation, internalQuery, internalAction } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
 import { authenticatedAction } from "./customFunctions";
 import { internal } from "./_generated/api";
+import { champsModifies } from "./dbUtils";
 
 // --- HELPERS ---
 const HA_TOKEN_URL = "https://api.helloasso.com/oauth2/token";
@@ -153,18 +157,22 @@ export const upsertDossiers = internalMutation({
         .first();
 
       if (existing) {
-        // On ne touche PAS aux champs locaux (local_status, comment, updated_*)
-        await ctx.db.patch(existing._id, {
-          helloasso_link_id: d.helloasso_link_id,
-          first_name: d.first_name,
-          last_name: d.last_name,
-          email: d.email,
-          phone: d.phone,
-          payer_first_name: d.payer_first_name,
-          payer_last_name: d.payer_last_name,
-          payer_email: d.payer_email,
-          total_amount: d.total_amount,
-        });
+        // On ne touche PAS aux champs locaux (local_status, comment, updated_*).
+        // Patch seulement si un champ HelloAsso a réellement changé : sinon on
+        // évite un write inutile ET la re-lecture temps réel de la table.
+        if (champsModifies(existing, d)) {
+          await ctx.db.patch(existing._id, {
+            helloasso_link_id: d.helloasso_link_id,
+            first_name: d.first_name,
+            last_name: d.last_name,
+            email: d.email,
+            phone: d.phone,
+            payer_first_name: d.payer_first_name,
+            payer_last_name: d.payer_last_name,
+            payer_email: d.payer_email,
+            total_amount: d.total_amount,
+          });
+        }
       } else {
         await ctx.db.insert("dossiers", d);
       }
@@ -200,7 +208,11 @@ export const upsertTransactions = internalMutation({
         )
         .first();
       if (existing) {
-        await ctx.db.patch(existing._id, t);
+        // `synced_at` change à chaque sync : on l'ignore pour ne réécrire que
+        // sur un vrai changement (montant, statut, reçus…).
+        if (champsModifies(existing, t, ["synced_at"])) {
+          await ctx.db.patch(existing._id, t);
+        }
       } else {
         await ctx.db.insert("helloasso_transactions", t);
       }

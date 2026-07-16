@@ -20,6 +20,7 @@ import type { Doc } from "../_generated/dataModel";
 import { api, internal } from "../_generated/api";
 import { requireAboAdmin } from "./auth";
 import { canoniserLicence, normaliserNomPrenom, similarite } from "./lib";
+import { champsModifies } from "../dbUtils";
 
 // Annuaire des licences du club (export JSON protégé par Basic Auth DÉDIÉE).
 const URL_ANNUAIRE =
@@ -204,7 +205,12 @@ export const upsertLicencesBatch = internalMutation({
         .withIndex("by_licence", (q) => q.eq("licence", licence))
         .first();
       if (existant) {
-        await ctx.db.patch(existant._id, doc);
+        // `imported_at` change à chaque import : ignoré pour ne réécrire (et ne
+        // réinvalider les queries de résolution/candidats) qu'en cas de vrai
+        // changement nom/prénom de la fiche annuaire.
+        if (champsModifies(existant, doc, ["imported_at"])) {
+          await ctx.db.patch(existant._id, doc);
+        }
       } else {
         await ctx.db.insert("abo_licences", doc);
       }

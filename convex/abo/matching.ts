@@ -15,6 +15,7 @@ import { v } from "convex/values";
 import { internalMutation } from "../_generated/server";
 import { canoniserLicence, normaliserNomPrenom } from "./lib";
 import { trouverLienAbo, estRemboursement } from "./paiements";
+import { champsModifies } from "../dbUtils";
 
 // ── upsertAbonnesScrapBatch : miroir brut de la page club (par licence) ──
 // Comme le scrap Supabase, on n'écrit QUE les lignes ayant une licence (clé
@@ -71,7 +72,12 @@ export const upsertAbonnesScrapBatch = internalMutation({
         .withIndex("by_licence", (q) => q.eq("licence", licence))
         .first();
       if (existant) {
-        await ctx.db.patch(existant._id, doc);
+        // `last_scrap_at` change à chaque passage : on l'ignore pour ne
+        // réécrire (et ne réinvalider les queries temps réel) qu'en cas de
+        // vrai changement des données de l'abonné·e.
+        if (champsModifies(existant, doc, ["last_scrap_at"])) {
+          await ctx.db.patch(existant._id, doc);
+        }
       } else {
         await ctx.db.insert("abo_abonnes_scrap", doc);
       }
@@ -183,8 +189,13 @@ export const matcherScrapPersonnes = internalMutation({
         patch.licence = licenceResolue;
         patch.licence_statut = "annuaire_auto";
       }
-      await ctx.db.patch(p._id, patch);
-      maj++;
+      // Patch seulement si au moins une étape/valeur change réellement : évite
+      // de réécrire toutes les personnes matchées à chaque scrap (write + read
+      // amplification sur abo_personnes, table lue par plusieurs tuiles).
+      if (champsModifies(p, patch)) {
+        await ctx.db.patch(p._id, patch);
+        maj++;
+      }
     }
 
     return maj;
