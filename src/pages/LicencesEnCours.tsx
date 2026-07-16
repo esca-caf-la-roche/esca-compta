@@ -30,7 +30,7 @@ const RAISON_LABEL: Record<string, string> = {
 
 export default function LicencesEnCours() {
   const data = useQuery(api.abo.licencesEnCours.getElevesLicenceInvalide);
-  const synchroniser = useAction(api.abo.licencesEnCours.synchroniserElevesEnCours);
+  const synchroniser = useAction(api.abo.sync.syncPourLicencesCours);
   const [syncStatut, setSyncStatut] = useState<"en_cours" | "ok" | "erreur">("en_cours");
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const lance = useRef(false);

@@ -1,51 +1,23 @@
-// Crons Convex — Phase H (module Abonnements escalade).
-// Tâches planifiées d'alimentation des données du module :
-//   - scrap des abonnés du site club (+ matching scrap → personnes) ;
-//   - synchro HelloAsso (dossiers/transactions, préserve les statuts locaux) ;
-//   - import de l'export « élèves en cours » (passe-droit vague 2).
+// Crons Convex — VOLONTAIREMENT VIDES.
 //
-// Fréquences volontairement modérées (le site club n'a pas d'API : on limite la
-// charge) et ajustables. Le bouton admin « Synchroniser maintenant »
-// (abo/scrap.synchroniserClub) permet un déclenchement manuel entre deux crons.
+// Les synchros du module Abonnements (scrap abonnés club, sync HelloAsso, import
+// des élèves en cours, import de l'annuaire des licences) tournaient ici en crons
+// horaires 24/7. Elles consommaient énormément de Database I/O même la nuit / hors
+// période d'inscriptions, alors que ce sont des données consultées par à-coups.
+//
+// Elles sont désormais déclenchées EN ON-DEMAND au chargement des pages qui en ont
+// besoin, avec un verrou anti-rejeu partagé (TTL ~1 h) — voir convex/abo/sync.ts :
+//   - page Validation paiements cours → syncPourPaiements (HelloAsso)
+//   - espace admin abonnements        → syncPourAbo (HelloAsso → scrap → annuaire → élèves)
+//   - tuile licences élèves en cours   → syncPourLicencesCours (annuaire + élèves)
+//
+// ⚠️ Conséquence assumée : le compteur public (iframe du site club) ne se
+// rafraîchit que lorsqu'un admin ouvre l'appli. Si un jour il faut garantir sa
+// fraîcheur hors présence admin, rétablir ICI un unique cron lâche sur le scrap
+// (internal.abo.scrap.scraperAbonnes), à cadence espacée.
 
 import { cronJobs } from "convex/server";
-import { internal } from "./_generated/api";
 
 const crons = cronJobs();
-
-// Abonnés club → abo_abonnes_scrap + matching des étapes des personnes.
-crons.interval(
-  "abo scrap abonnes club",
-  { hours: 1 },
-  internal.abo.scrap.scraperAbonnes,
-  {},
-);
-
-// HelloAsso → dossiers/transactions (formulaire abo + cours ; champs locaux préservés).
-crons.interval(
-  "abo sync helloasso",
-  { hours: 1 },
-  internal.helloasso.syncHelloAssoInternal,
-  {},
-);
-
-// Export « élèves en cours » (change rarement : cadence plus lâche).
-// Horaire fixe (UTC) pour garantir un écart réel avec l'annuaire des licences
-// ci-dessous (crons.interval ne permet pas de décalage relatif entre deux jobs).
-crons.cron(
-  "abo import eleves en cours",
-  "0 0,6,12,18 * * *",
-  internal.abo.scrap.importerElevesEnCours,
-  {},
-);
-
-// Annuaire des licences club — 30 min avant l'import des élèves en cours,
-// pour que les licences soient à jour au moment du matching.
-crons.cron(
-  "abo import annuaire licences",
-  "30 23,5,11,17 * * *",
-  internal.abo.licences.importerAnnuaireLicencesInternal,
-  {},
-);
 
 export default crons;

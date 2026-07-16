@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { ArrowLeft } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import Dossiers from "./Dossiers";
@@ -27,6 +27,21 @@ const TABS: { id: Vue; label: string }[] = [
 export default function AboAdmin() {
   const me = useQuery(api.abo.identity.me);
   const [vue, setVue] = useState<Vue>("dossiers");
+
+  // Synchro on-demand au chargement (throttle serveur ~1 h) : remplace les crons
+  // horaires. Non-bloquante — les vues lisent le cache et se rafraîchissent
+  // toutes seules quand les données changent. Ordre géré côté serveur
+  // (HelloAsso → scrap → annuaire → élèves).
+  const syncAbo = useAction(api.abo.sync.syncPourAbo);
+  const syncLance = useRef(false);
+  useEffect(() => {
+    if (syncLance.current || me?.aboRole !== "admin") return;
+    syncLance.current = true;
+    void syncAbo({}).catch(() => {
+      /* échec silencieux : les crons n'existent plus, une source externe peut
+         être temporairement indisponible sans casser l'espace admin. */
+    });
+  }, [syncAbo, me]);
 
   if (me === undefined) {
     return <div style={{ padding: "2rem" }}>Chargement…</div>;
