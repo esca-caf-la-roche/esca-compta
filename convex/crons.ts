@@ -14,7 +14,9 @@
 // ⚠️ Conséquence assumée : le compteur public (iframe du site club) ne se
 // rafraîchit que lorsqu'un admin ouvre l'appli. Si un jour il faut garantir sa
 // fraîcheur hors présence admin, rétablir ICI un unique cron lâche sur le scrap
-// (internal.abo.scrap.scraperAbonnes), à cadence espacée.
+// (internal.abo.scrap.scraperAbonnes), à cadence espacée — précédé d'un
+// commentaire `// CRON-OK: <raison>` (sinon le hook check-cron-justification.mjs
+// bloque l'ajout d'un cron).
 
 import { cronJobs } from "convex/server";
 

@@ -47,6 +47,12 @@ Backfills et déduplications passent par des migrations versionnées dans
 Toujours tester la migration sur DEV avant la prod ; l'exécution `--prod`
 requiert l'accord explicite de l'utilisateur (hook de confirmation).
 
+**Upserts idempotents (Database I/O).** Backfills et imports récurrents
+comparent avant d'écrire avec `champsModifies(existant, doc, [tamponsVolatils])`
+(`convex/dbUtils.ts`) : ne jamais réécrire une fiche inchangée (les tampons de
+date `imported_at`/`synced_at`/… ne comptent pas). Un write inutile = write
+facturé + re-lecture temps réel de toute la table. Voir CLAUDE.md § DATABASE I/O.
+
 ## Vérification finale
 
 `npx convex dev --once` passe (schéma valide contre les données dev), puis

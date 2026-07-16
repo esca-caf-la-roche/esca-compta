@@ -19,6 +19,15 @@ Pour un audit Convex approfondi, appuie-toi sur le skill
 - **Réactivité** : chaque `useQuery` est une souscription — une query trop
   large se ré-exécute à chaque écriture sur les tables lues. Découper les
   queries par besoin d'affichage.
+- **Write amplification** : un upsert (sync/import) qui `patch()` chaque fiche à
+  chaque passage — souvent à cause d'un tampon de date volatil qui change
+  toujours — facture des écritures inutiles ET réinvalide toutes les
+  souscriptions de la table (re-lecture complète). Finding si `champsModifies`
+  (`convex/dbUtils.ts`) n'est pas utilisé.
+- **Crons 24/7** : un cron qui rejoue une sync externe consomme du Database I/O
+  même sans utilisateur connecté. Préférer l'on-demand throttlé
+  (`convex/abo/sync.ts`) ; cron seulement pour une donnée qui doit rester fraîche
+  hors présence (compteur public), à cadence lâche.
 - **OCC** : mutations qui lisent+écrivent un même document chaud
   (compteurs) → conflits ; sharder ou réduire la fenêtre de conflit.
 - **Pagination** : listes non bornées (transactions d'une saison, dossiers

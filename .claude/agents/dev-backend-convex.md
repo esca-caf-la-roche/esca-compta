@@ -47,7 +47,17 @@ La saison arrive en argument depuis le front. Voir skill `tuile-saison`.
   `email.ts`, Google APIs dans `drive.ts`, HelloAsso) ; une action appelle
   des `internal.*` queries/mutations, jamais `ctx.db` directement.
 - **Scheduler / crons** : `convex/crons.ts` ; les fonctions planifiées sont
-  des `internal*`.
+  des `internal*`. ⚠️ PAS de nouveau cron pour synchroniser des données externes
+  (scrap, HelloAsso, imports) : utiliser le pattern on-demand throttlé de
+  `convex/abo/sync.ts` (verrou partagé `reserverSync` dans `abo_app_config`,
+  TTL ~1 h, ordre des dépendances respecté). Un cron uniquement si la donnée
+  doit rester fraîche sans utilisateur, à cadence lâche, et justifié par un
+  commentaire `// CRON-OK: <raison>` (le hook `check-cron-justification.mjs`
+  bloque sinon). Voir CLAUDE.md § DATABASE I/O.
+- **Upserts idempotents (Database I/O)** : tout upsert (sync/import/backfill)
+  compare avec `champsModifies(existant, doc, [tamponsVolatils])`
+  (`convex/dbUtils.ts`) et NE patche PAS si seul un tampon de date change — un
+  write inutile facture l'écriture ET force la re-lecture temps réel de la table.
 - **Erreurs** : lever des `ConvexError` (jamais `Error` : masqué en
   "Server Error" en prod ; le client lit `error.data`).
 - **Migrations** : passer par l'agent `data-engineer` / skill

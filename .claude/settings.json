@@ -25,6 +25,10 @@
           },
           {
             "type": "command",
+            "command": "node .claude/hooks/check-cron-justification.mjs"
+          },
+          {
+            "type": "command",
             "command": "node .claude/hooks/check-eslint.mjs"
           }
         ]

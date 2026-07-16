@@ -89,6 +89,11 @@ Quelle que soit la réponse saison, une nouvelle tuile exige aussi :
    condition de rôle) ;
 4. la route gardée dans `App.tsx` (`<RequireAccess tile="<tuile>">…`) ;
 5. cocher la tuile pour les comptes concernés dans Configurations.
+6. **si la tuile rafraîchit des données externes** (scrap, API, import
+   récurrent) : synchro **on-demand throttlée** (`convex/abo/sync.ts` : verrou
+   partagé dans `abo_app_config`, TTL ~1 h), **jamais** un cron horaire ; et
+   **upserts idempotents** (`champsModifies` de `convex/dbUtils.ts`, ne pas
+   réécrire sur un simple tampon de date). Voir CLAUDE.md § DATABASE I/O.
 
 ## 4. Checklist finale (copier/cocher)
 
