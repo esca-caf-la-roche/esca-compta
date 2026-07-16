@@ -1,3 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any --
+   Les dossiers / transactions / groupes exposés par api.paiements.getDossiers
+   proviennent de payloads HelloAsso non typés : on les manipule en `any` de
+   façon délibérée et bornée dans cette page (comme dans convex/helloasso.ts). */
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -551,6 +555,7 @@ export default function ValidationPaiements() {
   const setDossierStatus = useMutation(api.paiements.setDossierStatus);
   const resetDossierStatus = useMutation(api.paiements.resetDossierStatus);
   const syncHelloAsso = useAction(api.helloasso.syncHelloAsso);
+  const syncPourPaiements = useAction(api.abo.sync.syncPourPaiements);
 
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -560,10 +565,13 @@ export default function ValidationPaiements() {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("À traiter");
   const [filterType, setFilterType] = useState("");
-  const [filterResponsible, setFilterResponsible] = useState("");
-  const [respInit, setRespInit] = useState(false);
+  // null = pas encore choisi → le filtre par défaut est DÉRIVÉ sur l'utilisateur
+  // courant (aucun setState dans un effet). Une sélection explicite (ou Reset)
+  // fixe la valeur.
+  const [filterResponsible, setFilterResponsible] = useState<string | null>(null);
 
   const isSuperuser = settings?.role === "admin";
+  const effectiveResponsible = filterResponsible ?? currentUser?._id ?? "";
 
   const runSync = useCallback(async () => {
     setSyncing(true);
@@ -582,18 +590,16 @@ export default function ValidationPaiements() {
     }
   }, [syncHelloAsso]);
 
-  // Sync automatique au montage
+  // Synchro HelloAsso THROTTLÉE (verrou serveur ~1 h, api.abo.sync) au montage :
+  // non-bloquante, elle évite de refetch l'API HelloAsso + relire
+  // dossiers/transactions à chaque ouverture de page. Le bouton « Sync » ci-dessous
+  // force une synchro immédiate hors verrou. Pas de setState ici : la liste se
+  // rafraîchit toute seule via les useQuery.
   useEffect(() => {
-    void runSync();
-  }, [runSync]);
-
-  // Filtre responsable par défaut = utilisateur courant
-  useEffect(() => {
-    if (currentUser?._id && !respInit) {
-      setFilterResponsible(currentUser._id);
-      setRespInit(true);
-    }
-  }, [currentUser, respInit]);
+    void syncPourPaiements({}).catch((e) => {
+      console.warn("[sync] synchro throttlée paiements échouée:", e);
+    });
+  }, [syncPourPaiements]);
 
   const allDossiers = dossiers ?? [];
 
@@ -615,16 +621,16 @@ export default function ValidationPaiements() {
       }
       if (filterType === "1x" && d.is_installment) return false;
       if (filterType === "3x" && !d.is_installment) return false;
-      if (filterResponsible) {
-        if (filterResponsible === "none") {
+      if (effectiveResponsible) {
+        if (effectiveResponsible === "none") {
           if (d.responsible_id !== null) return false;
-        } else if (d.responsible_id !== filterResponsible) {
+        } else if (d.responsible_id !== effectiveResponsible) {
           return false;
         }
       }
       return true;
     });
-  }, [allDossiers, search, filterStatus, filterType, filterResponsible]);
+  }, [allDossiers, search, filterStatus, filterType, effectiveResponsible]);
 
   const loading = dossiers === undefined;
   const resps = responsibles ?? [];
@@ -712,7 +718,7 @@ export default function ValidationPaiements() {
         </select>
         <select
           className="pay-select"
-          value={filterResponsible}
+          value={effectiveResponsible}
           onChange={(e) => setFilterResponsible(e.target.value)}
         >
           <option value="">Tous les responsables</option>
@@ -723,7 +729,7 @@ export default function ValidationPaiements() {
           ))}
           <option value="none">Sans responsable</option>
         </select>
-        {(search || filterType || filterResponsible || filterStatus !== "À traiter") && (
+        {(search || filterType || effectiveResponsible || filterStatus !== "À traiter") && (
           <button
             className="pay-btn pay-btn-sm"
             onClick={() => {
