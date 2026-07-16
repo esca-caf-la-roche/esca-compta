@@ -220,8 +220,10 @@ export const setPlacesMax = authenticatedMutation({
 
 // ── remplacerElevesEnCours : import (interne, appelé par le scrap Phase H) ──
 // Reçoit les lignes DÉJÀ filtrées (hors « Liste d'attente »). Upsert par licence
-// canonique ; les lignes sans licence (matching nom+prénom) sont rafraîchies par
-// saison (purge ciblée puis insertion) pour rester idempotent au fil des imports.
+// canonique ; les lignes sans licence (matching nom+prénom) sont réconciliées par
+// (saison, nom_prenom_normalise) en n'écrivant QUE le vrai delta (patch si un champ
+// non volatil change, insert des nouveaux, delete des seuls disparus) — idempotent
+// comme la branche avec licence, pour ne pas réinvalider la tuile à chaque import.
 // La liste des élèves d'une saison tient dans une transaction (quelques centaines).
 export const remplacerElevesEnCours = internalMutation({
   args: {
@@ -303,22 +305,48 @@ export const remplacerElevesEnCours = internalMutation({
       avecLicence++;
     }
 
-    // 2) Lignes SANS licence : purge ciblée de la saison (index by_licence sur
-    //    undefined) puis réinsertion — idempotent.
-    const sansLicenceExistants = await ctx.db
-      .query("abo_eleves_en_cours")
-      .withIndex("by_licence", (q) => q.eq("licence", undefined))
-      .collect();
+    // 2) Lignes SANS licence : réconciliation par (saison, nom_prenom_normalise).
+    //    On récupère les existants de la saison (index by_licence sur undefined,
+    //    filtré saison) et on n'écrit que le delta : patch si un champ non volatil
+    //    change (imported_at ignoré), insert des nouveaux, delete des seuls
+    //    réellement disparus. Évite le churn d'écritures + la réinvalidation
+    //    temps réel de la tuile à chaque import quand rien ne bouge.
+    const sansLicenceExistants = (
+      await ctx.db
+        .query("abo_eleves_en_cours")
+        .withIndex("by_licence", (q) => q.eq("licence", undefined))
+        .collect()
+    ).filter((e) => e.saison === args.saison);
+
+    // Regroupement par nom (des homonymes peuvent partager nom_prenom_normalise) :
+    // un shift() par appariement consomme un existant, façon multiset.
+    const existantsParNom = new Map<string, typeof sansLicenceExistants>();
     for (const e of sansLicenceExistants) {
-      if (e.saison === args.saison) await ctx.db.delete(e._id);
+      const arr = existantsParNom.get(e.nom_prenom_normalise);
+      if (arr) arr.push(e);
+      else existantsParNom.set(e.nom_prenom_normalise, [e]);
     }
+
     let sansLicence = 0;
     for (const l of args.lignes) {
       if (canoniserLicence(l.licence)) continue;
       // On n'insère que des lignes nominatives (au moins un nom/prénom).
       if (!(l.nom ?? "").trim() && !(l.prenom ?? "").trim()) continue;
-      await ctx.db.insert("abo_eleves_en_cours", doc(l, undefined));
       sansLicence++;
+      const nouveau = doc(l, undefined);
+      const existant = existantsParNom.get(nouveau.nom_prenom_normalise)?.shift();
+      if (existant) {
+        if (champsModifies(existant, nouveau, ["imported_at"])) {
+          await ctx.db.patch(existant._id, nouveau);
+        }
+      } else {
+        await ctx.db.insert("abo_eleves_en_cours", nouveau);
+      }
+    }
+
+    // Existants non ré-appariés = disparus de l'import → suppression.
+    for (const restants of existantsParNom.values()) {
+      for (const e of restants) await ctx.db.delete(e._id);
     }
 
     return { avecLicence, sansLicence };
