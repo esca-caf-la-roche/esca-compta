@@ -66,6 +66,9 @@ export default function Configuration() {
 
   useEffect(() => {
     if (!cfg) return;
+    // Synchronisation volontaire des champs éditables lors du chargement
+    // asynchrone de la configuration serveur.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPlaces(cfg.places_max ?? "350");
     setLiensState({
       licence_nouvelle: cfg.licence_lien_nouvelle ?? "",

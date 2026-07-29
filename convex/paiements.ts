@@ -243,7 +243,10 @@ export const getDossiers = authenticatedQuery({
 
     const linksMap = new Map(links.map((l) => [l._id, l]));
     // link_id -> [group_id]
-    const linkToGroups = new Map<string, string[]>();
+    const linkToGroups = new Map<
+      Id<"helloasso_links">,
+      Id<"groups">[]
+    >();
     for (const gl of groupLinks) {
       const arr = linkToGroups.get(gl.link_id) ?? [];
       arr.push(gl.group_id);
@@ -264,9 +267,9 @@ export const getDossiers = authenticatedQuery({
 
       const groupIds = linkToGroups.get(link._id) ?? [];
       const dossierGroups = groupIds
-        .map((gid) => groupsMap.get(gid as any))
-        .filter(Boolean)
-        .map((g: any) => ({
+        .map((gid) => groupsMap.get(gid))
+        .filter((g) => g !== undefined)
+        .map((g) => ({
           id: g._id,
           name: g.name,
           requires_approval: g.requires_approval,

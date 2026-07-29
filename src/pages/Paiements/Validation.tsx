@@ -601,7 +601,7 @@ export default function ValidationPaiements() {
     });
   }, [syncPourPaiements]);
 
-  const allDossiers = dossiers ?? [];
+  const allDossiers = useMemo(() => dossiers ?? [], [dossiers]);
 
   const filtered = useMemo(() => {
     const q = normalise(search.trim());

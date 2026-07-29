@@ -16,6 +16,15 @@ type GroupForm = {
   link_ids: string[];
 };
 
+type Links = NonNullable<
+  ReturnType<typeof useQuery<typeof api.paiements.getLinks>>
+>;
+type LinkRow = Links[number];
+type Groups = NonNullable<
+  ReturnType<typeof useQuery<typeof api.paiements.getGroups>>
+>;
+type GroupRow = Groups[number];
+
 const EMPTY_LINK: LinkForm = {
   url: "",
   label: "",
@@ -64,8 +73,8 @@ function LinksSection({
   groups,
   responsibles,
 }: {
-  links: any[];
-  groups: any[];
+  links: Links;
+  groups: Groups;
   responsibles: { id: string; name: string }[];
 }) {
   const addLink = useMutation(api.paiements.addLink);
@@ -84,7 +93,7 @@ function LinksSection({
     setError(null);
     setShowForm(true);
   };
-  const openEdit = (l: any) => {
+  const openEdit = (l: LinkRow) => {
     setEditId(l._id);
     setForm({
       url: l.url,
@@ -132,7 +141,7 @@ function LinksSection({
     }
   };
 
-  const remove = async (l: any) => {
+  const remove = async (l: LinkRow) => {
     if (
       !window.confirm(
         `Supprimer le lien "${l.label}" ?\n\nAttention : les dossiers, transactions et statuts associés seront aussi supprimés.`
@@ -316,7 +325,7 @@ function LinksSection({
 
 // ─── Groupes ───────────────────────────────────────────────────────────────
 
-function GroupsSection({ groups, links }: { groups: any[]; links: any[] }) {
+function GroupsSection({ groups, links }: { groups: Groups; links: Links }) {
   const addGroup = useMutation(api.paiements.addGroup);
   const updateGroup = useMutation(api.paiements.updateGroup);
   const deleteGroup = useMutation(api.paiements.deleteGroup);
@@ -333,7 +342,7 @@ function GroupsSection({ groups, links }: { groups: any[]; links: any[] }) {
     setError(null);
     setShowForm(true);
   };
-  const openEdit = (g: any) => {
+  const openEdit = (g: GroupRow) => {
     setEditId(g._id);
     setForm({
       name: g.name,
@@ -382,7 +391,7 @@ function GroupsSection({ groups, links }: { groups: any[]; links: any[] }) {
     }
   };
 
-  const remove = async (g: any) => {
+  const remove = async (g: GroupRow) => {
     if (!window.confirm(`Supprimer le groupe "${g.name}" ?`)) return;
     try {
       await deleteGroup({ id: g._id });

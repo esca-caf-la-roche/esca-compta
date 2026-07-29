@@ -38,6 +38,8 @@ export default function ParametresPaieForm({ saison, params }: Props) {
 
   // Recharge le formulaire quand la saison (ou ses paramètres) change.
   useEffect(() => {
+    // Réinitialisation volontaire du brouillon quand la source change.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setForm(params);
     setSavedAt(null);
   }, [saison, params]);

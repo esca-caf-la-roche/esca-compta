@@ -51,6 +51,8 @@ export default function SalarieFormModal({ isOpen, onClose, salarieToEdit }: Pro
   useEffect(() => {
     if (!isOpen) return;
     if (salarieToEdit) {
+      // Réinitialisation volontaire du formulaire à chaque ouverture.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNom(salarieToEdit.nom);
       setTypeContrat(salarieToEdit.typeContrat);
       setNbMois(String(salarieToEdit.nbMois));

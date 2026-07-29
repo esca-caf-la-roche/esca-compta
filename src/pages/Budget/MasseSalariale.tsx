@@ -58,9 +58,15 @@ export default function MasseSalariale() {
     try {
       const res = await reprendreSaisonPrecedente({ saison: season });
       if (!silent) alert(res.message);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      if (!silent) alert(err.message || "Erreur lors de la reprise de la saison précédente.");
+      if (!silent) {
+        alert(
+          err instanceof Error
+            ? err.message
+            : "Erreur lors de la reprise de la saison précédente.",
+        );
+      }
     } finally {
       setReprise(false);
     }
@@ -86,6 +92,8 @@ export default function MasseSalariale() {
       !reprise &&
       autoSeason !== season
     ) {
+      // Déclenchement volontaire d'une seule reprise automatique par saison.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAutoSeason(season);
       void handleReprise(true);
     }
@@ -164,7 +172,8 @@ export default function MasseSalariale() {
   const toggleExpanded = (id: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };

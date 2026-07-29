@@ -3,6 +3,11 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
+type ApprovedStudents = NonNullable<
+  ReturnType<typeof useQuery<typeof api.paiements.getApprovedStudents>>
+>;
+type ApprovedStudent = ApprovedStudents[number];
+
 function normalise(s: string): string {
   return s
     .toLowerCase()
@@ -41,7 +46,7 @@ export default function ApprobationsPaiements() {
   );
 
   const studentsByGroup = useMemo(() => {
-    const map = new Map<string, any[]>();
+    const map = new Map<string, ApprovedStudent[]>();
     for (const g of approvalGroups) map.set(g._id, []);
     for (const s of approvedStudents ?? []) {
       if (map.has(s.group_id)) map.get(s.group_id)!.push(s);
@@ -78,7 +83,7 @@ export default function ApprobationsPaiements() {
     }
   };
 
-  const startEdit = (s: any) => {
+  const startEdit = (s: ApprovedStudent) => {
     setEditingId(s.id);
     setEditFirst(s.first_name);
     setEditLast(s.last_name);
@@ -230,7 +235,7 @@ export default function ApprobationsPaiements() {
                       groupStudents.map((student) => {
                         const isProcessed = (dossiers ?? []).some((d) => {
                           if (d.local_status !== "Traité") return false;
-                          if (!d.groups.some((g: any) => g.id === student.group_id))
+                          if (!d.groups.some((g) => g.id === student.group_id))
                             return false;
                           if (student.email) {
                             const se = student.email.toLowerCase();

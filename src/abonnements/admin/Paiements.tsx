@@ -46,7 +46,7 @@ export default function Paiements() {
   const [problemes, setProblemes] = useState(false);
   const [sync, setSync] = useState<string | null>(null);
 
-  const paiements = reponse?.paiements ?? [];
+  const paiements = useMemo(() => reponse?.paiements ?? [], [reponse]);
   const nbProblemes = paiements.filter((p) => p.besoin_action_remboursement).length;
 
   const filtres = useMemo(() => {
