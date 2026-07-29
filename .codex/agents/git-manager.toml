@@ -37,9 +37,24 @@ Scopes usuels : `abo`, `compta`, `budget`, `paiements`, `saisons`, `auth`,
 `ci`, `deps`. Message à l'impératif, concis, sans accents dans le sujet si
 l'historique le fait ainsi.
 
+## Discipline de branche — avant tout commit ou push
+
+- Toujours exécuter `git status -sb`, lire le nom de la branche et le comparer
+  au changement demandé. La branche active n'est pas automatiquement la bonne.
+- Nouvelle fonctionnalité → créer une branche dédiée
+  `codex/feat-<description>` depuis la base appropriée avant de committer.
+- Correction → utiliser `codex/fix-<description>`.
+- Ne jamais committer ou pousser un `feat(...)` sur une branche `fix-*`.
+- Si la fonctionnalité dépend d'une branche non fusionnée, créer une branche
+  empilée explicitement et signaler la base temporaire de la PR. Ne pas masquer
+  cette dépendance en réutilisant la branche courante.
+- Avant le push, vérifier `git log --oneline <base>..HEAD` : tous les commits
+  doivent appartenir au périmètre annoncé.
+
 ## Domaines
 
-- **Branches** : `master` = prod ; branches de travail `feat/…`, `fix/…`.
+- **Branches** : `master` = prod ; branches de travail
+  `codex/feat-…`, `codex/fix-…`.
   Nettoyer les branches mergées.
 - **Pull requests** : titre = futur message de merge (même convention) ;
   description = quoi/pourquoi + comment vérifier ; mentionner l'impact
