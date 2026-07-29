@@ -163,3 +163,19 @@ export const syncPourLicencesCours = authenticatedAction({
     return { annuaire, eleves };
   },
 });
+
+// ── syncPourContactsCours : tuile « contacts des élèves en cours » ────────
+// La garde est exécutée dans une internalQuery car une action n'a pas accès à
+// ctx.db. Cette tuile ne dépend que du snapshot des élèves.
+export const syncPourContactsCours = authenticatedAction({
+  args: {},
+  returns: v.object({
+    eleves: v.union(v.literal("done"), v.literal("skipped"), v.literal("erreur")),
+  }),
+  handler: async (ctx): Promise<{ eleves: Resultat }> => {
+    await ctx.runQuery(internal.contactsCours.requireContactsCoursAccess, {
+      userId: ctx.userId,
+    });
+    return { eleves: await synchroniserSource(ctx, "eleves") };
+  },
+});

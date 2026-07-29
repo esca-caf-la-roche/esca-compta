@@ -10,10 +10,18 @@
 
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
+import { ConvexError } from "convex/values";
 
 // Identifiants des tuiles/modules. Doit rester aligné avec TILE_OPTIONS
 // (src/pages/Configurations.tsx) et les tuiles du Dashboard.
-export const TILES = ["compta", "paiements", "budget", "abonnements", "licences_cours"] as const;
+export const TILES = [
+  "compta",
+  "paiements",
+  "budget",
+  "abonnements",
+  "licences_cours",
+  "contacts_cours",
+] as const;
 export type Tile = (typeof TILES)[number];
 
 export async function getUserSettings(
@@ -34,7 +42,7 @@ export async function requireTile(
 ): Promise<Doc<"userSettings">> {
   const settings = await getUserSettings(ctx, userId);
   if (!settings || !settings.allowedTiles.includes(tile)) {
-    throw new Error("Accès refusé : ce module ne vous est pas attribué.");
+    throw new ConvexError("Accès refusé : ce module ne vous est pas attribué.");
   }
   return settings;
 }
