@@ -648,8 +648,17 @@ export const reprendreSaisonPrecedente = mutation({
         .withIndex("by_saison", (q) => q.eq("saison", prev))
         .first();
       if (prevParams) {
-        const { _id, _creationTime, saison, ...rest } = prevParams;
-        await ctx.db.insert("parametresPaie", { saison: args.saison, ...rest });
+        await ctx.db.insert("parametresPaie", {
+          saison: args.saison,
+          margeSecurite: prevParams.margeSecurite,
+          indemniteCpPct: prevParams.indemniteCpPct,
+          mutuelleSalarie: prevParams.mutuelleSalarie,
+          mutuelleEmployeur: prevParams.mutuelleEmployeur,
+          primeEquipementAnnuelle: prevParams.primeEquipementAnnuelle,
+          fraisBulletin: prevParams.fraisBulletin,
+          cotisationsSalariales: prevParams.cotisationsSalariales,
+          cotisationsPatronales: prevParams.cotisationsPatronales,
+        });
       } else {
         await ctx.db.insert("parametresPaie", { saison: args.saison, ...DEFAULT_PARAMS });
       }

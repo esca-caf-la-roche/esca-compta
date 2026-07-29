@@ -3,11 +3,12 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { X, Save } from "lucide-react";
 import { useSeason } from "../contexts/SeasonContext";
+import type { Doc, Id } from "../../convex/_generated/dataModel";
 
 interface PrevisionnelFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  previsionnelToEdit?: any;
+  previsionnelToEdit?: Doc<"previsionnels"> | null;
 }
 
 export default function PrevisionnelFormModal({ isOpen, onClose, previsionnelToEdit }: PrevisionnelFormModalProps) {
@@ -16,7 +17,7 @@ export default function PrevisionnelFormModal({ isOpen, onClose, previsionnelToE
   const [montant, setMontant] = useState("");
   const [etat, setEtat] = useState(false);
   const [competition, setCompetition] = useState(false);
-  const [analytiqueId, setAnalytiqueId] = useState<string>("");
+  const [analytiqueId, setAnalytiqueId] = useState<Id<"analytiques"> | "">("");
 
   const analytiques = useQuery(api.analytiques.get) || [];
   const addPrevisionnel = useMutation(api.previsionnels.add);
@@ -29,6 +30,8 @@ export default function PrevisionnelFormModal({ isOpen, onClose, previsionnelToE
   useEffect(() => {
     if (isOpen) {
       if (previsionnelToEdit) {
+        // Réinitialisation volontaire du formulaire à chaque ouverture.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setNom(previsionnelToEdit.nom);
         setMontant(previsionnelToEdit.montant.toString());
         setEtat(previsionnelToEdit.etat);
@@ -65,7 +68,7 @@ export default function PrevisionnelFormModal({ isOpen, onClose, previsionnelToE
           montant: montantNum,
           etat,
           competition,
-          analytiqueId: analytiqueId as any,
+          analytiqueId,
           saison: season,
         });
       } else {
@@ -74,7 +77,7 @@ export default function PrevisionnelFormModal({ isOpen, onClose, previsionnelToE
           montant: montantNum,
           etat,
           competition,
-          analytiqueId: analytiqueId as any,
+          analytiqueId,
           saison: season,
         });
       }
@@ -157,7 +160,9 @@ export default function PrevisionnelFormModal({ isOpen, onClose, previsionnelToE
                     if (e.target.value === "NEW") {
                       setIsAddingAna(true);
                     } else {
-                      setAnalytiqueId(e.target.value);
+                      setAnalytiqueId(
+                        e.target.value as Id<"analytiques"> | "",
+                      );
                     }
                   }}
                   required

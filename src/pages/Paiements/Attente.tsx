@@ -4,6 +4,10 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
 type CsvStudent = { first_name: string; last_name: string; email: string };
+type WaitingStudents = NonNullable<
+  ReturnType<typeof useQuery<typeof api.paiements.getWaitingStudents>>
+>;
+type WaitingStudent = WaitingStudents[number];
 
 export default function AttentePaiements() {
   const waitingStudents = useQuery(api.paiements.getWaitingStudents);
@@ -61,7 +65,7 @@ export default function AttentePaiements() {
     }
   };
 
-  const startEdit = (s: any) => {
+  const startEdit = (s: WaitingStudent) => {
     setEditingId(s.id);
     setEditFirst(s.first_name);
     setEditLast(s.last_name);
