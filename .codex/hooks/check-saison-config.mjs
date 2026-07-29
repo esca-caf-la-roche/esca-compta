@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Hook PostToolUse (Edit|Write) — garde-fous du contrat "saison".
 //
-// Voir le skill `.claude/skills/tuile-saison/SKILL.md`.
+// Voir la skill `.agents/skills/tuile-saison/SKILL.md`.
 //
 // Ne s'active que sur `convex/schema.ts` et `convex/saisons.ts`. Bloque (exit 2)
 // et renvoie un message à Claude quand une table saisonnière est mal câblée :
@@ -21,6 +21,7 @@
 
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
+import { changedFiles } from "./changed-files.mjs";
 
 function lireStdin() {
   try {
@@ -31,14 +32,17 @@ function lireStdin() {
 }
 
 const event = lireStdin();
-const filePath = event?.tool_input?.file_path;
-if (!filePath || !existsSync(filePath)) process.exit(0);
-
 const projectDir = event.cwd ?? process.cwd();
-const rel = path.relative(projectDir, filePath).replaceAll("\\", "/");
+const changed = new Set(
+  changedFiles(event, projectDir).map((filePath) =>
+    path.relative(projectDir, filePath).replaceAll("\\", "/"),
+  ),
+);
 
 // N'agit que pour les deux fichiers qui portent le contrat saison.
-if (rel !== "convex/schema.ts" && rel !== "convex/saisons.ts") process.exit(0);
+if (!changed.has("convex/schema.ts") && !changed.has("convex/saisons.ts")) {
+  process.exit(0);
+}
 
 const schemaPath = path.join(projectDir, "convex/schema.ts");
 const saisonsPath = path.join(projectDir, "convex/saisons.ts");
@@ -165,6 +169,6 @@ if (saisons) {
 
 if (erreurs.length > 0) {
   console.error(erreurs.join("\n\n"));
-  process.exit(2); // bloque et renvoie le message à Claude pour correction
+  process.exit(2);
 }
 process.exit(0);

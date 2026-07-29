@@ -1,0 +1,43 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/check-prod-deploy.mjs\"",
+            "statusMessage": "Vérification de la cible Convex"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/check-access-control.mjs\"",
+            "statusMessage": "Vérification des contrôles d'accès"
+          },
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/check-saison-config.mjs\"",
+            "statusMessage": "Vérification du contrat saison"
+          },
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/check-cron-justification.mjs\"",
+            "statusMessage": "Vérification des crons Convex"
+          },
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/check-eslint.mjs\"",
+            "statusMessage": "ESLint sur les fichiers modifiés"
+          }
+        ]
+      }
+    ]
+  }
+}

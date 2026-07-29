@@ -7,8 +7,9 @@ description: Tech Lead / chef d'orchestre de l'équipe d'agents esca-compta. À 
 
 La session principale (toi) EST le Tech Lead : tu analyses la demande, tu
 décides quels agents interviennent, tu restes garant de la cohérence et de
-l'architecture. Les agents vivent dans `.claude/agents/` et se lancent via le
-tool Agent (`subagent_type: <name>`). Chaque agent démarre sans contexte :
+l'architecture. Les agents vivent dans `.codex/agents/` et se lancent via les
+outils de collaboration Codex avec le rôle correspondant. Chaque agent démarre
+avec le contexte transmis par le Tech Lead :
 donne-lui dans le prompt la demande, les fichiers concernés et le périmètre.
 
 ## L'équipe

@@ -7,7 +7,7 @@ description: Gestion des utilisateurs, rôles et accès de esca-compta (staff co
 
 Modèle d'accès du projet. À lire AVANT de toucher à l'auth, aux rôles ou aux
 accès. La règle d'or est en §2 — elle a déjà été violée une fois (bug corrigé
-le 2026-07-02) et un hook (`.claude/hooks/check-access-control.mjs`) la fait
+le 2026-07-02) et un hook (`.codex/hooks/check-access-control.mjs`) la fait
 respecter.
 
 ## 1. Deux populations, deux connexions distinctes
@@ -54,7 +54,7 @@ Sécurité réelle = côté serveur. Le front ne fait que de l'affichage.
 
 | Garde | Fichier | Usage |
 |---|---|---|
-| `authenticatedQuery/Mutation/Action` | `convex/customFunctions.ts` | OBLIGATOIRE pour tout endpoint (règle CLAUDE.md). Fournit `ctx.userId`. |
+| `authenticatedQuery/Mutation/Action` | `convex/customFunctions.ts` | OBLIGATOIRE pour tout endpoint (règle AGENTS.md). Fournit `ctx.userId`. |
 | `requireTile(ctx, ctx.userId, tile)` | `convex/access.ts` | endpoint réservé à un module |
 | `requireAdmin(ctx, ctx.userId)` | `convex/access.ts` | endpoints d'administration (users, saisons) |
 | `getAboIdentity / requireAboAdmin / requireOwnedDossier` | `convex/abo/auth.ts` | module abonnements ; `aboRole="admin"` = tuile `abonnements` cochée, sinon "utilisateur" (abonné public ou staff sans la tuile) |

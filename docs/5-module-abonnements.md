@@ -52,16 +52,31 @@ dans `abo_app_config` (clé `helloasso_lien`) + une ligne `helloasso_links`.
 🔒 Aucun de ces secrets n'est journalisé : le scraper ne logue que le *host* et
 des compteurs (jamais cookies, credentials, HTML, noms ou licences).
 
-## Tâches planifiées (`convex/crons.ts`)
+## Synchronisations à la demande (`convex/abo/sync.ts`)
 
-| Cron (identifiant ASCII) | Fréquence | Cible |
+`convex/crons.ts` est volontairement vide. Les anciens crons périodiques ont été
+remplacés par des synchronisations déclenchées au chargement des pages utiles,
+avec un verrou anti-rejeu partagé côté serveur. Une même source n'est
+resynchronisée qu'une fois par fenêtre, environ 60 minutes par défaut et
+configurable avec `SYNC_TTL_MINUTES`.
+
+| Déclencheur | Action | Sources |
 |---|---|---|
-| `abo scrap abonnes club` | 1 h | `internal.abo.scrap.scraperAbonnes` (scrap + matching intégré) |
-| `abo sync helloasso` | 1 h | `internal.helloasso.syncHelloAssoInternal` |
-| `abo import eleves en cours` | 6 h | `internal.abo.scrap.importerElevesEnCours` |
+| Validation des paiements des cours | `api.abo.sync.syncPourPaiements` | HelloAsso |
+| Espace admin Abonnements | `api.abo.sync.syncPourAbo` | HelloAsso → site club → annuaire → élèves |
+| Tuile Licences élèves en cours | `api.abo.sync.syncPourLicencesCours` | Annuaire → élèves |
 
-Bouton admin manuel « Synchroniser le site club » → `api.abo.scrap.synchroniserClub`
-(garde `aboRole === "admin"`).
+L'ordre des sources est intentionnel : les données HelloAsso doivent être
+disponibles avant le matching des personnes.
+
+Le bouton admin « Synchroniser le site club » appelle toujours
+`api.abo.scrap.synchroniserClub` avec une garde `aboRole === "admin"` et force un
+rafraîchissement immédiat.
+
+⚠️ Le compteur public ne se rafraîchit que lorsqu'un administrateur ouvre
+l'application. Si une fraîcheur indépendante de toute présence devient
+nécessaire, un cron lâche pourra être réintroduit dans `convex/crons.ts`, précédé
+de `// CRON-OK: <raison>`.
 
 ## Checklist de validation e2e (à exécuter en dev une fois les secrets posés)
 

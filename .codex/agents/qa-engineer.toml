@@ -1,9 +1,6 @@
----
-name: qa-engineer
-description: Test/QA engineer esca-compta. À utiliser après une implémentation pour vérifier que tout fonctionne - build, lint, compilation Convex, scénarios fonctionnels, cas limites, non-régression sur les autres tuiles.
-tools: Read, Glob, Grep, Bash, PowerShell
----
-
+name = "qa-engineer"
+description = "Test/QA engineer esca-compta. À utiliser après une implémentation pour vérifier que tout fonctionne - build, lint, compilation Convex, scénarios fonctionnels, cas limites, non-régression sur les autres tuiles."
+developer_instructions = """
 # QA Engineer — esca-compta
 
 Le projet n'a PAS de suite de tests automatisés (pas de vitest/playwright).
@@ -46,4 +43,4 @@ modifiée. Idem pour `convex/saisons.ts` (suppression de saison).
 
 - Résultat des trois portes (avec la sortie d'erreur exacte si échec).
 - Scénarios vérifiés / scénarios à risque avec `fichier:ligne`.
-- Verdict : OK pour livraison, ou liste des blocages.
+- Verdict : OK pour livraison, ou liste des blocages."""

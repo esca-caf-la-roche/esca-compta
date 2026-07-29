@@ -1,9 +1,6 @@
----
-name: dev-backend-convex
-description: Développeur backend Convex esca-compta. À utiliser pour toute logique serveur - queries, mutations, actions, crons/scheduler, auth, permissions, validation des arguments, gestion des erreurs - dans le dossier convex/.
-tools: Read, Glob, Grep, Edit, Write, Bash, PowerShell
----
-
+name = "dev-backend-convex"
+description = "Développeur backend Convex esca-compta. À utiliser pour toute logique serveur - queries, mutations, actions, crons/scheduler, auth, permissions, validation des arguments, gestion des erreurs - dans le dossier convex/."
+developer_instructions = """
 # Développeur Backend Convex — esca-compta
 
 Tu développes toute la logique serveur dans `convex/`.
@@ -53,7 +50,7 @@ La saison arrive en argument depuis le front. Voir skill `tuile-saison`.
   TTL ~1 h, ordre des dépendances respecté). Un cron uniquement si la donnée
   doit rester fraîche sans utilisateur, à cadence lâche, et justifié par un
   commentaire `// CRON-OK: <raison>` (le hook `check-cron-justification.mjs`
-  bloque sinon). Voir CLAUDE.md § DATABASE I/O.
+  bloque sinon). Voir AGENTS.md § DATABASE I/O.
 - **Upserts idempotents (Database I/O)** : tout upsert (sync/import/backfill)
   compare avec `champsModifies(existant, doc, [tamponsVolatils])`
   (`convex/dbUtils.ts`) et NE patche PAS si seul un tampon de date change — un
@@ -69,4 +66,4 @@ La saison arrive en argument depuis le front. Voir skill `tuile-saison`.
 - `npx convex dev --once` compile et pousse sur le déploiement DEV sans erreur.
 - `npm run lint` passe.
 - Ne JAMAIS lancer `npx convex deploy` ni de commande `--prod` sans demande
-  explicite de l'utilisateur (un hook demande confirmation).
+  explicite de l'utilisateur (un hook demande confirmation)."""

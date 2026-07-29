@@ -1,16 +1,149 @@
-<!-- convex-ai-start -->
+# Instructions du projet esca-compta
 
-This project uses [Convex](https://convex.dev) as its backend.
+## Source de vérité
 
-When working on Convex code, **always read
-`convex/_generated/ai/guidelines.md` first** for important guidelines on
-how to correctly use Convex APIs and patterns. The file contains rules that
-override what you may have learned about Convex from training data.
+`AGENTS.md` est la source canonique des instructions durables du dépôt.
 
-Convex agent skills for common tasks can be installed by running
-`npx convex ai-files install`.
+Codex est l'unique environnement agentique maintenu dans le projet :
 
-<!-- convex-ai-end -->
+- rôles spécialisés : `.codex/agents/*.toml` ;
+- hooks Codex : `.codex/hooks.json` et `.codex/hooks/` ;
+- skills partagées : `.agents/skills/`.
 
-### SECURITY GUIDELINE
-When adding or modifying any backend endpoints in the convex/ directory, ALWAYS use uthenticatedQuery, uthenticatedMutation, and uthenticatedAction from convex/customFunctions.ts instead of the default query, mutation, or ction from ./_generated/server to ensure the endpoint is secured behind authentication.
+## Projet
+
+Portail de gestion d'un club d'escalade :
+
+- frontend React 19, TypeScript 6, Vite 8 et React Router 7 ;
+- backend, base temps réel et authentification avec Convex ;
+- styles CSS natifs néo-brutalistes ;
+- déploiement Convex et GitHub Pages depuis `master`.
+
+Lire avant une modification structurelle :
+
+- `docs/2-architecture.md` ;
+- `docs/6-conventions.md` ;
+- `docs/8-component-mapping.md`.
+
+## Commandes
+
+```bash
+npm install
+npx convex dev
+npm run dev
+npm run lint
+npm run build
+```
+
+Il n'existe pas encore de suite de tests automatisés. Ne jamais annoncer que
+des tests passent sans commande correspondante. Suivre `docs/9-tests.md` pour
+la validation manuelle et la stratégie d'introduction des tests.
+
+## Convex : règles obligatoires
+
+Avant toute modification dans `convex/`, lire intégralement
+`convex/_generated/ai/guidelines.md`. Ces règles correspondent à la version
+Convex utilisée par le projet et priment sur les connaissances générales.
+
+### Sécurité des endpoints
+
+Tout nouvel endpoint applicatif doit utiliser :
+
+- `authenticatedQuery` ;
+- `authenticatedMutation` ;
+- `authenticatedAction`.
+
+Ces wrappers viennent de `convex/customFunctions.ts`. Ne pas utiliser directement
+`query`, `mutation` ou `action` depuis `_generated/server` pour un endpoint
+applicatif.
+
+Exceptions :
+
+- une fonction exclusivement serveur utilise `internalQuery`,
+  `internalMutation` ou `internalAction` ;
+- une surface volontairement publique porte
+  `// PUBLIC: <justification>` immédiatement au-dessus de l'export.
+
+Ajouter ensuite la garde métier appropriée depuis `convex/access.ts` ou
+`convex/abo/auth.ts`.
+
+### Accès par tuiles
+
+L'accès à un module staff vient exclusivement de
+`userSettings.allowedTiles`. Le rôle `admin` n'accorde aucun passe-droit sur les
+tuiles ; il sert à l'administration des utilisateurs et des saisons.
+
+Une tuile doit être protégée aux trois niveaux :
+
+1. visibilité dans `src/pages/Dashboard.tsx` ;
+2. route protégée par `src/components/RequireAccess.tsx` ;
+3. endpoints protégés par `requireTile`, `requireAdmin` ou une garde Abonnements.
+
+Le staff utilise `google-otp`. Les abonnés publics utilisent `abo-otp`, n'ont
+pas de `userSettings` et restent isolés dans le module Abonnements.
+
+Pour tout changement d'authentification, rôle, tuile ou autorisation, utiliser
+la skill `.agents/skills/gestion-utilisateurs/SKILL.md`.
+
+### Contrat de saison
+
+Pour toute nouvelle tuile, table ou fonctionnalité métier, décider explicitement
+si elle dépend d'une saison. Une table saisonnière doit avoir :
+
+1. un champ `saison` ;
+2. l'index `.index("by_saison", ["saison"])` ;
+3. des requêtes utilisant cet index ;
+4. une politique de suppression dans `convex/saisons.ts`.
+
+Une exception doit porter `// SAISON-EXEMPT: <raison>`.
+Utiliser la skill `.agents/skills/tuile-saison/SKILL.md`.
+
+### Database I/O
+
+Le budget Database I/O Convex est contraint.
+
+1. Avant un `ctx.db.patch`, comparer avec `champsModifies` depuis
+   `convex/dbUtils.ts`. Ne pas écrire si seules des dates techniques changent :
+   l'écriture est facturée et invalide les abonnements temps réel.
+2. Pour une source externe, préférer une synchronisation à la demande avec
+   verrou partagé côté serveur, selon `convex/abo/sync.ts`.
+3. Ne pas ajouter de cron périodique pour une synchronisation externe. Un cron
+   réellement nécessaire doit fonctionner sans présence utilisateur, avoir une
+   cadence mesurée et porter `// CRON-OK: <raison>`.
+4. Utiliser les index, borner les lectures et traiter les volumes importants par
+   pagination ou lots.
+
+## Rôles et skills Codex
+
+Les rôles de `.codex/agents/` couvrent l'architecture, le produit, le frontend,
+le backend Convex, les données, la sécurité, l'UX, la performance, la QA, la
+revue, la documentation et Git/CI.
+
+- Utiliser `architecte` avant l'implémentation d'une nouvelle fonctionnalité,
+  tuile ou d'un nouveau module.
+- Utiliser `data-engineer` pour tout changement de `convex/schema.ts` ou toute
+  migration.
+- Utiliser `dev-backend-convex` pour la logique serveur et `dev-frontend` pour
+  l'interface.
+- Après une implémentation significative, faire intervenir les contrôles
+  pertinents : produit, sécurité, UX, performance, QA et revue de code.
+- Ne pas déléguer une modification simple lorsque cela n'apporte aucune valeur.
+
+La skill `.agents/skills/equipe/SKILL.md` orchestre ce workflow lorsque
+l'utilisateur demande explicitement l'équipe ou plusieurs agents.
+
+## Validation et livraison
+
+Avant de déclarer une modification terminée :
+
+1. exécuter les contrôles proportionnés au changement ;
+2. exécuter au minimum `npm run lint` et `npm run build` après une modification
+   TypeScript significative ;
+3. vérifier les droits et la saison pour les domaines concernés ;
+4. mettre à jour la documentation affectée sans dupliquer l'information ;
+5. signaler clairement les validations non exécutées.
+
+La production Convex est normalement déployée par
+`.github/workflows/deploy.yml` lors d'un push sur `master`. Ne pas lancer
+`convex deploy` ou une commande mutante `--prod` sans demande ou confirmation
+explicite de l'utilisateur.
