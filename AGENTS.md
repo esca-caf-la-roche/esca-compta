@@ -134,6 +134,17 @@ l'utilisateur demande explicitement l'équipe ou plusieurs agents.
 
 ## Validation et livraison
 
+### Discipline de branche
+
+- Toute nouvelle fonctionnalité utilise une branche dédiée
+  `codex/feat-<description>` ; toute correction utilise
+  `codex/fix-<description>`.
+- Avant un commit ou un push, comparer le nom et l'historique de la branche au
+  périmètre demandé. Ne jamais réutiliser une branche active portant un autre
+  sujet.
+- Une branche empilée sur une branche non fusionnée doit être annoncée avec sa
+  base de PR temporaire.
+
 Avant de déclarer une modification terminée :
 
 1. exécuter les contrôles proportionnés au changement ;
