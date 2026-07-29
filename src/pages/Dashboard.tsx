@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import Tile from "../components/Tile";
-import { Calculator, Settings, CreditCard, PiggyBank, Mountain, ShieldCheck } from "lucide-react";
+import { Calculator, Settings, CreditCard, PiggyBank, Mountain, ShieldCheck, Contact } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 
@@ -79,6 +79,16 @@ export default function Dashboard() {
               icon={ShieldCheck}
               to="/licences-cours"
               colorClass="bg-danger"
+            />
+          )}
+
+          {userSettings.allowedTiles?.includes("contacts_cours") && (
+            <Tile
+              title="Contacts élèves en cours"
+              description="Retrouvez les coordonnées des élèves et contactez un groupe de cours."
+              icon={Contact}
+              to="/contacts-cours"
+              colorClass="bg-info"
             />
           )}
 

@@ -39,6 +39,30 @@ Pour tout changement fonctionnel :
 Pour le module Abonnements, utiliser la checklist e2e de
 [5-module-abonnements.md](5-module-abonnements.md).
 
+### Scénarios ciblés — Contacts des cours
+
+Ces scénarios sont manuels tant qu'aucune suite navigateur n'est installée :
+
+1. attribuer `contacts_cours` à un compte staff, puis vérifier la tuile, la
+   route `/contacts-cours` et l'absence du sélecteur de saison ;
+2. retirer la tuile à un utilisateur, y compris administrateur, puis vérifier
+   l'absence de la tuile, le refus de la route et le refus des endpoints ;
+3. ouvrir la page avec un snapshot `abo_eleves_en_cours` disponible : vérifier
+   la synchronisation à la demande de la seule source élèves, puis un second
+   chargement respectant le verrou partagé ;
+4. simuler l'échec de la source externe et vérifier que le dernier snapshot
+   reste consultable avec un avertissement de fraîcheur ;
+5. vérifier que les élèves en liste d'attente ne sont pas affichés, puis
+   combiner la recherche nom/prénom avec les filtres cours, horaire et
+   encadrant ; la recherche doit rester insensible à la casse et aux accents ;
+6. contrôler les priorités de contact : email et téléphone de l'élève, puis
+   fallback vers le gestionnaire du dossier, enfin état « non renseigné » ;
+7. copier une adresse et ouvrir WhatsApp avec un numéro français normalisé ;
+   un numéro absent ou invalide doit désactiver l'action WhatsApp ;
+8. filtrer un groupe contenant des emails dupliqués et des élèves sans email,
+   puis ouvrir le brouillon : les adresses uniques doivent être en CCI dans un
+   lien `mailto`, sans appel d'envoi email côté serveur.
+
 ## Stratégie recommandée
 
 Introduire les tests progressivement autour des règles métier les plus risquées,

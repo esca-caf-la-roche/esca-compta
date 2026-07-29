@@ -1071,3 +1071,416 @@ a.btn-primary {
   .pay-stats { gap: 0.85rem 1.25rem; }
   .pay-stat .val { font-size: 1.2rem; }
 }
+
+/* Contacts élèves en cours — SAISON-EXEMPT : snapshot global du site club */
+.contacts-cours-page {
+  width: min(100%, 1180px);
+  margin: 0 auto;
+  padding: clamp(1rem, 3vw, 2rem);
+}
+
+.contacts-cours-header {
+  margin-bottom: 1.5rem;
+}
+
+.contacts-cours-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.contacts-cours-kicker {
+  display: inline-block;
+  margin-bottom: 0.35rem;
+  padding: 0.2rem 0.5rem;
+  border: 2px solid var(--border-color);
+  background: var(--info);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.contacts-cours-heading h1 {
+  font-size: clamp(2rem, 5vw, 4rem);
+  line-height: 0.95;
+}
+
+.contacts-cours-sync {
+  display: flex;
+  flex: 0 1 22rem;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  border: var(--border-width) solid var(--border-color);
+  box-shadow: 4px 4px 0 var(--border-color);
+  background: var(--warning);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.contacts-cours-sync small {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: none;
+}
+
+.contacts-cours-sync--ok {
+  background: var(--success);
+}
+
+.contacts-cours-sync--erreur {
+  background: var(--danger);
+  color: var(--card);
+}
+
+.contacts-cours-filters,
+.contacts-cours-group,
+.contacts-cours-state {
+  border: var(--border-width) solid var(--border-color);
+  box-shadow: var(--shadow);
+  background: var(--card);
+}
+
+.contacts-cours-filters {
+  margin-bottom: 1.5rem;
+}
+
+.contacts-cours-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--foreground);
+  color: var(--card);
+}
+
+.contacts-cours-section-title h2 {
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+}
+
+.contacts-cours-section-title span {
+  padding: 0.15rem 0.45rem;
+  background: var(--warning);
+  color: var(--foreground);
+  font-weight: 800;
+}
+
+.contacts-cours-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(13rem, 1.5fr) repeat(3, minmax(9rem, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.contacts-cours-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.contacts-cours-field > span:first-child {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.contacts-cours-field input,
+.contacts-cours-field select {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.65rem 0.75rem;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--foreground);
+  font: 600 0.95rem var(--font-sans);
+}
+
+.contacts-cours-field input {
+  padding-left: 2.5rem;
+}
+
+.contacts-cours-input-icon {
+  position: relative;
+}
+
+.contacts-cours-input-icon > svg {
+  position: absolute;
+  top: 50%;
+  left: 0.75rem;
+  z-index: 1;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.contacts-cours-field input:focus,
+.contacts-cours-field select:focus {
+  outline: none;
+  box-shadow: 4px 4px 0 var(--info);
+}
+
+.contacts-cours-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: var(--warning);
+}
+
+.contacts-cours-group h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+}
+
+.contacts-cours-group p {
+  margin-top: 0.25rem;
+  font-weight: 600;
+}
+
+.contacts-cours-action,
+.contacts-cours-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 3px 3px 0 var(--border-color);
+  font-family: var(--font-sans);
+  font-weight: 800;
+  text-decoration: none;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.contacts-cours-action {
+  flex: 0 0 auto;
+  padding: 0.75rem 1rem;
+}
+
+.contacts-cours-action--mail {
+  background: var(--primary);
+}
+
+.contacts-cours-action:hover:not(:disabled),
+.contacts-cours-icon-button:hover:not(:disabled):not(.is-disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--border-color);
+}
+
+.contacts-cours-action:focus-visible,
+.contacts-cours-icon-button:focus-visible {
+  outline: 3px solid var(--info);
+  outline-offset: 3px;
+}
+
+.contacts-cours-action:disabled,
+.contacts-cours-icon-button:disabled,
+.contacts-cours-icon-button.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.contacts-cours-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.contacts-cours-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  border: var(--border-width) solid var(--border-color);
+  box-shadow: var(--shadow);
+  background: var(--card);
+}
+
+.contacts-cours-card-main {
+  padding: 1rem;
+  border-right: var(--border-width) solid var(--border-color);
+  background: color-mix(in srgb, var(--info) 20%, var(--card));
+}
+
+.contacts-cours-card-name {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.contacts-cours-card-name h3 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 1.2rem;
+  line-height: 1.05;
+}
+
+.contacts-cours-fallback {
+  flex: 0 0 auto;
+  padding: 0.15rem 0.35rem;
+  border: 2px solid var(--border-color);
+  background: var(--warning);
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.contacts-cours-course {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.contacts-cours-course div {
+  display: grid;
+  grid-template-columns: 4.7rem minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.contacts-cours-course dt,
+.contacts-cours-contact-line > div > span {
+  font-size: 0.67rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.contacts-cours-course dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+
+.contacts-cours-details {
+  display: grid;
+  align-content: start;
+}
+
+.contacts-cours-contact-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.contacts-cours-contact-line:last-child {
+  border-bottom: 0;
+}
+
+.contacts-cours-contact-line > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.contacts-cours-contact-line a:not(.contacts-cours-icon-button),
+.contacts-cours-contact-line strong {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--foreground);
+  font-size: 0.9rem;
+}
+
+.contacts-cours-contact-line small {
+  margin-top: 0.2rem;
+  font-size: 0.67rem;
+  font-weight: 700;
+}
+
+.contacts-cours-icon-button {
+  flex: 0 0 auto;
+  min-width: 5.8rem;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.67rem;
+}
+
+.contacts-cours-whatsapp {
+  background: var(--success);
+}
+
+.contacts-cours-state {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  padding: clamp(2rem, 8vw, 5rem) 1rem;
+  text-align: center;
+}
+
+.contacts-cours-state svg {
+  padding: 0.35rem;
+  border: 2px solid var(--border-color);
+  background: var(--warning);
+}
+
+@media (max-width: 1050px) {
+  .contacts-cours-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .contacts-cours-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .contacts-cours-heading,
+  .contacts-cours-group {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .contacts-cours-sync {
+    flex-basis: auto;
+  }
+
+  .contacts-cours-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .contacts-cours-action {
+    width: 100%;
+  }
+
+  .contacts-cours-card {
+    grid-template-columns: 1fr;
+  }
+
+  .contacts-cours-card-main {
+    border-right: 0;
+    border-bottom: var(--border-width) solid var(--border-color);
+  }
+
+  .contacts-cours-contact-line {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .contacts-cours-icon-button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .contacts-cours-action,
+  .contacts-cours-icon-button {
+    transition: none;
+  }
+}

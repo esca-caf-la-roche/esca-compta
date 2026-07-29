@@ -9,6 +9,7 @@ import MasseSalariale from "./pages/Budget/MasseSalariale";
 import ParametresPaie from "./pages/Budget/ParametresPaie";
 import Configurations from "./pages/Configurations";
 import LicencesEnCours from "./pages/LicencesEnCours";
+import ContactsCours from "./pages/ContactsCours";
 import PaiementsLayout from "./pages/Paiements/Layout";
 import ValidationPaiements from "./pages/Paiements/Validation";
 import ConfigPaiements from "./pages/Paiements/Configurations";
@@ -52,6 +53,7 @@ function App() {
               <Route path="/budget/parametres" element={<RequireAccess tile="budget"><ParametresPaie /></RequireAccess>} />
               <Route path="/configurations" element={<RequireAccess admin><Configurations /></RequireAccess>} />
               <Route path="/licences-cours" element={<RequireAccess tile="licences_cours"><LicencesEnCours /></RequireAccess>} />
+              <Route path="/contacts-cours" element={<RequireAccess tile="contacts_cours"><ContactsCours /></RequireAccess>} />
 
               {/* Routes Paiements */}
               <Route path="/paiements" element={<RequireAccess tile="paiements"><PaiementsLayout /></RequireAccess>}>

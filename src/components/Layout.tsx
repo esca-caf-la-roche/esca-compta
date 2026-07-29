@@ -19,7 +19,9 @@ export default function Layout() {
   const showSeasonSelector =
     !location.pathname.startsWith("/paiements") &&
     !location.pathname.startsWith("/gestion-abonnements") &&
-    !location.pathname.startsWith("/licences-cours");
+    !location.pathname.startsWith("/licences-cours") &&
+    // SAISON-EXEMPT: vue temps réel du snapshot global des élèves en cours.
+    !location.pathname.startsWith("/contacts-cours");
 
   if (isLoading) {
     return <div className="loading-screen">Chargement...</div>;

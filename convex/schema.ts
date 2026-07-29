@@ -377,6 +377,7 @@ export default defineSchema({
     prenom: v.optional(v.string()),
     nom_prenom_normalise: v.string(),
     horaire: v.optional(v.string()),
+    // SAISON-EXEMPT: métadonnée de provenance du snapshot courant global, pas un axe de navigation.
     saison: v.optional(v.string()),
     imported_at: v.string(),
     // Colonne "Age".

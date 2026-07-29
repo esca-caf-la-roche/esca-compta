@@ -26,6 +26,7 @@ le détail métier de chaque module.
 | Paiements `/paiements/*` | `src/pages/Paiements/` | `convex/paiements.ts`, `convex/helloasso.ts`, `convex/drive.ts` |
 | Budget `/budget/*` | `src/pages/Budget/` | `convex/paie.ts`, `convex/cours.ts`, `convex/previsionnels.ts`, `convex/effectifs.ts` |
 | Licences `/licences-cours` | `src/pages/LicencesEnCours.tsx` | `convex/abo/licencesEnCours.ts`, `convex/abo/licences.ts`, `convex/abo/sync.ts` |
+| Contacts des cours `/contacts-cours` | `src/pages/ContactsCours.tsx`, `src/utils/contactsCours.ts` | `convex/contactsCours.ts`, `convex/abo/sync.ts` |
 | Administration `/configurations` | `src/pages/Configurations.tsx` | `convex/users.ts`, `convex/saisons.ts`, `convex/bootstrap.ts` |
 
 Les routes `/adherents`, `/evenements` et `/statistiques` sont actuellement des
@@ -58,6 +59,7 @@ La documentation fonctionnelle complète est dans
 | Composants Budget | `src/components/Budget/` | Cours, salariés et paramètres |
 | Calcul de paie | `src/utils/paieCompute.ts` | Calculs purs du budget |
 | Planning | `src/utils/planning.ts` | Manipulation des séances |
+| Contacts des cours | `src/utils/contactsCours.ts` | Recherche normalisée, découpage des encadrants, dédoublonnage des emails et liens de contact |
 | Couleurs | `src/utils/colors.ts` | Présentation cohérente |
 | Diff d'upsert | `convex/dbUtils.ts` | Évite les écritures Convex inutiles |
 
@@ -69,7 +71,7 @@ La documentation fonctionnelle complète est dans
 | Email Abonnements | `convex/abo/emails.ts` |
 | HelloAsso | `convex/helloasso.ts`, `convex/abo/paiements.ts` |
 | Google Drive | `convex/drive.ts` |
-| Site du club | `convex/abo/scrap.ts` |
+| Site du club et snapshot des élèves en cours | `convex/abo/scrap.ts`, `convex/abo/sync.ts` |
 | Annuaire des licences | `convex/abo/licences.ts` |
 
 Les secrets associés résident dans les variables d'environnement Convex. Le

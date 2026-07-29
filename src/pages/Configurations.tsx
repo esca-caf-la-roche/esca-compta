@@ -182,6 +182,7 @@ export default function Configurations() {
     { id: "budget", label: "Budget prévisionnel" },
     { id: "abonnements", label: "Abonnements Escalade" },
     { id: "licences_cours", label: "Licences élèves en cours" },
+    { id: "contacts_cours", label: "Contacts élèves en cours" },
   ];
 
   return (
