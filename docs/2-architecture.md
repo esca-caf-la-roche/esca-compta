@@ -52,7 +52,7 @@ tâches internes. Il n'existe pas de serveur HTTP applicatif séparé.
 | Ensemble | Routes principales | Protection |
 |---|---|---|
 | Public | `/login`, `/abonnements`, `/compteur` | Selon le parcours |
-| Staff | `/`, `/compta`, `/paiements`, `/budget`, `/licences-cours` | `Layout` puis `RequireAccess` |
+| Staff | `/`, `/compta`, `/paiements`, `/budget`, `/licences-cours`, `/contacts-cours` | `Layout` puis `RequireAccess` |
 | Administration | `/configurations`, `/gestion-abonnements` | Rôle admin ou tuile dédiée |
 
 Le routage par hash permet de servir toutes les routes depuis GitHub Pages sans
@@ -103,6 +103,11 @@ courante dans `localStorage`, tandis que les fonctions métier reçoivent ou
 dérivent la saison servant à filtrer les données. Toute nouvelle tuile doit
 définir explicitement son comportement lors d'un changement de saison.
 
+La tuile `contacts_cours` est hors saison : elle reflète le snapshot externe
+courant `abo_eleves_en_cours`, sans historique ni bascule par saison. Sa route
+`/contacts-cours` masque donc le sélecteur de saison et ne transmet aucune
+saison au backend.
+
 Les relations et index sont définis dans `convex/schema.ts`. Les collections
 potentiellement volumineuses doivent être bornées, paginées ou parcourues par
 lots conformément aux règles Convex du projet.
@@ -113,6 +118,12 @@ Les synchronisations HelloAsso, site du club, annuaire des licences et élèves 
 cours sont déclenchées à la demande depuis les pages concernées. L'orchestrateur
 `convex/abo/sync.ts` utilise un verrou partagé côté serveur, avec une fenêtre
 d'environ une heure, pour éviter les appels et écritures répétés.
+
+À l'ouverture de `/contacts-cours`, seule la source des élèves est demandée. La
+page continue d'exploiter le dernier snapshot disponible si cette actualisation
+échoue. Les actions de contact restent entièrement côté navigateur : copie dans
+le presse-papiers, ouverture de WhatsApp et brouillon `mailto` avec destinataires
+en CCI. Aucun email n'est envoyé par Convex depuis cette tuile.
 
 `convex/crons.ts` est volontairement vide. Un cron ne doit être réintroduit que
 si une donnée doit rester fraîche sans présence utilisateur, à cadence justifiée

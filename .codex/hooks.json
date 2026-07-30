@@ -8,6 +8,11 @@
             "type": "command",
             "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/check-prod-deploy.mjs\"",
             "statusMessage": "Vérification de la cible Convex"
+          },
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/check-branch-intent.mjs\"",
+            "statusMessage": "Vérification de la branche Git"
           }
         ]
       }

@@ -44,7 +44,8 @@ Le rôle `admin` ne donne AUCUN passe-droit sur les tuiles.**
   Configurations du Dashboard.
 - Un admin sans tuile cochée ne voit aucune tuile — c'est voulu.
 
-Tuiles existantes : `compta`, `paiements`, `budget`, `abonnements`
+Tuiles existantes : `compta`, `paiements`, `budget`, `abonnements`,
+`licences_cours`, `contacts_cours`
 (source de vérité : `TILES` dans `convex/access.ts`, alignée avec
 `TILE_OPTIONS` dans `src/pages/Configurations.tsx`).
 

@@ -9,7 +9,7 @@
 // logique d'ensembles. Toutes les lectures sont bornées par la taille réelle du
 // club (scrap ≈ places, annuaire/personnes = volume d'une saison).
 
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { query, internalMutation } from "../_generated/server";
 import type { QueryCtx, MutationCtx } from "../_generated/server";
 import { authenticatedQuery, authenticatedMutation } from "../customFunctions";
@@ -19,6 +19,7 @@ import { canoniserLicence, normaliserNomPrenom } from "./lib";
 import { champsModifies } from "../dbUtils";
 
 const PLACES_MAX_DEFAUT = 350;
+const MAX_ELEVES_SNAPSHOT = 1_000;
 
 // ── Cœur du compteur : ensembles legit / validées / anomalies ────────
 // Un seul balayage borné des tables, réutilisé par vCompteur, vAnomalies et
@@ -219,12 +220,11 @@ export const setPlacesMax = authenticatedMutation({
 });
 
 // ── remplacerElevesEnCours : import (interne, appelé par le scrap Phase H) ──
-// Reçoit les lignes DÉJÀ filtrées (hors « Liste d'attente »). Upsert par licence
-// canonique ; les lignes sans licence (matching nom+prénom) sont réconciliées par
-// (saison, nom_prenom_normalise) en n'écrivant QUE le vrai delta (patch si un champ
-// non volatil change, insert des nouveaux, delete des seuls disparus) — idempotent
-// comme la branche avec licence, pour ne pas réinvalider la tuile à chaque import.
-// La liste des élèves d'une saison tient dans une transaction (quelques centaines).
+// Reçoit le snapshot COMPLET déjà filtré (hors « Liste d'attente »). Chaque
+// inscription est identifiée par personne (licence canonique, sinon nom/prénom
+// normalisé) + cours + horaire. Le rapprochement est un multiset : deux lignes
+// strictement identiques restent deux inscriptions distinctes. On n'écrit que le
+// vrai delta et on supprime toutes les lignes absentes du nouveau snapshot.
 export const remplacerElevesEnCours = internalMutation({
   args: {
     saison: v.string(),
@@ -252,6 +252,23 @@ export const remplacerElevesEnCours = internalMutation({
     ),
   },
   handler: async (ctx, args) => {
+    if (args.lignes.length > MAX_ELEVES_SNAPSHOT) {
+      throw new ConvexError({
+        code: "54000",
+        message: `L'import dépasse la limite de ${MAX_ELEVES_SNAPSHOT} inscriptions.`,
+      });
+    }
+
+    const existants = await ctx.db
+      .query("abo_eleves_en_cours")
+      .take(MAX_ELEVES_SNAPSHOT + 1);
+    if (existants.length > MAX_ELEVES_SNAPSHOT) {
+      throw new ConvexError({
+        code: "54000",
+        message: `Le snapshot existant dépasse la limite de ${MAX_ELEVES_SNAPSHOT} inscriptions.`,
+      });
+    }
+
     const maintenant = new Date().toISOString();
 
     const doc = (l: (typeof args.lignes)[number], licence: string | undefined) => {
@@ -266,7 +283,7 @@ export const remplacerElevesEnCours = internalMutation({
         saison: args.saison,
         imported_at: maintenant,
         age: l.age,
-        cours: l.cours,
+        cours: (l.cours ?? "").trim() || undefined,
         date_naissance: l.date_naissance,
         encadrants: l.encadrants,
         date_inscription: l.date_inscription,
@@ -282,59 +299,42 @@ export const remplacerElevesEnCours = internalMutation({
       };
     };
 
-    // 1) Lignes AVEC licence : upsert par licence canonique.
+    const identite = (ligne: {
+      licence?: string | null;
+      nom_prenom_normalise: string;
+      cours?: string;
+      horaire?: string;
+    }): string => {
+      const licence = canoniserLicence(ligne.licence);
+      const personne = licence
+        ? `licence:${licence}`
+        : `nom:${ligne.nom_prenom_normalise}`;
+      return JSON.stringify([
+        personne,
+        (ligne.cours ?? "").trim(),
+        (ligne.horaire ?? "").trim(),
+      ]);
+    };
+
+    const existantsParIdentite = new Map<string, Array<(typeof existants)[number]>>();
+    for (const existant of existants) {
+      const cle = identite(existant);
+      const groupe = existantsParIdentite.get(cle);
+      if (groupe) groupe.push(existant);
+      else existantsParIdentite.set(cle, [existant]);
+    }
+
     let avecLicence = 0;
-    for (const l of args.lignes) {
-      const licence = canoniserLicence(l.licence);
-      if (!licence) continue;
-      const existant = await ctx.db
-        .query("abo_eleves_en_cours")
-        .withIndex("by_licence", (q) => q.eq("licence", licence))
-        .first();
-      if (existant) {
-        // `imported_at` change à chaque import : ignoré pour ne réécrire (et ne
-        // réinvalider la tuile "licences élèves en cours") qu'en cas de vrai
-        // changement des données de l'élève.
-        const nouveau = doc(l, licence);
-        if (champsModifies(existant, nouveau, ["imported_at"])) {
-          await ctx.db.patch(existant._id, nouveau);
-        }
-      } else {
-        await ctx.db.insert("abo_eleves_en_cours", doc(l, licence));
-      }
-      avecLicence++;
-    }
-
-    // 2) Lignes SANS licence : réconciliation par (saison, nom_prenom_normalise).
-    //    On récupère les existants de la saison (index by_licence sur undefined,
-    //    filtré saison) et on n'écrit que le delta : patch si un champ non volatil
-    //    change (imported_at ignoré), insert des nouveaux, delete des seuls
-    //    réellement disparus. Évite le churn d'écritures + la réinvalidation
-    //    temps réel de la tuile à chaque import quand rien ne bouge.
-    const sansLicenceExistants = (
-      await ctx.db
-        .query("abo_eleves_en_cours")
-        .withIndex("by_licence", (q) => q.eq("licence", undefined))
-        .collect()
-    ).filter((e) => e.saison === args.saison);
-
-    // Regroupement par nom (des homonymes peuvent partager nom_prenom_normalise) :
-    // un shift() par appariement consomme un existant, façon multiset.
-    const existantsParNom = new Map<string, typeof sansLicenceExistants>();
-    for (const e of sansLicenceExistants) {
-      const arr = existantsParNom.get(e.nom_prenom_normalise);
-      if (arr) arr.push(e);
-      else existantsParNom.set(e.nom_prenom_normalise, [e]);
-    }
-
     let sansLicence = 0;
     for (const l of args.lignes) {
-      if (canoniserLicence(l.licence)) continue;
-      // On n'insère que des lignes nominatives (au moins un nom/prénom).
-      if (!(l.nom ?? "").trim() && !(l.prenom ?? "").trim()) continue;
-      sansLicence++;
-      const nouveau = doc(l, undefined);
-      const existant = existantsParNom.get(nouveau.nom_prenom_normalise)?.shift();
+      const licence = canoniserLicence(l.licence) ?? undefined;
+      const nouveau = doc(l, licence);
+      if (!licence && !nouveau.nom_prenom_normalise) continue;
+
+      if (licence) avecLicence++;
+      else sansLicence++;
+
+      const existant = existantsParIdentite.get(identite(nouveau))?.shift();
       if (existant) {
         if (champsModifies(existant, nouveau, ["imported_at"])) {
           await ctx.db.patch(existant._id, nouveau);
@@ -344,8 +344,9 @@ export const remplacerElevesEnCours = internalMutation({
       }
     }
 
-    // Existants non ré-appariés = disparus de l'import → suppression.
-    for (const restants of existantsParNom.values()) {
+    // Chaque existant non consommé a disparu du snapshot, quelle que soit sa
+    // licence ou sa saison historique.
+    for (const restants of existantsParIdentite.values()) {
       for (const e of restants) await ctx.db.delete(e._id);
     }
 
