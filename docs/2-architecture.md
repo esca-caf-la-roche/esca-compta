@@ -122,8 +122,11 @@ d'environ une heure, pour éviter les appels et écritures répétés.
 À l'ouverture de `/contacts-cours`, seule la source des élèves est demandée. La
 page continue d'exploiter le dernier snapshot disponible si cette actualisation
 échoue. Les actions de contact restent entièrement côté navigateur : copie dans
-le presse-papiers, ouverture de WhatsApp et brouillon `mailto` avec destinataires
-en CCI. Aucun email n'est envoyé par Convex depuis cette tuile.
+le presse-papiers, ouverture de l'application WhatsApp sur mobile (y compris
+iPadOS tactile) ou de WhatsApp Web sur ordinateur, et composition dans Gmail
+avec le compte `coursescalade@caflarochebonneville.fr`. Le brouillon de groupe
+place les destinataires en CCI. Aucun email n'est envoyé par Convex depuis cette
+tuile.
 
 `convex/crons.ts` est volontairement vide. Un cron ne doit être réintroduit que
 si une donnée doit rester fraîche sans présence utilisateur, à cadence justifiée
