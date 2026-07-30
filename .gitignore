@@ -32,25 +32,15 @@ dist-ssr
 audit_convex.md
 
 # Agents & Skills
-.agents/
+# Les skills Convex générées restent ignorées et peuvent être réinstallées avec
+# `npx convex ai-files install`. Les trois skills métier du projet sont suivies.
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/equipe/
+!.agents/skills/gestion-utilisateurs/
+!.agents/skills/tuile-saison/
 skills-lock.json
-
-# Config Claude Code : on ignore tout .claude/ par défaut...
-.claude/*
-# ...mais on versionne la config partagée (hooks + réglages du projet).
-!.claude/settings.json
-!.claude/hooks/
-# L'équipe d'agents du projet (Agent tool, subagent_type).
-!.claude/agents/
-# settings.local.json reste ignoré (permissions/chemins propres à la machine).
-
-# Skills : seulement ceux écrits pour le projet (pas les skills Convex
-# auto-installés via `npx convex ai-files install`, régénérables).
-!.claude/skills/
-.claude/skills/*
-!.claude/skills/gestion-utilisateurs/
-!.claude/skills/tuile-saison/
-!.claude/skills/equipe/
 
 # Projet de référence (suivi paiement - source Supabase)
 suivi-paiement-cours/

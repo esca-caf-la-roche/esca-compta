@@ -20,7 +20,10 @@ import { internalAction } from "../_generated/server";
 import { authenticatedAction } from "../customFunctions";
 import { internal, api } from "../_generated/api";
 
-const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
+const UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+  "(KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36";
+const ACCEPT_LANGUAGE = "fr-FR,fr;q=0.9";
 const ACCEPT_HTML =
   "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
 const ACCEPT_XLSX =
@@ -56,19 +59,28 @@ function creerJar() {
       for (const sc of setCookie) {
         const paire = sc.split(";", 1)[0];
         const i = paire.indexOf("=");
-        if (i > 0) jar.set(paire.slice(0, i).trim(), paire.slice(i + 1).trim());
+        if (i <= 0) continue;
+        const nom = paire.slice(0, i).trim();
+        const valeur = paire.slice(i + 1).trim();
+        if (!valeur || valeur.toLowerCase() === "deleted") {
+          jar.delete(nom);
+        } else {
+          jar.set(nom, valeur);
+        }
       }
     },
     entete(): string {
       return Array.from(jar, ([k, val]) => `${k}=${val}`).join("; ");
     },
-    get taille() {
-      return jar.size;
+    contient(nom: string): boolean {
+      return jar.has(nom);
     },
   };
 }
 
-// Étapes 1→3 du flux : auth AJAX → page principale → login standard.
+// Le nouveau serveur o2switch pose d'abord son cookie de challenge `o2s-chl`.
+// Il faut donc rejouer exactement l'auth AJAX avec le pot mis à jour pour que
+// le site délivre ensuite le cookie de session `cafuser`.
 async function authentifier(club: {
   base: string;
   username: string;
@@ -76,45 +88,51 @@ async function authentifier(club: {
 }) {
   const jar = creerJar();
 
-  const r1 = await fetch(`${club.base}/scripts/ajax_operations.php`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-      Accept: "application/json, text/javascript, */*; q=0.01",
-      "X-Requested-With": "XMLHttpRequest",
-      "User-Agent": UA,
-    },
-    body: new URLSearchParams({
-      operation: "user_login",
-      email_user: club.username,
-      mdp_user: club.password,
-    }),
-  });
-  jar.absorber(r1);
+  const posterAuthAjax = async (): Promise<Response> => {
+    const reponse = await fetch(`${club.base}/scripts/ajax_operations.php`, {
+      method: "POST",
+      redirect: "manual",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        Accept: "application/json, text/javascript, */*; q=0.01",
+        "X-Requested-With": "XMLHttpRequest",
+        Origin: club.base,
+        Referer: `${club.base}/accueil.html`,
+        "User-Agent": UA,
+        "Accept-Language": ACCEPT_LANGUAGE,
+        Cookie: jar.entete(),
+      },
+      body: new URLSearchParams({
+        operation: "user_login",
+        email_user: club.username,
+        mdp_user: club.password,
+      }),
+    });
+    jar.absorber(reponse);
+    return reponse;
+  };
 
-  const r2 = await fetch(`${club.base}/`, {
-    headers: { Accept: ACCEPT_HTML, "User-Agent": UA, Cookie: jar.entete() },
-  });
-  jar.absorber(r2);
+  // Comme dans le workflow n8n (`neverError`), on rejoue même si la première
+  // réponse est un 4xx : le frontal peut utiliser cette réponse pour poser son
+  // cookie de challenge. Le vrai garde-fou est la présence finale de cafuser.
+  await posterAuthAjax();
+  await posterAuthAjax();
 
-  const r3 = await fetch(`${club.base}/login.html`, {
-    method: "POST",
+  const accueil = await fetch(`${club.base}/`, {
+    redirect: "manual",
     headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
       Accept: ACCEPT_HTML,
       "User-Agent": UA,
-      Referer: `${club.base}/login.html`,
+      "Accept-Language": ACCEPT_LANGUAGE,
       Cookie: jar.entete(),
     },
-    body: new URLSearchParams({
-      email_user: club.username,
-      mdp_user: club.password,
-    }),
   });
-  jar.absorber(r3);
+  jar.absorber(accueil);
 
-  if (jar.taille === 0) {
-    throw new Error("Aucun cookie de session obtenu (auth club probablement refusée).");
+  if (!jar.contient("cafuser")) {
+    throw new Error(
+      "Authentification club refusée (cookie de session cafuser absent).",
+    );
   }
   return jar;
 }
@@ -173,15 +191,23 @@ export const scraperAbonnes = internalAction({
     const jar = await authentifier(club);
     // GET puis POST AdminMode=Liste → HTML de la liste.
     const g = await fetch(`${club.base}/abonnement-escalade.html`, {
-      headers: { Accept: ACCEPT_HTML, "User-Agent": UA, Cookie: jar.entete() },
+      redirect: "manual",
+      headers: {
+        Accept: ACCEPT_HTML,
+        "User-Agent": UA,
+        "Accept-Language": ACCEPT_LANGUAGE,
+        Cookie: jar.entete(),
+      },
     });
     jar.absorber(g);
     const r = await fetch(`${club.base}/abonnement-escalade.html`, {
       method: "POST",
+      redirect: "manual",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
         Accept: ACCEPT_HTML,
         "User-Agent": UA,
+        "Accept-Language": ACCEPT_LANGUAGE,
         Referer: `${club.base}/abonnement-escalade.html`,
         Cookie: jar.entete(),
       },
@@ -369,15 +395,23 @@ export const importerElevesEnCours = internalAction({
 
     const jar = await authentifier(club);
     const g = await fetch(`${club.base}/cours.html`, {
-      headers: { Accept: ACCEPT_HTML, "User-Agent": UA, Cookie: jar.entete() },
+      redirect: "manual",
+      headers: {
+        Accept: ACCEPT_HTML,
+        "User-Agent": UA,
+        "Accept-Language": ACCEPT_LANGUAGE,
+        Cookie: jar.entete(),
+      },
     });
     jar.absorber(g);
     const p = await fetch(`${club.base}/cours.html`, {
       method: "POST",
+      redirect: "manual",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
         Accept: ACCEPT_HTML,
         "User-Agent": UA,
+        "Accept-Language": ACCEPT_LANGUAGE,
         Referer: `${club.base}/cours.html`,
         Cookie: jar.entete(),
       },

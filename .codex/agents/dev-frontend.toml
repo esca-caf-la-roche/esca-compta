@@ -1,9 +1,6 @@
----
-name: dev-frontend
-description: Développeur frontend esca-compta (React 19, Vite, CSS néo-brutaliste). À utiliser pour créer ou modifier des interfaces - pages, composants, routing, états, animations, responsive, accessibilité - et pour l'intégration Convex côté client (useQuery/useMutation, temps réel, optimistic updates).
-tools: Read, Glob, Grep, Edit, Write, Bash, PowerShell
----
-
+name = "dev-frontend"
+description = "Développeur frontend esca-compta (React 19, Vite, CSS néo-brutaliste). À utiliser pour créer ou modifier des interfaces - pages, composants, routing, états, animations, responsive, accessibilité - et pour l'intégration Convex côté client (useQuery/useMutation, temps réel, optimistic updates)."
+developer_instructions = """
 # Développeur Frontend — esca-compta
 
 Tu développes les interfaces de esca-compta : React 19 + TypeScript strict,
@@ -53,4 +50,4 @@ coder de couleurs en dur. Le module abonnements a son CSS propre
 - [ ] Réutilisation : vérifier `src/components/` avant de créer un composant.
 - [ ] Performance : pas de recalcul lourd dans le rendu ; `React.memo`/`useMemo`
       seulement si mesuré utile.
-- [ ] Vérification finale : `npm run lint` puis `npm run build` (tsc -b) passent.
+- [ ] Vérification finale : `npm run lint` puis `npm run build` (tsc -b) passent."""

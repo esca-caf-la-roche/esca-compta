@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Hook PreToolUse (Bash|PowerShell) — garde-fou production Convex.
+// Hook Codex PreToolUse (Bash) — garde-fou production Convex.
 //
 // Le projet a deux déploiements Convex : DEV (npx convex dev) et PROD
 // (déployé normalement par le CI au push sur master). Ce hook intercepte
@@ -7,8 +7,9 @@
 //   - `convex deploy` (avec ou sans npx)
 //   - toute commande `convex … --prod` MUTANTE (run, import, env set/remove,
 //     data delete, …)
-// et force une confirmation explicite de l'utilisateur (permissionDecision
-// "ask"). Les lectures prod (logs, env list/get, data en lecture) passent.
+// et la bloque tant que la commande ne porte pas un marqueur
+// `# PROD-OK: <raison>` ajouté après confirmation explicite de l'utilisateur.
+// Les lectures prod (logs, env list/get, data en lecture) passent.
 //
 // Lit l'événement hook sur stdin (JSON), répond sur stdout (JSON).
 
@@ -25,6 +26,7 @@ function lireStdin() {
 const event = lireStdin();
 const commande = event?.tool_input?.command ?? "";
 if (!commande || !/\bconvex\b/i.test(commande)) process.exit(0);
+if (/#\s*PROD-OK\s*:/i.test(commande)) process.exit(0);
 
 let raison = null;
 
@@ -53,8 +55,10 @@ if (raison) {
     JSON.stringify({
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
-        permissionDecision: "ask",
-        permissionDecisionReason: raison,
+        permissionDecision: "deny",
+        permissionDecisionReason:
+          `${raison} Après confirmation explicite de l'utilisateur, relancer ` +
+          `la commande avec un commentaire \`# PROD-OK: <raison>\`.`,
       },
     }),
   );

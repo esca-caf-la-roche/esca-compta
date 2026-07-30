@@ -8,12 +8,14 @@ L'objectif de cette application est de regrouper plusieurs "mini-outils" (Compta
 
 1. **Dashboard Centralisé** : Un point d'entrée unique listant tous les outils disponibles sous forme de tuiles.
 2. **Saisonnabilité Transversale** : L'application permet de sélectionner une saison en cours (ex: "2025-26"). Ce choix est conservé en mémoire (via le localStorage) et propagé à tous les mini-outils pour garantir qu'un utilisateur consulte toujours les données de la bonne année.
-3. **Sécurité par OTP** : Aucune création de compte publique n'est autorisée. Les membres accèdent au portail via un mot de passe à usage unique (OTP) envoyé par le système, si leur email est connu de la base de données.
+3. **Sécurité par OTP** : Le staff accède au portail si son email a été
+   pré-enregistré. Les abonnés peuvent s'auto-inscrire, mais restent isolés dans
+   le module public Abonnements sans accès aux outils du staff.
 4. **Base de données temps réel** : Utilisation de [Convex](https://convex.dev/) pour synchroniser instantanément les modifications sans avoir à recharger la page.
 
 ## Prérequis
 
-- **Node.js** (v18 ou supérieur recommandé)
+- **Node.js** 20 ou supérieur
 - **Convex CLI** (installé via npm)
 
 ## Démarrage Rapide

@@ -1,33 +1,133 @@
-# Architecture Technique
+# Architecture technique
 
-Ce document décrit l'architecture globale de l'application de Gestion d'Escalade.
+Ce document présente les frontières techniques du portail. La localisation
+détaillée de chaque fonctionnalité se trouve dans
+[8-component-mapping.md](8-component-mapping.md).
 
-## Stack Technologique
+## Vue d'ensemble
 
-- **Frontend** : React 19, Vite, TypeScript
-- **Routage** : `react-router-dom` (v6+)
-- **Style** : Vanilla CSS (Variables natives, Flexbox/Grid) respectant une charte Néo-Brutaliste
-- **Backend / BDD** : Convex (Serverless, TypeScript)
-- **Icônes** : `lucide-react`
+```text
+Navigateur
+  |
+  | React, HashRouter, hooks Convex temps réel
+  v
+API publique Convex
+  |
+  +-- fonctions applicatives authentifiées
+  +-- fonctions publiques limitées à l'auth et au portail Abonnements
+  +-- fonctions internes pour les traitements orchestrés
+  |
+  +-- base Convex et stockage de fichiers
+  +-- SMTP
+  +-- HelloAsso
+  +-- Google Drive
+  +-- site du club et annuaire des licences
+```
 
-## Structure du Code Source (`src/`)
+Le frontend est une application React monopage. Convex fournit la base temps
+réel, l'authentification, les fonctions serveur, les actions Node.js et les
+tâches internes. Il n'existe pas de serveur HTTP applicatif séparé.
 
-- `components/` : Composants réutilisables à travers l'application.
-  - `Layout.tsx` : Le gabarit principal (Header, Sélecteur de saison) qui englobe les routes protégées.
-  - `Tile.tsx` : La carte de navigation du Dashboard.
-- `contexts/` : 
-  - `SeasonContext.tsx` : Fournit la saison actuelle et s'occupe de la persistance dans `localStorage`.
-- `pages/` : Les différentes vues de l'application (chaque page correspond à une route).
-  - `Login.tsx` : La page publique de connexion.
-  - `Dashboard.tsx` : L'accueil avec les tuiles après connexion.
-  - `Compta.tsx` : Le mini-outil dédié à la comptabilité.
-- `App.tsx` : Le point d'entrée du routage.
-- `main.tsx` : L'initialisation de React et du client Convex.
-- `index.css` : La totalité des règles de style du projet (Design Néo-Brutaliste).
+## Stack technologique
 
-## Structure Backend (`convex/`)
+| Couche | Technologie |
+|---|---|
+| Interface | React 19, TypeScript 6 |
+| Build | Vite 8 |
+| Routage | React Router 7, `HashRouter` |
+| Styles | CSS natif, Flexbox et Grid |
+| Backend et base | Convex 1.41 |
+| Authentification | `@convex-dev/auth` |
+| Icônes | `lucide-react` |
+| Intégrations | HelloAsso, SMTP, Google Drive, exports du site club |
+| Hébergement frontend | GitHub Pages |
 
-- `schema.ts` : Déclaration du schéma de base de données incluant les tables d'authentification de `@convex-dev/auth` (via `authTables`).
-- `auth.ts` : Configuration officielle de `@convex-dev/auth` (signIn, signOut, callbacks de sécurité).
-- `email.ts` : Action d'envoi SMTP des codes OTP via nodemailer.
-- `transactions.ts` : Les fonctions CRUD pour la manipulation de la comptabilité.
+## Frontend
+
+`src/main.tsx` initialise le client Convex et monte `src/App.tsx`.
+`SeasonProvider` expose la saison sélectionnée aux modules concernés.
+
+`src/App.tsx` distingue trois ensembles de routes :
+
+| Ensemble | Routes principales | Protection |
+|---|---|---|
+| Public | `/login`, `/abonnements`, `/compteur` | Selon le parcours |
+| Staff | `/`, `/compta`, `/paiements`, `/budget`, `/licences-cours` | `Layout` puis `RequireAccess` |
+| Administration | `/configurations`, `/gestion-abonnements` | Rôle admin ou tuile dédiée |
+
+Le routage par hash permet de servir toutes les routes depuis GitHub Pages sans
+réécriture serveur. L'affichage d'une tuile dans le tableau de bord ne constitue
+pas à lui seul une autorisation : `RequireAccess` protège aussi la route, et le
+backend contrôle les droits avant d'accéder aux données.
+
+Les styles globaux sont dans `src/index.css`. Le module Abonnements complète ces
+règles avec `src/abonnements/abo.css` ; le design n'est donc plus contenu dans un
+fichier CSS unique.
+
+## Backend Convex
+
+`convex/schema.ts` définit les tables d'authentification et les tables métier,
+réparties en cinq domaines :
+
+- référentiels, saisons et utilisateurs ;
+- comptabilité et prévisionnels ;
+- cours, masse salariale et paiements ;
+- synchronisations et intégrations externes ;
+- inscriptions, licences, tests et messagerie du module Abonnements.
+
+Les fichiers à la racine de `convex/` portent les domaines partagés ou staff.
+`convex/abo/` isole le domaine Abonnements. Les fonctions réutilisables de
+contrôle d'accès sont dans `convex/access.ts`, `convex/abo/auth.ts` et
+`convex/customFunctions.ts`.
+
+### Frontières de sécurité
+
+Par défaut, un endpoint applicatif utilise `authenticatedQuery`,
+`authenticatedMutation` ou `authenticatedAction` depuis
+`convex/customFunctions.ts`. Ces wrappers refusent une identité absente avant
+d'exécuter le handler.
+
+Les imports directs depuis `_generated/server` sont réservés aux fonctions
+internes et aux rares surfaces volontairement publiques, notamment le processus
+d'authentification, l'identité Abonnements et le compteur public. Une fonction
+authentifiée peut encore exiger une tuile ou un rôle via les helpers d'accès.
+
+Voir [3-authentification.md](3-authentification.md) pour les deux populations et
+[6-conventions.md](6-conventions.md) pour les règles applicables aux nouveaux
+endpoints.
+
+## Données et saisonnalité
+
+La saison est un axe transverse du portail. Le frontend conserve la sélection
+courante dans `localStorage`, tandis que les fonctions métier reçoivent ou
+dérivent la saison servant à filtrer les données. Toute nouvelle tuile doit
+définir explicitement son comportement lors d'un changement de saison.
+
+Les relations et index sont définis dans `convex/schema.ts`. Les collections
+potentiellement volumineuses doivent être bornées, paginées ou parcourues par
+lots conformément aux règles Convex du projet.
+
+## Synchronisations externes
+
+Les synchronisations HelloAsso, site du club, annuaire des licences et élèves en
+cours sont déclenchées à la demande depuis les pages concernées. L'orchestrateur
+`convex/abo/sync.ts` utilise un verrou partagé côté serveur, avec une fenêtre
+d'environ une heure, pour éviter les appels et écritures répétés.
+
+`convex/crons.ts` est volontairement vide. Un cron ne doit être réintroduit que
+si une donnée doit rester fraîche sans présence utilisateur, à cadence justifiée
+et avec le commentaire requis `// CRON-OK: <raison>`.
+
+## Livraison
+
+Un push sur `master` lance le workflow GitHub Actions :
+
+```text
+npm ci
+  -> npx convex deploy
+  -> npm run build
+  -> publication de dist/ sur GitHub Pages
+```
+
+Les détails opérationnels et contrôles locaux sont décrits dans
+[7-workflow.md](7-workflow.md).

@@ -1,9 +1,6 @@
----
-name: git-manager
-description: Git + CI/CD manager esca-compta. À utiliser pour les commits, branches, pull requests, merges, versionning, release notes, et pour le pipeline GitHub Actions (deploy.yml - Convex deploy + GitHub Pages). Vérifie les builds avant tout push sur master.
-tools: Read, Glob, Grep, Bash, PowerShell
----
-
+name = "git-manager"
+description = "Git + CI/CD manager esca-compta. À utiliser pour les commits, branches, pull requests, merges, versionning, release notes, et pour le pipeline GitHub Actions (deploy.yml - Convex deploy + GitHub Pages). Vérifie les builds avant tout push sur master."
+developer_instructions = """
 # Git Manager & CI/CD — esca-compta
 
 Tu gères le dépôt (`github.com/esca-caf-la-roche/esca-compta`) et le pipeline
@@ -61,4 +58,4 @@ l'historique le fait ainsi.
 - Ne jamais committer de secrets (.env, clés SMTP/Google/HelloAsso).
 - Ne jamais lancer `npx convex deploy` manuellement : c'est le rôle du CI
   (un hook demande confirmation si quelqu'un essaie).
-- Ne pas committer sans demande de l'utilisateur.
+- Ne pas committer sans demande de l'utilisateur."""

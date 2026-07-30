@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Hook PostToolUse (Edit|Write) — garde-fou "pas de cron de synchro par défaut".
 //
-// Voir CLAUDE.md § DATABASE I/O et le skill tuile-saison (§3.6).
+// Voir AGENTS.md § Database I/O et la skill tuile-saison.
 //
 // Ne s'active que sur `convex/crons.ts`. Bloque (exit 2) quand un job cron est
 // enregistré (`crons.interval(` / `crons.cron(` / `crons.hourly(` / `.daily(` /
@@ -19,6 +19,7 @@
 
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
+import { changedFiles } from "./changed-files.mjs";
 
 function lireStdin() {
   try {
@@ -29,10 +30,13 @@ function lireStdin() {
 }
 
 const event = lireStdin();
-const filePath = event?.tool_input?.file_path;
+const projectDir = event.cwd ?? process.cwd();
+const filePath = changedFiles(event, projectDir).find(
+  (candidate) =>
+    path.relative(projectDir, candidate).replaceAll("\\", "/") === "convex/crons.ts",
+);
 if (!filePath || !existsSync(filePath)) process.exit(0);
 
-const projectDir = event.cwd ?? process.cwd();
 const rel = path.relative(projectDir, filePath).replaceAll("\\", "/");
 
 if (rel !== "convex/crons.ts") process.exit(0);
@@ -73,7 +77,7 @@ if (nonJustifies.length > 0) {
       `Si ce cron est RÉELLEMENT nécessaire (donnée à garder fraîche sans présence ` +
       `utilisateur, ex. compteur public — de préférence à cadence lâche), ajoutez ` +
       `un commentaire \`// CRON-OK: <raison>\` dans le bloc juste au-dessus du job. ` +
-      `Voir CLAUDE.md § DATABASE I/O.`,
+      `Voir AGENTS.md § Database I/O.`,
   );
   process.exit(2);
 }

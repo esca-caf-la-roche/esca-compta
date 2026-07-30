@@ -93,7 +93,7 @@ Quelle que soit la réponse saison, une nouvelle tuile exige aussi :
    récurrent) : synchro **on-demand throttlée** (`convex/abo/sync.ts` : verrou
    partagé dans `abo_app_config`, TTL ~1 h), **jamais** un cron horaire ; et
    **upserts idempotents** (`champsModifies` de `convex/dbUtils.ts`, ne pas
-   réécrire sur un simple tampon de date). Voir CLAUDE.md § DATABASE I/O.
+   réécrire sur un simple tampon de date). Voir AGENTS.md § DATABASE I/O.
 
 ## 4. Checklist finale (copier/cocher)
 
