@@ -54,14 +54,25 @@ Ces scénarios sont manuels tant qu'aucune suite navigateur n'est installée :
    reste consultable avec un avertissement de fraîcheur ;
 5. vérifier que les élèves en liste d'attente ne sont pas affichés, puis
    combiner la recherche nom/prénom avec les filtres cours, horaire et
-   encadrant ; la recherche doit rester insensible à la casse et aux accents ;
+   encadrant ; la recherche doit rester insensible à la casse et aux accents.
+   Pour chaque facette, vérifier que les options tiennent compte de la recherche
+   et des deux autres filtres, mais pas de sa propre sélection ; une sélection
+   devenue impossible doit être automatiquement effacée ;
 6. contrôler les priorités de contact : email et téléphone de l'élève, puis
-   fallback vers le gestionnaire du dossier, enfin état « non renseigné » ;
-7. copier une adresse et ouvrir WhatsApp avec un numéro français normalisé ;
-   un numéro absent ou invalide doit désactiver l'action WhatsApp ;
+   fallback vers le gestionnaire du dossier, enfin état « non renseigné ».
+   Une valeur email contenant plusieurs adresses, un séparateur virgule ou
+   point-virgule, ou un caractère de contrôle doit être refusée et ne jamais
+   alimenter un brouillon Gmail ;
+7. copier une adresse et ouvrir WhatsApp avec un numéro français normalisé :
+   l'application doit s'ouvrir sur mobile et iPadOS tactile, tandis qu'un
+   ordinateur doit ouvrir `https://web.whatsapp.com/send?phone=…` ; un numéro
+   absent ou invalide doit désactiver l'action ;
 8. filtrer un groupe contenant des emails dupliqués et des élèves sans email,
-   puis ouvrir le brouillon : les adresses uniques doivent être en CCI dans un
-   lien `mailto`, sans appel d'envoi email côté serveur.
+   puis ouvrir le brouillon Gmail : les adresses uniques doivent être en CCI et
+   le paramètre `authuser` doit désigner
+   `coursescalade@caflarochebonneville.fr`, sans appel d'envoi email côté
+   serveur. Cliquer aussi sur un email individuel et vérifier le même compte
+   Gmail avec l'adresse en destinataire principal.
 
 ## Stratégie recommandée
 

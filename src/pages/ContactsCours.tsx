@@ -12,10 +12,17 @@ import {
 } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 import {
-  creerLienMailtoBcc,
+  calculerOptionsContactsCours,
+  creerLienGmail,
+  creerLienWhatsApp,
   emailsUniques,
-  normaliserRecherche,
+  estAppareilMobileWhatsApp,
+  filtresContactsCoursEgaux,
+  filtrerContactsCours,
+  type FiltresContactsCours,
+  normaliserAdresseEmailUnique,
   normaliserTelephoneWhatsApp,
+  reconcilierFiltresContactsCours,
   separerEncadrants,
 } from "../utils/contactsCours";
 
@@ -50,10 +57,12 @@ export default function ContactsCours() {
   const syncLancee = useRef(false);
   const [syncStatut, setSyncStatut] = useState<"en_cours" | "ok" | "erreur">("en_cours");
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
-  const [recherche, setRecherche] = useState("");
-  const [cours, setCours] = useState("");
-  const [horaire, setHoraire] = useState("");
-  const [encadrant, setEncadrant] = useState("");
+  const [filtres, setFiltres] = useState<FiltresContactsCours>({
+    recherche: "",
+    cours: "",
+    horaire: "",
+    encadrant: "",
+  });
   const [copie, setCopie] = useState<{ id: string; statut: "ok" | "erreur" } | null>(null);
 
   useEffect(() => {
@@ -77,51 +86,56 @@ export default function ContactsCours() {
 
   const contacts = useMemo(() => data?.contacts ?? [], [data?.contacts]);
 
-  const options = useMemo(() => {
-    const coursSet = new Set<string>();
-    const horairesSet = new Set<string>();
-    const encadrantsSet = new Set<string>();
-
-    for (const contact of contacts) {
-      if (contact.cours?.trim()) coursSet.add(contact.cours.trim());
-      if (contact.horaire?.trim()) horairesSet.add(contact.horaire.trim());
-      for (const nom of separerEncadrants(contact.encadrants)) encadrantsSet.add(nom);
-    }
-
-    const trier = (values: Set<string>) =>
-      [...values].sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" }));
-
-    return {
-      cours: trier(coursSet),
-      horaires: trier(horairesSet),
-      encadrants: trier(encadrantsSet),
+  useEffect(() => {
+    let annule = false;
+    queueMicrotask(() => {
+      if (annule) return;
+      setFiltres((precedents) => {
+        const valides = reconcilierFiltresContactsCours(
+          precedents,
+          calculerOptionsContactsCours(contacts, precedents),
+        );
+        return filtresContactsCoursEgaux(precedents, valides)
+          ? precedents
+          : valides;
+      });
+    });
+    return () => {
+      annule = true;
     };
   }, [contacts]);
 
-  const contactsFiltres = useMemo(() => {
-    const terme = normaliserRecherche(recherche);
+  const options = useMemo(
+    () => calculerOptionsContactsCours(contacts, filtres),
+    [contacts, filtres],
+  );
 
-    return contacts.filter((contact) => {
-      const nomComplet = normaliserRecherche(
-        `${contact.prenom ?? ""} ${contact.nom ?? ""} ${contact.nom ?? ""} ${contact.prenom ?? ""}`,
-      );
-      const encadrants = separerEncadrants(contact.encadrants);
+  const contactsFiltres = useMemo(
+    () => filtrerContactsCours(contacts, filtres),
+    [contacts, filtres],
+  );
 
-      return (
-        (!terme || nomComplet.includes(terme)) &&
-        (!cours || contact.cours?.trim() === cours) &&
-        (!horaire || contact.horaire?.trim() === horaire) &&
-        (!encadrant || encadrants.includes(encadrant))
+  const appliquerFiltres = (modifications: Partial<FiltresContactsCours>) => {
+    setFiltres((precedents) => {
+      const suivants = { ...precedents, ...modifications };
+      const valides = reconcilierFiltresContactsCours(
+        suivants,
+        calculerOptionsContactsCours(contacts, suivants),
       );
+      return filtresContactsCoursEgaux(precedents, valides)
+        ? precedents
+        : valides;
     });
-  }, [contacts, recherche, cours, horaire, encadrant]);
+  };
 
   const groupe = useMemo(() => {
     const emails = emailsUniques(
-      contactsFiltres.map((contact) => contact.email),
+      contactsFiltres.map((contact) =>
+        normaliserAdresseEmailUnique(contact.email),
+      ),
     );
     const sansEmail = contactsFiltres.filter(
-      (contact) => !contact.email,
+      (contact) => !normaliserAdresseEmailUnique(contact.email),
     ).length;
     return { emails, sansEmail };
   }, [contactsFiltres]);
@@ -138,10 +152,18 @@ export default function ContactsCours() {
 
   const ouvrirBrouillon = () => {
     if (groupe.emails.length === 0) return;
-    window.location.href = creerLienMailtoBcc(groupe.emails);
+    window.open(
+      creerLienGmail({ cci: groupe.emails }),
+      "_blank",
+      "noopener,noreferrer",
+    );
   };
 
   const dateFraicheur = formatDate(data?.lastSyncAt ?? null);
+  const appareilMobileWhatsApp = estAppareilMobileWhatsApp(
+    navigator.userAgent,
+    navigator.maxTouchPoints,
+  );
 
   return (
     <div className="contacts-cours-page">
@@ -192,29 +214,38 @@ export default function ContactsCours() {
               <Search size={18} aria-hidden="true" />
               <input
                 type="search"
-                value={recherche}
-                onChange={(event) => setRecherche(event.target.value)}
+                value={filtres.recherche}
+                onChange={(event) => appliquerFiltres({ recherche: event.target.value })}
                 placeholder="Ex. Léa Martin"
               />
             </span>
           </label>
           <label className="contacts-cours-field">
             <span>Cours</span>
-            <select value={cours} onChange={(event) => setCours(event.target.value)}>
+            <select
+              value={filtres.cours}
+              onChange={(event) => appliquerFiltres({ cours: event.target.value })}
+            >
               <option value="">Tous les cours</option>
               {options.cours.map((option) => <option key={option}>{option}</option>)}
             </select>
           </label>
           <label className="contacts-cours-field">
             <span>Horaire</span>
-            <select value={horaire} onChange={(event) => setHoraire(event.target.value)}>
+            <select
+              value={filtres.horaire}
+              onChange={(event) => appliquerFiltres({ horaire: event.target.value })}
+            >
               <option value="">Tous les horaires</option>
               {options.horaires.map((option) => <option key={option}>{option}</option>)}
             </select>
           </label>
           <label className="contacts-cours-field">
             <span>Encadrant</span>
-            <select value={encadrant} onChange={(event) => setEncadrant(event.target.value)}>
+            <select
+              value={filtres.encadrant}
+              onChange={(event) => appliquerFiltres({ encadrant: event.target.value })}
+            >
               <option value="">Tous les encadrants</option>
               {options.encadrants.map((option) => <option key={option}>{option}</option>)}
             </select>
@@ -261,7 +292,7 @@ export default function ContactsCours() {
       ) : (
         <ul className="contacts-cours-list">
           {contactsFiltres.map((contact, index) => {
-            const email = contact.email;
+            const email = normaliserAdresseEmailUnique(contact.email);
             const telephone = contact.telephone;
             const whatsapp = normaliserTelephoneWhatsApp(telephone);
             const emailGestion = contact.emailSource === "gestion";
@@ -300,7 +331,15 @@ export default function ContactsCours() {
                   <div className="contacts-cours-contact-line">
                     <div>
                       <span>Email</span>
-                      {email ? <a href={`mailto:${email}`}>{email}</a> : <strong>Non renseigné</strong>}
+                      {email ? (
+                        <a
+                          href={creerLienGmail({ destinataire: email })}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {email}
+                        </a>
+                      ) : <strong>Non renseigné</strong>}
                       {emailGestion && <small>Coordonnée du gestionnaire du dossier</small>}
                     </div>
                     <button
@@ -324,9 +363,9 @@ export default function ContactsCours() {
                     </div>
                     <a
                       className={`contacts-cours-icon-button contacts-cours-whatsapp${whatsapp ? "" : " is-disabled"}`}
-                      href={whatsapp ? `https://wa.me/${whatsapp}` : undefined}
-                      target={whatsapp ? "_blank" : undefined}
-                      rel={whatsapp ? "noreferrer" : undefined}
+                      href={whatsapp ? creerLienWhatsApp(whatsapp, appareilMobileWhatsApp) : undefined}
+                      target={whatsapp && !appareilMobileWhatsApp ? "_blank" : undefined}
+                      rel={whatsapp && !appareilMobileWhatsApp ? "noreferrer" : undefined}
                       aria-disabled={!whatsapp}
                       tabIndex={whatsapp ? undefined : -1}
                       aria-label={whatsapp ? `Ouvrir WhatsApp pour ${nomComplet}` : `Aucun numéro WhatsApp pour ${nomComplet}`}
