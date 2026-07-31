@@ -42,6 +42,8 @@ import type * as paie from "../paie.js";
 import type * as paiements from "../paiements.js";
 import type * as previsionnels from "../previsionnels.js";
 import type * as references from "../references.js";
+import type * as remboursements from "../remboursements.js";
+import type * as remboursementsHelloAsso from "../remboursementsHelloAsso.js";
 import type * as saisonUtils from "../saisonUtils.js";
 import type * as saisons from "../saisons.js";
 import type * as tiers from "../tiers.js";
@@ -90,6 +92,8 @@ declare const fullApi: ApiFromModules<{
   paiements: typeof paiements;
   previsionnels: typeof previsionnels;
   references: typeof references;
+  remboursements: typeof remboursements;
+  remboursementsHelloAsso: typeof remboursementsHelloAsso;
   saisonUtils: typeof saisonUtils;
   saisons: typeof saisons;
   tiers: typeof tiers;

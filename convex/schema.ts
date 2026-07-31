@@ -154,6 +154,33 @@ export default defineSchema({
     role: v.string(), // "admin" ou "user"
   }).index("by_userId", ["userId"]),
 
+  // SAISON-EXEMPT: préférences globales d'affichage du tableau de bord,
+  // communes à tous les membres du staff et indépendantes d'une saison.
+  dashboardConfiguration: defineTable({
+    cle: v.literal("global"),
+    // La position dans le tableau définit l'ordre d'affichage.
+    tiles: v.array(
+      v.object({
+        id: v.union(
+          v.literal("compta"),
+          v.literal("paiements"),
+          v.literal("budget"),
+          v.literal("abonnements"),
+          v.literal("licences_cours"),
+          v.literal("contacts_cours"),
+          v.literal("remboursements_eleves"),
+        ),
+        color: v.union(
+          v.literal("bg-info"),
+          v.literal("bg-success"),
+          v.literal("bg-warning"),
+          v.literal("bg-primary"),
+          v.literal("bg-danger"),
+        ),
+      }),
+    ),
+  }).index("by_cle", ["cle"]),
+
   // --- TABLES POUR SUIVI PAIEMENTS ---
   // Modèle relationnel : un "dossier" = une commande HelloAsso (regroupe les
   // échéances 1x/3x). Les transactions sont les paiements individuels remontés
@@ -238,6 +265,130 @@ export default defineSchema({
     reset_at: v.string(),
     reset_by: v.id("users"),
   }),
+
+  // ===================================================================
+  // REMBOURSEMENTS ÉLÈVES
+  // Cette tuile suit des demandes transverses jusqu'à leur paiement, puis
+  // conserve leurs archives indépendamment des saisons comptables.
+  // ===================================================================
+
+  // SAISON-EXEMPT: une demande reste active jusqu'au paiement complet et son
+  // archive doit rester consultable sans dépendre de la saison sélectionnée.
+  remboursements_demandes: defineTable({
+    reference: v.string(),
+    typeFormulaire: v.union(
+      v.literal("competition"),
+      v.literal("stage"),
+    ),
+    libelle: v.string(),
+    dateEvenement: v.optional(v.string()),
+    description: v.optional(v.string()),
+    calcul: v.union(
+      v.object({
+        type: v.literal("total_reparti"),
+        montantTotalCentimes: v.number(),
+      }),
+      v.object({
+        type: v.literal("prix_fixe_personne"),
+        prixParPersonneCentimes: v.number(),
+      }),
+    ),
+    statut: v.union(v.literal("active"), v.literal("archivee")),
+    createdAt: v.string(),
+    createdBy: v.id("users"),
+    updatedAt: v.string(),
+    updatedBy: v.id("users"),
+    archivedAt: v.optional(v.string()),
+    archivedBy: v.optional(v.id("users")),
+    annuleeAt: v.optional(v.string()),
+    annuleeBy: v.optional(v.id("users")),
+    motifAnnulation: v.optional(v.string()),
+  })
+    .index("by_reference", ["reference"])
+    .index("by_statut", ["statut"])
+    .index("by_typeFormulaire_and_statut", ["typeFormulaire", "statut"]),
+
+  // SAISON-EXEMPT: le snapshot identitaire fige le bénéficiaire au moment de
+  // la demande, même si le snapshot global des élèves change ensuite.
+  remboursements_beneficiaires: defineTable({
+    demandeId: v.id("remboursements_demandes"),
+    sourceEleveId: v.optional(v.id("abo_eleves_en_cours")),
+    nom: v.string(),
+    prenom: v.string(),
+    email: v.optional(v.string()),
+    licence: v.optional(v.string()),
+    cours: v.optional(v.string()),
+    horaire: v.optional(v.string()),
+    montantDuCentimes: v.number(),
+    createdAt: v.string(),
+    createdBy: v.id("users"),
+    updatedAt: v.string(),
+    updatedBy: v.id("users"),
+  })
+    .index("by_demandeId", ["demandeId"])
+    .index("by_sourceEleveId", ["sourceEleveId"]),
+
+  // SAISON-EXEMPT: cache courant des deux formulaires HelloAsso fixes,
+  // synchronisé uniquement à l'ouverture de la tuile.
+  remboursements_helloasso_paiements: defineTable({
+    typeFormulaire: v.union(
+      v.literal("competition"),
+      v.literal("stage"),
+    ),
+    helloassoPaymentId: v.string(),
+    payeurNom: v.string(),
+    payeurPrenom: v.string(),
+    payeurEmail: v.string(),
+    participantNom: v.optional(v.string()),
+    participantPrenom: v.optional(v.string()),
+    participantEmail: v.optional(v.string()),
+    amountCentimes: v.number(),
+    statut: v.union(
+      v.literal("authorized"),
+      v.literal("pending"),
+      v.literal("refused"),
+      v.literal("canceled"),
+      v.literal("refunded"),
+      v.literal("unknown"),
+    ),
+    datePaiement: v.string(),
+    syncedAt: v.string(),
+  })
+    .index("by_helloassoPaymentId", ["helloassoPaymentId"])
+    .index("by_typeFormulaire_and_datePaiement", [
+      "typeFormulaire",
+      "datePaiement",
+    ])
+    .index("by_typeFormulaire_and_statut_and_datePaiement", [
+      "typeFormulaire",
+      "statut",
+      "datePaiement",
+    ]),
+
+  // SAISON-EXEMPT: rapprochement durable entre une archive métier et le cache
+  // HelloAsso transversal. L'unicité d'un paiement est imposée en mutation.
+  remboursements_rapprochements: defineTable({
+    beneficiaireId: v.id("remboursements_beneficiaires"),
+    paiementId: v.id("remboursements_helloasso_paiements"),
+    rapprocheAt: v.string(),
+    rapprocheBy: v.id("users"),
+  })
+    .index("by_beneficiaireId", ["beneficiaireId"])
+    .index("by_paiementId", ["paiementId"]),
+
+  // SAISON-EXEMPT: journal d'audit des préparations d'e-mails rattaché aux
+  // demandes, conservé avec leurs archives indépendamment des saisons.
+  remboursements_email_log: defineTable({
+    demandeId: v.id("remboursements_demandes"),
+    beneficiaireId: v.id("remboursements_beneficiaires"),
+    typeEmail: v.union(v.literal("initial"), v.literal("relance")),
+    destinataire: v.string(),
+    preparedAt: v.string(),
+    preparedBy: v.id("users"),
+  })
+    .index("by_demandeId", ["demandeId"])
+    .index("by_demandeId_and_preparedAt", ["demandeId", "preparedAt"])
+    .index("by_beneficiaireId", ["beneficiaireId"]),
 
   // ===================================================================
   // MODULE ABONNEMENTS ESCALADE (portage de abo-esca-new / Supabase)

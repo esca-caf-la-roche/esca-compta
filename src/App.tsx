@@ -10,6 +10,7 @@ import ParametresPaie from "./pages/Budget/ParametresPaie";
 import Configurations from "./pages/Configurations";
 import LicencesEnCours from "./pages/LicencesEnCours";
 import ContactsCours from "./pages/ContactsCours";
+import RemboursementsEleves from "./pages/RemboursementsEleves";
 import PaiementsLayout from "./pages/Paiements/Layout";
 import ValidationPaiements from "./pages/Paiements/Validation";
 import ConfigPaiements from "./pages/Paiements/Configurations";
@@ -54,6 +55,7 @@ function App() {
               <Route path="/configurations" element={<RequireAccess admin><Configurations /></RequireAccess>} />
               <Route path="/licences-cours" element={<RequireAccess tile="licences_cours"><LicencesEnCours /></RequireAccess>} />
               <Route path="/contacts-cours" element={<RequireAccess tile="contacts_cours"><ContactsCours /></RequireAccess>} />
+              <Route path="/remboursements-eleves" element={<RequireAccess tile="remboursements_eleves"><RemboursementsEleves /></RequireAccess>} />
 
               {/* Routes Paiements */}
               <Route path="/paiements" element={<RequireAccess tile="paiements"><PaiementsLayout /></RequireAccess>}>

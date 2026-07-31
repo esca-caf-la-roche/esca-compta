@@ -21,6 +21,7 @@ export const TILES = [
   "abonnements",
   "licences_cours",
   "contacts_cours",
+  "remboursements_eleves",
 ] as const;
 export type Tile = (typeof TILES)[number];
 
@@ -54,7 +55,7 @@ export async function requireAdmin(
 ): Promise<Doc<"userSettings">> {
   const settings = await getUserSettings(ctx, userId);
   if (settings?.role !== "admin") {
-    throw new Error("Réservé aux administrateurs.");
+    throw new ConvexError("Réservé aux administrateurs.");
   }
   return settings;
 }

@@ -21,13 +21,14 @@ le détail métier de chaque module.
 
 | Module et routes | Pages principales | Backend |
 |---|---|---|
-| Tableau de bord `/` | `src/pages/Dashboard.tsx` | `convex/users.ts` |
+| Tableau de bord `/` | `src/pages/Dashboard.tsx`, `src/config/tiles.ts` | `convex/users.ts` |
 | Comptabilité `/compta` | `src/pages/Compta.tsx` | `convex/transactions.ts`, `convex/tiers.ts`, `convex/analytiques.ts`, `convex/typesDocuments.ts` |
 | Paiements `/paiements/*` | `src/pages/Paiements/` | `convex/paiements.ts`, `convex/helloasso.ts`, `convex/drive.ts` |
 | Budget `/budget/*` | `src/pages/Budget/` | `convex/paie.ts`, `convex/cours.ts`, `convex/previsionnels.ts`, `convex/effectifs.ts` |
 | Licences `/licences-cours` | `src/pages/LicencesEnCours.tsx` | `convex/abo/licencesEnCours.ts`, `convex/abo/licences.ts`, `convex/abo/sync.ts` |
 | Contacts des cours `/contacts-cours` | `src/pages/ContactsCours.tsx`, `src/utils/contactsCours.ts` | `convex/contactsCours.ts`, `convex/abo/sync.ts` |
-| Administration `/configurations` | `src/pages/Configurations.tsx` | `convex/users.ts`, `convex/saisons.ts`, `convex/bootstrap.ts` |
+| Remboursements élèves `/remboursements-eleves` | `src/pages/RemboursementsEleves.tsx`, `src/utils/remboursements.ts` | `convex/remboursements.ts`, `convex/remboursementsHelloAsso.ts` |
+| Administration `/configurations` | `src/pages/Configurations.tsx`, `src/components/Configurations/DashboardTilesPanel.tsx` | `convex/users.ts`, `convex/saisons.ts`, `convex/bootstrap.ts` |
 
 Les routes `/adherents`, `/evenements` et `/statistiques` sont actuellement des
 placeholders déclarés dans `src/App.tsx`, sans module métier associé.
@@ -60,6 +61,7 @@ La documentation fonctionnelle complète est dans
 | Calcul de paie | `src/utils/paieCompute.ts` | Calculs purs du budget |
 | Planning | `src/utils/planning.ts` | Manipulation des séances |
 | Contacts des cours | `src/utils/contactsCours.ts` | Recherche normalisée, découpage des encadrants, dédoublonnage des emails et liens de contact |
+| Remboursements élèves | `src/utils/remboursements.ts` | Montants en centimes, liens Gmail et formulaires HelloAsso fixes |
 | Couleurs | `src/utils/colors.ts` | Présentation cohérente |
 | Diff d'upsert | `convex/dbUtils.ts` | Évite les écritures Convex inutiles |
 
@@ -70,6 +72,7 @@ La documentation fonctionnelle complète est dans
 | Email staff | `convex/email.ts` |
 | Email Abonnements | `convex/abo/emails.ts` |
 | HelloAsso | `convex/helloasso.ts`, `convex/abo/paiements.ts` |
+| HelloAsso — remboursements élèves | `convex/remboursementsHelloAsso.ts` |
 | Google Drive | `convex/drive.ts` |
 | Site du club et snapshot des élèves en cours | `convex/abo/scrap.ts`, `convex/abo/sync.ts` |
 | Annuaire des licences | `convex/abo/licences.ts` |
