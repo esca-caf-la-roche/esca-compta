@@ -56,6 +56,10 @@ const beneficiaireRetourValidator = v.object({
   sourceEleveId: v.union(v.id("abo_eleves_en_cours"), v.null()),
   nom: v.string(),
   prenom: v.string(),
+  parent1Nom: v.union(v.string(), v.null()),
+  parent1Prenom: v.union(v.string(), v.null()),
+  parent2Nom: v.union(v.string(), v.null()),
+  parent2Prenom: v.union(v.string(), v.null()),
   email: v.union(v.string(), v.null()),
   licence: v.union(v.string(), v.null()),
   cours: v.union(v.string(), v.null()),
@@ -218,6 +222,10 @@ async function enrichirBeneficiaire(
     sourceEleveId: beneficiaire.sourceEleveId ?? null,
     nom: beneficiaire.nom,
     prenom: beneficiaire.prenom,
+    parent1Nom: beneficiaire.parent1Nom ?? null,
+    parent1Prenom: beneficiaire.parent1Prenom ?? null,
+    parent2Nom: beneficiaire.parent2Nom ?? null,
+    parent2Prenom: beneficiaire.parent2Prenom ?? null,
     email: beneficiaire.email ?? null,
     licence: beneficiaire.licence ?? null,
     cours: beneficiaire.cours ?? null,
@@ -394,6 +402,7 @@ export const listPaiementsDisponibles = authenticatedQuery({
             .withIndex("by_paiementId", (q) => q.eq("paiementId", paiement._id))
             .first();
           if (lien) return null;
+          if (paiement.archivedAt) return null;
           const raisons: string[] = [];
           let score = 0;
           const emailsPaiement = [paiement.payeurEmail, paiement.participantEmail]
@@ -406,18 +415,20 @@ export const listPaiementsDisponibles = authenticatedQuery({
             score += 50;
             raisons.push("même adresse e-mail (+50)");
           }
-          const nomBeneficiaire = normaliser(
+          const nomsBeneficiaire = [
             `${beneficiaire.prenom} ${beneficiaire.nom}`,
-          );
+            `${beneficiaire.parent1Prenom ?? ""} ${beneficiaire.parent1Nom ?? ""}`,
+            `${beneficiaire.parent2Prenom ?? ""} ${beneficiaire.parent2Nom ?? ""}`,
+          ].map(normaliser).filter(Boolean);
           const nomsPaiement = [
             normaliser(`${paiement.payeurPrenom} ${paiement.payeurNom}`),
             normaliser(
               `${paiement.participantPrenom ?? ""} ${paiement.participantNom ?? ""}`,
             ),
           ];
-          if (nomBeneficiaire && nomsPaiement.includes(nomBeneficiaire)) {
+          if (nomsBeneficiaire.some((nom) => nomsPaiement.includes(nom))) {
             score += 30;
-            raisons.push("même prénom et nom (+30)");
+            raisons.push("même prénom et nom (élève ou parent) (+30)");
           }
           if (soldeCentimes > 0 && soldeCentimes === paiement.amountCentimes) {
             score += 20;
@@ -453,6 +464,13 @@ export const creerDemande = authenticatedMutation({
     dateEvenement: v.optional(v.string()),
     calcul: calculValidator,
     eleveIds: v.array(v.id("abo_eleves_en_cours")),
+    parents: v.array(v.object({
+      eleveId: v.id("abo_eleves_en_cours"),
+      parent1Nom: v.optional(v.string()),
+      parent1Prenom: v.optional(v.string()),
+      parent2Nom: v.optional(v.string()),
+      parent2Prenom: v.optional(v.string()),
+    })),
   },
   returns: v.object({
     demandeId: v.id("remboursements_demandes"),
@@ -484,6 +502,11 @@ export const creerDemande = authenticatedMutation({
     if (eleves.some((eleve) => estListeAttente(eleve?.horaire))) {
       erreur("Un élève en liste d'attente ne peut pas être ajouté.");
     }
+    if (args.parents.length > ids.length) erreur("Les contacts parentaux sont invalides.");
+    const parentsParEleve = new Map(args.parents.map((parent) => [parent.eleveId, parent]));
+    if (parentsParEleve.size !== args.parents.length || args.parents.some((parent) => !ids.includes(parent.eleveId))) {
+      erreur("Les contacts parentaux doivent correspondre aux élèves sélectionnés.");
+    }
     const now = new Date().toISOString();
     const reference = `REMB-${now.slice(0, 10).replaceAll("-", "")}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
     const demandeId = await ctx.db.insert("remboursements_demandes", {
@@ -507,11 +530,16 @@ export const creerDemande = authenticatedMutation({
       args.calcul.type === "total_reparti" ? montant % eleves.length : 0;
     for (let index = 0; index < eleves.length; index += 1) {
       const eleve = eleves[index]!;
+      const parents = parentsParEleve.get(eleve._id);
       await ctx.db.insert("remboursements_beneficiaires", {
         demandeId,
         sourceEleveId: eleve._id,
         nom: texteRequis(eleve.nom ?? "", "Le nom de l'élève", 120),
         prenom: texteRequis(eleve.prenom ?? "", "Le prénom de l'élève", 120),
+        parent1Nom: texteOptionnel(parents?.parent1Nom, "Le nom du parent 1", 120),
+        parent1Prenom: texteOptionnel(parents?.parent1Prenom, "Le prénom du parent 1", 120),
+        parent2Nom: texteOptionnel(parents?.parent2Nom, "Le nom du parent 2", 120),
+        parent2Prenom: texteOptionnel(parents?.parent2Prenom, "Le prénom du parent 2", 120),
         email: emailUniqueStrict(eleve.email_eleve, eleve.email_gestion),
         licence: eleve.licence?.trim() || eleve.licence_saisie?.trim() || undefined,
         cours: eleve.cours?.trim() || undefined,
@@ -524,6 +552,106 @@ export const creerDemande = authenticatedMutation({
       });
     }
     return { demandeId, reference };
+  },
+});
+
+export const modifierDemande = authenticatedMutation({
+  args: {
+    demandeId: v.id("remboursements_demandes"),
+    typeFormulaire: typeFormulaireValidator,
+    libelle: v.string(),
+    description: v.optional(v.string()),
+    dateEvenement: v.optional(v.string()),
+    parents: v.array(v.object({
+      beneficiaireId: v.id("remboursements_beneficiaires"),
+      parent1Nom: v.optional(v.string()),
+      parent1Prenom: v.optional(v.string()),
+      parent2Nom: v.optional(v.string()),
+      parent2Prenom: v.optional(v.string()),
+    })),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "remboursements_eleves");
+    const demande = await ctx.db.get("remboursements_demandes", args.demandeId);
+    if (!demande) erreur("Demande introuvable.", "404");
+    if (demande.statut !== "active") erreur("Une demande archivée ne peut pas être modifiée.");
+    const dateEvenement = texteOptionnel(args.dateEvenement, "La date", 32);
+    if (dateEvenement && !/^\d{4}-\d{2}-\d{2}$/.test(dateEvenement)) {
+      erreur("La date doit être au format AAAA-MM-JJ.");
+    }
+    const now = new Date().toISOString();
+    const patch = {
+      typeFormulaire: args.typeFormulaire,
+      libelle: texteRequis(args.libelle, "Le libellé", 160),
+      description: texteOptionnel(args.description, "La description", 2_000),
+      dateEvenement,
+      updatedAt: now,
+      updatedBy: ctx.userId,
+    };
+    if (champsModifies(demande, patch, ["updatedAt"])) await ctx.db.patch(demande._id, patch);
+    const beneficiaires = await getBeneficiaires(ctx, demande._id);
+    if (args.typeFormulaire !== demande.typeFormulaire) {
+      const rapprochements = await Promise.all(beneficiaires.map((beneficiaire) =>
+        ctx.db.query("remboursements_rapprochements").withIndex("by_beneficiaireId", (q) => q.eq("beneficiaireId", beneficiaire._id)).take(1),
+      ));
+      if (rapprochements.some((rows) => rows.length > 0)) {
+        erreur("Le formulaire ne peut plus être modifié après un rapprochement.");
+      }
+    }
+    const autorises = new Set(beneficiaires.map((beneficiaire) => beneficiaire._id));
+    const idsParents = new Set(args.parents.map((parent) => parent.beneficiaireId));
+    if (args.parents.length !== beneficiaires.length || idsParents.size !== args.parents.length || args.parents.some((parent) => !autorises.has(parent.beneficiaireId))) {
+      erreur("Les contacts parentaux ne correspondent pas aux bénéficiaires.");
+    }
+    for (const parent of args.parents) {
+      const beneficiaire = await ctx.db.get("remboursements_beneficiaires", parent.beneficiaireId);
+      if (!beneficiaire) erreur("Bénéficiaire introuvable.", "404");
+      const parentPatch = {
+        parent1Nom: texteOptionnel(parent.parent1Nom, "Le nom du parent 1", 120),
+        parent1Prenom: texteOptionnel(parent.parent1Prenom, "Le prénom du parent 1", 120),
+        parent2Nom: texteOptionnel(parent.parent2Nom, "Le nom du parent 2", 120),
+        parent2Prenom: texteOptionnel(parent.parent2Prenom, "Le prénom du parent 2", 120),
+        updatedAt: now,
+        updatedBy: ctx.userId,
+      };
+      if (champsModifies(beneficiaire, parentPatch, ["updatedAt"])) await ctx.db.patch(beneficiaire._id, parentPatch);
+    }
+    return null;
+  },
+});
+
+export const archiverPaiementNonRapproche = authenticatedMutation({
+  args: { paiementId: v.id("remboursements_helloasso_paiements") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "remboursements_eleves");
+    const paiement = await ctx.db.get("remboursements_helloasso_paiements", args.paiementId);
+    if (!paiement) erreur("Paiement introuvable.", "404");
+    const rapprochement = await ctx.db.query("remboursements_rapprochements").withIndex("by_paiementId", (q) => q.eq("paiementId", paiement._id)).first();
+    if (rapprochement) erreur("Un paiement rapproché ne peut pas être archivé.");
+    if (!paiement.archivedAt) await ctx.db.patch(paiement._id, { archivedAt: new Date().toISOString(), archivedBy: ctx.userId });
+    return null;
+  },
+});
+
+export const listPaiementsNonRapproches = authenticatedQuery({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(v.object({
+    paiementId: v.id("remboursements_helloasso_paiements"), typeFormulaire: typeFormulaireValidator,
+    payeurNom: v.string(), payeurPrenom: v.string(), payeurEmail: v.string(),
+    participantNom: v.union(v.string(), v.null()), participantPrenom: v.union(v.string(), v.null()),
+    amountCentimes: v.number(), datePaiement: v.string(),
+  })),
+  handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "remboursements_eleves");
+    const result = await ctx.db.query("remboursements_helloasso_paiements").withIndex("by_typeFormulaire_and_datePaiement", (q) => q).order("desc").paginate(args.paginationOpts);
+    const page = (await Promise.all(result.page.map(async (paiement) => {
+      if (paiement.archivedAt || paiement.statut !== "authorized") return null;
+      const lien = await ctx.db.query("remboursements_rapprochements").withIndex("by_paiementId", (q) => q.eq("paiementId", paiement._id)).first();
+      return lien ? null : { paiementId: paiement._id, typeFormulaire: paiement.typeFormulaire, payeurNom: paiement.payeurNom, payeurPrenom: paiement.payeurPrenom, payeurEmail: paiement.payeurEmail, participantNom: paiement.participantNom ?? null, participantPrenom: paiement.participantPrenom ?? null, amountCentimes: paiement.amountCentimes, datePaiement: paiement.datePaiement };
+    }))).filter((paiement) => paiement !== null);
+    return { ...result, page };
   },
 });
 
@@ -640,6 +768,9 @@ export const rapprocherPaiement = authenticatedMutation({
     }
     if (paiement.statut !== "authorized") {
       erreur("Seul un paiement autorisé peut être rapproché.");
+    }
+    if (paiement.archivedAt) {
+      erreur("Un paiement archivé ne peut pas être rapproché.");
     }
     const existant = await ctx.db
       .query("remboursements_rapprochements")

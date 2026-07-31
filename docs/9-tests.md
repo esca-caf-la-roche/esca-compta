@@ -101,6 +101,14 @@ Ces scénarios sont manuels tant qu'aucune suite navigateur n'est installée :
    demandes et archives ;
 7. contrôler au clavier et sur mobile le formulaire, la sélection d'élèves,
    les onglets, le panneau de rapprochement et le bouton « Afficher plus ».
+   Vérifier que les élèves cochés restent visibles pendant une recherche, que
+   les noms des deux parents sont conservés et servent à suggérer un paiement ;
+   vérifier aussi la modification d'une demande active ;
+8. ouvrir les brouillons collectifs initial et de relance : toutes les adresses
+   valides doivent être uniquement en CCI, le message doit rester générique et
+   les élèves soldés doivent être exclus de la relance ; archiver ensuite un
+   paiement non rapproché et vérifier qu'il disparaît des deux listes de
+   rapprochement sans être supprimé.
 
 ### Scénario ciblé — Configuration du tableau de bord
 
