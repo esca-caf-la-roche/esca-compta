@@ -276,10 +276,15 @@ function CreationDemande({
     [eleves, selection],
   );
   const modifierParent = (eleveId: Eleve["eleveId"], champ: "parent1Nom" | "parent1Prenom" | "parent2Nom" | "parent2Prenom", valeur: string) => {
-    setParents((precedents) => ({
-      ...precedents,
-      [eleveId]: { parent1Nom: "", parent1Prenom: "", parent2Nom: "", parent2Prenom: "", ...precedents[eleveId], [champ]: valeur },
-    }));
+    setParents((precedents) => {
+      const parent = precedents[eleveId] ?? {
+        parent1Nom: "",
+        parent1Prenom: "",
+        parent2Nom: "",
+        parent2Prenom: "",
+      };
+      return { ...precedents, [eleveId]: { ...parent, [champ]: valeur } };
+    });
   };
 
   const soumettre = async (event: React.FormEvent<HTMLFormElement>) => {
