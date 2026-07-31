@@ -304,7 +304,7 @@ export const purgerPaiementsExpires = internalMutation({
         .query("remboursements_rapprochements")
         .withIndex("by_paiementId", (q) => q.eq("paiementId", paiement._id))
         .first();
-      if (!rapprochement) {
+      if (!rapprochement && !paiement.archivedAt) {
         await ctx.db.delete(
           "remboursements_helloasso_paiements",
           paiement._id,

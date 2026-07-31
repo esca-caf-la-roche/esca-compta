@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Link2,
   Mail,
+  Pencil,
   Plus,
   RefreshCcw,
   RotateCcw,
@@ -27,12 +28,14 @@ import {
 import { api } from "../../convex/_generated/api";
 import {
   creerLienGmailRemboursement,
+  creerLienGmailRemboursementGroupe,
   eurosVersCentimes,
   formatEuros,
   LIENS_HELLOASSO_REMBOURSEMENTS,
   messageErreurRemboursement,
   normaliserRechercheRemboursement,
   preparerEmailRemboursement,
+  preparerEmailRemboursementGroupe,
   type TypeEmailRemboursement,
   type TypeFormulaireRemboursement,
 } from "../utils/remboursements";
@@ -233,6 +236,7 @@ function CreationDemande({
   const [selection, setSelection] = useState<Set<Eleve["eleveId"]>>(
     () => new Set(),
   );
+  const [parents, setParents] = useState<Record<string, { parent1Nom: string; parent1Prenom: string; parent2Nom: string; parent2Prenom: string }>>({});
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -267,6 +271,16 @@ function CreationDemande({
       return suivante;
     });
   };
+  const elevesSelectionnes = useMemo(
+    () => (eleves ?? []).filter((eleve) => selection.has(eleve.eleveId)),
+    [eleves, selection],
+  );
+  const modifierParent = (eleveId: Eleve["eleveId"], champ: "parent1Nom" | "parent1Prenom" | "parent2Nom" | "parent2Prenom", valeur: string) => {
+    setParents((precedents) => ({
+      ...precedents,
+      [eleveId]: { parent1Nom: "", parent1Prenom: "", parent2Nom: "", parent2Prenom: "", ...precedents[eleveId], [champ]: valeur },
+    }));
+  };
 
   const soumettre = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -287,6 +301,7 @@ function CreationDemande({
             ? { type: "total_reparti", montantTotalCentimes: centimes }
             : { type: "prix_fixe_personne", prixParPersonneCentimes: centimes },
         eleveIds: [...selection],
+        parents: [...selection].map((eleveId) => ({ eleveId, ...parents[eleveId] })),
       });
       onFermer();
     } catch (error) {
@@ -370,6 +385,23 @@ function CreationDemande({
             </span>
           </label>
           <p className="remb-selection-count">{selection.size} sélectionné{selection.size > 1 ? "s" : ""}</p>
+          {elevesSelectionnes.length > 0 && (
+            <div className="remb-selected-students" aria-label="Élèves sélectionnés">
+              <strong>Élèves sélectionnés — restent visibles pendant la recherche</strong>
+              {elevesSelectionnes.map((eleve) => {
+                const parent = parents[eleve.eleveId] ?? { parent1Nom: "", parent1Prenom: "", parent2Nom: "", parent2Prenom: "" };
+                return <div className="remb-selected-student" key={eleve.eleveId}>
+                  <div><strong>{eleve.prenom} {eleve.nom}</strong><button type="button" className="remb-link-button" onClick={() => basculerEleve(eleve.eleveId)}>Retirer</button></div>
+                  <div className="remb-parent-fields">
+                    <input value={parent.parent1Prenom} onChange={(event) => modifierParent(eleve.eleveId, "parent1Prenom", event.target.value)} placeholder="Prénom parent 1" maxLength={120} />
+                    <input value={parent.parent1Nom} onChange={(event) => modifierParent(eleve.eleveId, "parent1Nom", event.target.value)} placeholder="Nom parent 1" maxLength={120} />
+                    <input value={parent.parent2Prenom} onChange={(event) => modifierParent(eleve.eleveId, "parent2Prenom", event.target.value)} placeholder="Prénom parent 2" maxLength={120} />
+                    <input value={parent.parent2Nom} onChange={(event) => modifierParent(eleve.eleveId, "parent2Nom", event.target.value)} placeholder="Nom parent 2" maxLength={120} />
+                  </div>
+                </div>;
+              })}
+            </div>
+          )}
           {eleves === undefined ? (
             <p className="remb-inline-state" role="status">Chargement des élèves…</p>
           ) : eleves.length === 0 ? (
@@ -418,6 +450,7 @@ function DemandeCard({
   const archiver = useMutation(api.remboursements.archiverDemande);
   const restaurer = useMutation(api.remboursements.restaurerDemande);
   const annuler = useMutation(api.remboursements.annulerDemande);
+  const modifier = useMutation(api.remboursements.modifierDemande);
   const annulerRapprochement = useMutation(api.remboursements.annulerRapprochement);
   const journaliserEmail = useMutation(api.remboursements.journaliserEmail);
   const [ouverte, setOuverte] = useState(true);
@@ -484,6 +517,66 @@ function DemandeCard({
     );
   };
 
+  const demanderModification = () => {
+    const libelle = window.prompt("Libellé de la demande :", demande.libelle);
+    if (libelle === null) return;
+    const typeFormulaire = window.prompt("Type de remboursement (competition ou stage) :", demande.typeFormulaire);
+    if (typeFormulaire === null) return;
+    if (typeFormulaire !== "competition" && typeFormulaire !== "stage") {
+      onErreur("Le type de remboursement doit être « competition » ou « stage ».");
+      return;
+    }
+    const description = window.prompt("Description (facultative) :", demande.description ?? "");
+    if (description === null) return;
+    const dateEvenement = window.prompt("Date de l’événement (AAAA-MM-JJ, facultative) :", demande.dateEvenement ?? "");
+    if (dateEvenement === null) return;
+    const parents = [] as Array<{ beneficiaireId: Beneficiaire["beneficiaireId"]; parent1Nom?: string; parent1Prenom?: string; parent2Nom?: string; parent2Prenom?: string }>;
+    for (const beneficiaire of demande.beneficiaires) {
+      const parent1Prenom = window.prompt(`Prénom du parent 1 de ${beneficiaire.prenom} ${beneficiaire.nom} :`, beneficiaire.parent1Prenom ?? "");
+      if (parent1Prenom === null) return;
+      const parent1Nom = window.prompt(`Nom du parent 1 de ${beneficiaire.prenom} ${beneficiaire.nom} :`, beneficiaire.parent1Nom ?? "");
+      if (parent1Nom === null) return;
+      const parent2Prenom = window.prompt(`Prénom du parent 2 de ${beneficiaire.prenom} ${beneficiaire.nom} :`, beneficiaire.parent2Prenom ?? "");
+      if (parent2Prenom === null) return;
+      const parent2Nom = window.prompt(`Nom du parent 2 de ${beneficiaire.prenom} ${beneficiaire.nom} :`, beneficiaire.parent2Nom ?? "");
+      if (parent2Nom === null) return;
+      parents.push({ beneficiaireId: beneficiaire.beneficiaireId, parent1Nom: parent1Nom.trim() || undefined, parent1Prenom: parent1Prenom.trim() || undefined, parent2Nom: parent2Nom.trim() || undefined, parent2Prenom: parent2Prenom.trim() || undefined });
+    }
+    void executer("edit", () => modifier({
+      demandeId: demande.demandeId,
+      typeFormulaire,
+      libelle,
+      description: description.trim() || undefined,
+      dateEvenement: dateEvenement.trim() || undefined,
+      parents,
+    }), "La demande n’a pas pu être modifiée.");
+  };
+
+  const lienEmailGroupe = (typeEmail: TypeEmailRemboursement) => {
+    const destinataires = demande.beneficiaires
+      .filter((beneficiaire) => typeEmail === "initial" || beneficiaire.soldeCentimes > 0)
+      .map((beneficiaire) => beneficiaire.email ?? "");
+    const email = preparerEmailRemboursementGroupe({
+      typeEmail,
+      libelle: demande.libelle,
+      lienHelloAsso: LIENS_HELLOASSO_REMBOURSEMENTS[demande.typeFormulaire],
+    });
+    try { return creerLienGmailRemboursementGroupe({ destinatairesCci: destinataires, ...email }); }
+    catch { return null; }
+  };
+
+  const journaliserBrouillonGroupe = (typeEmail: TypeEmailRemboursement) => {
+    const beneficiaires = demande.beneficiaires.filter((beneficiaire) =>
+      Boolean(normaliserAdresseEmailUnique(beneficiaire.email)) &&
+      (typeEmail === "initial" || beneficiaire.soldeCentimes > 0),
+    );
+    void Promise.all(beneficiaires.map((beneficiaire) => journaliserEmail({
+      demandeId: demande.demandeId,
+      beneficiaireId: beneficiaire.beneficiaireId,
+      typeEmail,
+    }))).catch((error: unknown) => onErreur(messageErreurRemboursement(error, "Le brouillon est ouvert, mais sa préparation n’a pas pu être journalisée.")));
+  };
+
   const fermerRapprochement = (beneficiaireId: Beneficiaire["beneficiaireId"]) => {
     setRapprochementOuvert(null);
     requestAnimationFrame(() => boutonsRapprochement.current.get(beneficiaireId)?.focus());
@@ -544,6 +637,7 @@ function DemandeCard({
                       <h3>{beneficiaire.prenom} {beneficiaire.nom}</h3>
                       <p>{adresseEmail || (beneficiaire.email ? "Email invalide" : "Email non renseigné")}</p>
                       <small>{[beneficiaire.cours, beneficiaire.horaire, beneficiaire.licence].filter(Boolean).join(" · ")}</small>
+                      {(beneficiaire.parent1Nom || beneficiaire.parent1Prenom || beneficiaire.parent2Nom || beneficiaire.parent2Prenom) && <small>Parents : {[`${beneficiaire.parent1Prenom ?? ""} ${beneficiaire.parent1Nom ?? ""}`.trim(), `${beneficiaire.parent2Prenom ?? ""} ${beneficiaire.parent2Nom ?? ""}`.trim()].filter(Boolean).join(" · ")}</small>}
                     </div>
                     <div className="remb-balance">
                       <span>Dû {formatEuros(beneficiaire.montantDuCentimes)}</span>
@@ -680,6 +774,9 @@ function DemandeCard({
             <span>{demande.beneficiaires.length} bénéficiaire{demande.beneficiaires.length > 1 ? "s" : ""}</span>
             {demande.statut === "active" ? (
               <div className="remb-card-footer-actions">
+                <a className={`remb-button remb-button--small${lienEmailGroupe("initial") ? "" : " is-disabled"}`} href={lienEmailGroupe("initial") ?? undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!lienEmailGroupe("initial")} tabIndex={lienEmailGroupe("initial") ? undefined : -1} onClick={() => journaliserBrouillonGroupe("initial")}><Mail size={15} aria-hidden="true" /> Demande à tous (CCI)</a>
+                <a className={`remb-button remb-button--small remb-button--quiet${lienEmailGroupe("relance") ? "" : " is-disabled"}`} href={lienEmailGroupe("relance") ?? undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!lienEmailGroupe("relance")} tabIndex={lienEmailGroupe("relance") ? undefined : -1} onClick={() => journaliserBrouillonGroupe("relance")}><Mail size={15} aria-hidden="true" /> Relance à tous (CCI)</a>
+                <button type="button" className="remb-button remb-button--quiet" disabled={actionEnCours !== null} onClick={demanderModification}><Pencil size={17} aria-hidden="true" /> {actionEnCours === "edit" ? "Modification…" : "Modifier"}</button>
                 <button type="button" className="remb-button remb-button--danger" disabled={actionEnCours !== null} onClick={demanderAnnulation}>
                   <X size={17} aria-hidden="true" /> {actionEnCours === "cancel" ? "Annulation…" : "Annuler la demande"}
                 </button>
@@ -703,6 +800,7 @@ export default function RemboursementsEleves() {
   const [statut, setStatut] = useState<StatutListe>("active");
   const [creationOuverte, setCreationOuverte] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [paiementsOuverts, setPaiementsOuverts] = useState(false);
   const erreurRef = useRef<HTMLDivElement>(null);
   const [syncStatut, setSyncStatut] =
     useState<"en_cours" | "ok" | "erreur">("en_cours");
@@ -718,6 +816,8 @@ export default function RemboursementsEleves() {
     { initialNumItems: 10 },
   );
   const eleves = useQuery(api.remboursements.listEleves);
+  const { results: paiementsNonRapproches, status: statutPaiementsNonRapproches, loadMore: chargerPlusPaiementsNonRapproches } = usePaginatedQuery(api.remboursements.listPaiementsNonRapproches, {}, { initialNumItems: 20 });
+  const archiverPaiement = useMutation(api.remboursements.archiverPaiementNonRapproche);
   const synchroniser = useAction(api.remboursementsHelloAsso.synchroniser);
 
   useEffect(() => {
@@ -808,6 +908,20 @@ export default function RemboursementsEleves() {
       {creationOuverte && statut === "active" && (
         <CreationDemande eleves={eleves} onFermer={() => setCreationOuverte(false)} />
       )}
+
+      <section className="remb-unmatched">
+        <button type="button" className="remb-button remb-button--quiet" onClick={() => setPaiementsOuverts((ouverte) => !ouverte)} aria-expanded={paiementsOuverts}>
+          <Archive size={17} aria-hidden="true" /> Paiements non rapprochés ({paiementsOuverts ? "masquer" : "afficher"})
+        </button>
+        {paiementsOuverts && <div className="remb-unmatched-list">
+          <p>Archivez les anciens paiements saisis manuellement : ils disparaissent des propositions de rapprochement, sans être supprimés.</p>
+          {statutPaiementsNonRapproches === "LoadingFirstPage" ? <p className="remb-inline-state">Chargement des paiements…</p> : paiementsNonRapproches.length === 0 ? <p className="remb-inline-state">Aucun paiement autorisé non rapproché.</p> : paiementsNonRapproches.map((paiement) => <div className="remb-unmatched-item" key={paiement.paiementId}>
+            <span><strong>{paiement.payeurPrenom} {paiement.payeurNom} · {formatEuros(paiement.amountCentimes)}</strong><small>{libelleType(paiement.typeFormulaire)} · {paiement.payeurEmail} · {formatDate(paiement.datePaiement)}</small></span>
+            <button type="button" className="remb-button remb-button--small remb-button--archive" onClick={() => { if (window.confirm("Archiver ce paiement non rapproché ?")) void archiverPaiement({ paiementId: paiement.paiementId }).catch((error: unknown) => setErreur(messageErreurRemboursement(error, "Le paiement n’a pas pu être archivé."))); }}><Archive size={15} aria-hidden="true" /> Archiver</button>
+          </div>)}
+          {(statutPaiementsNonRapproches === "CanLoadMore" || statutPaiementsNonRapproches === "LoadingMore") && <button type="button" className="remb-button remb-button--quiet" disabled={statutPaiementsNonRapproches === "LoadingMore"} onClick={() => chargerPlusPaiementsNonRapproches(20)}>{statutPaiementsNonRapproches === "LoadingMore" ? "Chargement…" : "Afficher plus"}</button>}
+        </div>}
+      </section>
 
       <section
         id={`remb-panel-${statut}`}

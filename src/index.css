@@ -2415,6 +2415,65 @@ a.btn-primary {
   font-size: 0.75rem;
 }
 
+.remb-selected-students,
+.remb-unmatched {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0.75rem 0;
+  padding: 0.8rem;
+  border: 2px solid var(--border-color);
+  background: color-mix(in srgb, var(--info) 20%, var(--card));
+}
+
+.remb-selected-student,
+.remb-unmatched-item {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.65rem;
+  border: 2px solid var(--border-color);
+  background: var(--card);
+}
+
+.remb-selected-student > div:first-child,
+.remb-unmatched-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.remb-parent-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.remb-parent-fields input {
+  min-width: 0;
+  min-height: 2.4rem;
+  padding: 0.45rem;
+  border: 2px solid var(--border-color);
+  background: var(--card);
+  font: 650 0.82rem var(--font-sans);
+}
+
+.remb-unmatched {
+  margin-bottom: 1.5rem;
+  background: color-mix(in srgb, var(--warning) 22%, var(--card));
+}
+
+.remb-unmatched-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.remb-unmatched-item span,
+.remb-unmatched-item small {
+  display: grid;
+  gap: 0.2rem;
+  overflow-wrap: anywhere;
+}
+
 .user-add-button:focus-visible,
 .user-edit-button:focus-visible,
 .user-delete-button:focus-visible,

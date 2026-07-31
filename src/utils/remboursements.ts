@@ -75,6 +75,54 @@ export function creerLienGmailRemboursement({
   return url.toString();
 }
 
+export function creerLienGmailRemboursementGroupe({
+  destinatairesCci,
+  sujet,
+  corps,
+}: {
+  destinatairesCci: string[];
+  sujet: string;
+  corps: string;
+}): string {
+  const adresses = [...new Set(destinatairesCci.map(normaliserAdresseEmailUnique).filter((email): email is string => Boolean(email)))];
+  if (adresses.length === 0) throw new TypeError("Aucune adresse e-mail valide.");
+  const url = new URL("https://mail.google.com/mail/");
+  url.searchParams.set("authuser", COMPTE_GMAIL_REMBOURSEMENTS);
+  url.searchParams.set("view", "cm");
+  url.searchParams.set("fs", "1");
+  url.searchParams.set("bcc", adresses.join(","));
+  url.searchParams.set("su", sujet);
+  url.searchParams.set("body", corps);
+  return url.toString();
+}
+
+export function preparerEmailRemboursementGroupe({
+  typeEmail,
+  libelle,
+  lienHelloAsso,
+}: {
+  typeEmail: TypeEmailRemboursement;
+  libelle: string;
+  lienHelloAsso: string;
+}): { sujet: string; corps: string } {
+  const relance = typeEmail === "relance";
+  return {
+    sujet: `${relance ? "Relance — " : ""}Remboursement ${libelle}`,
+    corps: [
+      "Bonjour,",
+      "",
+      relance
+        ? `Sauf erreur de notre part, le remboursement concernant « ${libelle} » reste à régler.`
+        : `Le remboursement concernant « ${libelle} » est à régler.`,
+      "",
+      `Vous pouvez effectuer le règlement via HelloAsso : ${lienHelloAsso}`,
+      "",
+      "Merci,",
+      "Le club d’escalade CAF La Roche-Bonneville",
+    ].join("\n"),
+  };
+}
+
 export function preparerEmailRemboursement({
   typeEmail,
   beneficiaire,

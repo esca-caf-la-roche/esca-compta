@@ -176,7 +176,15 @@ export default defineSchema({
           v.literal("bg-warning"),
           v.literal("bg-primary"),
           v.literal("bg-danger"),
+          v.literal("bg-orange"),
+          v.literal("bg-pink"),
+          v.literal("bg-purple"),
+          v.literal("bg-lime"),
         ),
+        // Facultatifs pour conserver les configurations déjà enregistrées.
+        // En leur absence, le frontend utilise le libellé/la description métier.
+        label: v.optional(v.string()),
+        description: v.optional(v.string()),
       }),
     ),
   }).index("by_cle", ["cle"]),
@@ -315,6 +323,10 @@ export default defineSchema({
     sourceEleveId: v.optional(v.id("abo_eleves_en_cours")),
     nom: v.string(),
     prenom: v.string(),
+    parent1Nom: v.optional(v.string()),
+    parent1Prenom: v.optional(v.string()),
+    parent2Nom: v.optional(v.string()),
+    parent2Prenom: v.optional(v.string()),
     email: v.optional(v.string()),
     licence: v.optional(v.string()),
     cours: v.optional(v.string()),
@@ -353,6 +365,8 @@ export default defineSchema({
     ),
     datePaiement: v.string(),
     syncedAt: v.string(),
+    archivedAt: v.optional(v.string()),
+    archivedBy: v.optional(v.id("users")),
   })
     .index("by_helloassoPaymentId", ["helloassoPaymentId"])
     .index("by_typeFormulaire_and_datePaiement", [
