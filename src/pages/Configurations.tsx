@@ -2,9 +2,11 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Save, Star, Trash2, Users, Calendar, Shield, Edit2, X, Check, ArrowLeft, Plus } from "lucide-react";
+import { Save, Star, Trash2, Users, Calendar, Shield, Edit2, X, Check, ArrowLeft, Plus, LayoutDashboard } from "lucide-react";
 import type { Id } from "../../convex/_generated/dataModel";
 import type { FunctionReturnType } from "convex/server";
+import { TILE_OPTIONS } from "../config/tiles";
+import DashboardTilesPanel from "../components/Configurations/DashboardTilesPanel";
 
 type ListedUser = FunctionReturnType<typeof api.users.listUsers>[number];
 
@@ -30,7 +32,7 @@ function nextSaisonLabel(noms: string[]): string | null {
 }
 
 export default function Configurations() {
-  const [activeTab, setActiveTab] = useState<"saisons" | "utilisateurs">("saisons");
+  const [activeTab, setActiveTab] = useState<"saisons" | "utilisateurs" | "tableau_de_bord">("saisons");
 
   // Saisons
   const saisons = useQuery(api.saisons.get);
@@ -176,15 +178,6 @@ export default function Configurations() {
     );
   };
 
-  const TILE_OPTIONS = [
-    { id: "compta", label: "Comptabilité" },
-    { id: "paiements", label: "Paiements Escalade" },
-    { id: "budget", label: "Budget prévisionnel" },
-    { id: "abonnements", label: "Abonnements Escalade" },
-    { id: "licences_cours", label: "Licences élèves en cours" },
-    { id: "contacts_cours", label: "Contacts élèves en cours" },
-  ];
-
   return (
     <div className="configurations-page fade-in" style={{ padding: "2rem", maxWidth: "1000px", margin: "0 auto" }}>
       <header className="page-header" style={{ marginBottom: "2rem" }}>
@@ -227,6 +220,22 @@ export default function Configurations() {
           }}
         >
           <Users size={18} /> Utilisateurs et Accès
+        </button>
+        <button
+          onClick={() => setActiveTab("tableau_de_bord")}
+          style={{
+            background: "transparent",
+            border: "none",
+            padding: "0.5rem 1rem",
+            fontSize: "1.1rem",
+            fontWeight: "bold",
+            cursor: "pointer",
+            color: activeTab === "tableau_de_bord" ? "#000" : "#6b7280",
+            borderBottom: activeTab === "tableau_de_bord" ? "3px solid #000" : "3px solid transparent",
+            display: "flex", alignItems: "center", gap: "0.5rem"
+          }}
+        >
+          <LayoutDashboard size={18} /> Tableau de bord
         </button>
       </div>
 
@@ -472,6 +481,8 @@ export default function Configurations() {
           </div>
         </div>
       )}
+
+      {activeTab === "tableau_de_bord" && <DashboardTilesPanel />}
     </div>
   );
 }

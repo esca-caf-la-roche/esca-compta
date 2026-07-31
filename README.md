@@ -2,7 +2,8 @@
 
 Portail de gestion du club d'escalade. L'application regroupe dans une interface
 unique la comptabilité, les paiements, le budget prévisionnel, le contrôle des
-licences et les abonnements aux créneaux autonomes.
+licences, les remboursements des élèves et les abonnements aux créneaux
+autonomes.
 
 ## Stack
 
@@ -77,6 +78,7 @@ de `convex/customFunctions.ts`. Les exceptions publiques ou internes doivent
 | [`docs/7-workflow.md`](docs/7-workflow.md) | Livraison et contrôles |
 | [`docs/8-component-mapping.md`](docs/8-component-mapping.md) | Cartographie des modules |
 | [`docs/9-tests.md`](docs/9-tests.md) | Tests et validation |
+| [`docs/10-remboursements-eleves.md`](docs/10-remboursements-eleves.md) | Suivi des remboursements élèves |
 
 ## Déploiement
 

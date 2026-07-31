@@ -52,13 +52,17 @@ tâches internes. Il n'existe pas de serveur HTTP applicatif séparé.
 | Ensemble | Routes principales | Protection |
 |---|---|---|
 | Public | `/login`, `/abonnements`, `/compteur` | Selon le parcours |
-| Staff | `/`, `/compta`, `/paiements`, `/budget`, `/licences-cours`, `/contacts-cours` | `Layout` puis `RequireAccess` |
+| Staff | `/`, `/compta`, `/paiements`, `/budget`, `/licences-cours`, `/contacts-cours`, `/remboursements-eleves` | `Layout` puis `RequireAccess` |
 | Administration | `/configurations`, `/gestion-abonnements` | Rôle admin ou tuile dédiée |
 
 Le routage par hash permet de servir toutes les routes depuis GitHub Pages sans
 réécriture serveur. L'affichage d'une tuile dans le tableau de bord ne constitue
 pas à lui seul une autorisation : `RequireAccess` protège aussi la route, et le
 backend contrôle les droits avant d'accéder aux données.
+
+L'ordre et la couleur des tuiles du tableau de bord sont une préférence globale,
+hors saison, administrable depuis Configurations. Elle ne modifie jamais les
+autorisations : celles-ci restent définies uniquement par `allowedTiles`.
 
 Les styles globaux sont dans `src/index.css`. Le module Abonnements complète ces
 règles avec `src/abonnements/abo.css` ; le design n'est donc plus contenu dans un
@@ -108,6 +112,12 @@ courant `abo_eleves_en_cours`, sans historique ni bascule par saison. Sa route
 `/contacts-cours` masque donc le sélecteur de saison et ne transmet aucune
 saison au backend.
 
+La tuile `remboursements_eleves` est également hors saison. Une demande reste
+active jusqu'à son paiement ou son annulation, puis demeure consultable dans
+les archives. Les bénéficiaires conservent un instantané autonome de l'élève :
+les archives ne dépendent donc pas de la présence future de celui-ci dans
+`abo_eleves_en_cours`.
+
 Les relations et index sont définis dans `convex/schema.ts`. Les collections
 potentiellement volumineuses doivent être bornées, paginées ou parcourues par
 lots conformément aux règles Convex du projet.
@@ -131,6 +141,13 @@ tuile.
 `convex/crons.ts` est volontairement vide. Un cron ne doit être réintroduit que
 si une donnée doit rester fraîche sans présence utilisateur, à cadence justifiée
 et avec le commentaire requis `// CRON-OK: <raison>`.
+
+À l'ouverture de `/remboursements-eleves`, une action authentifiée actualise
+indépendamment le snapshot des élèves et les deux formulaires HelloAsso dédiés
+aux compétitions et aux stages. Chaque source utilise un verrou partagé d'une
+heure et son échec n'empêche pas l'affichage du dernier cache. Le cache
+HelloAsso conserve les paiements non rapprochés pendant 24 mois ; les paiements
+plus anciens déjà rapprochés restent conservés pour l'audit des archives.
 
 ## Livraison
 

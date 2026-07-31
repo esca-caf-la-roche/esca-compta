@@ -74,6 +74,43 @@ Ces scénarios sont manuels tant qu'aucune suite navigateur n'est installée :
    serveur. Cliquer aussi sur un email individuel et vérifier le même compte
    Gmail avec l'adresse en destinataire principal.
 
+### Scénarios ciblés — Remboursements élèves
+
+1. attribuer `remboursements_eleves` à un compte staff et vérifier la tuile, la
+   route gardée et l'absence du sélecteur de saison ; retirer ensuite la tuile
+   et vérifier le refus frontend et backend, y compris pour un administrateur ;
+2. créer une demande avec un total non divisible puis avec un prix fixe :
+   vérifier que la somme des centimes attribués correspond exactement au total
+   et que l'instantané des élèves reste lisible après renouvellement de la
+   source `abo_eleves_en_cours` ;
+3. ouvrir la tuile deux fois et vérifier les verrous d'une heure pour les élèves
+   et HelloAsso ; simuler l'échec de chaque source et vérifier que le dernier
+   cache reste affiché avec un avertissement non bloquant ;
+4. ouvrir un brouillon initial puis une relance : Gmail doit s'ouvrir dans un
+   nouvel onglet avec `escalade@caflarochebonneville.fr`, le destinataire unique,
+   l'objet, le montant restant et le bon lien compétition ou stage. Une adresse
+   invalide ou multi-adresses doit désactiver l'action. La date affichée reste
+   une préparation de brouillon, jamais une preuve d'envoi ;
+5. vérifier une suggestion par email, nom et montant, puis valider
+   explicitement le rapprochement. Tester un paiement partiel, plusieurs
+   paiements partiels, un dépassement du solde, un paiement déjà lié, un statut
+   `pending`, un remboursement partiel et un remboursement total ;
+6. vérifier que seuls les paiements autorisés comptent dans la progression,
+   qu'une demande n'est archivable que lorsque tous les bénéficiaires sont
+   soldés, puis tester restauration, annulation avec motif et pagination des
+   demandes et archives ;
+7. contrôler au clavier et sur mobile le formulaire, la sélection d'élèves,
+   les onglets, le panneau de rapprochement et le bouton « Afficher plus ».
+
+### Scénario ciblé — Configuration du tableau de bord
+
+1. avec un compte administrateur, ouvrir Configurations → Tableau de bord,
+   modifier l'ordre et la couleur de plusieurs tuiles, puis enregistrer ;
+   vérifier le résultat après rechargement avec un autre compte staff ;
+2. vérifier qu'un compte staff ne voit que ses tuiles autorisées, dans l'ordre
+   global conservé, et que l'ordre ou la couleur ne lui donnent jamais accès à
+   une route ou à des données non attribuées.
+
 ## Stratégie recommandée
 
 Introduire les tests progressivement autour des règles métier les plus risquées,

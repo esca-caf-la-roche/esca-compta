@@ -3,11 +3,12 @@ import { Link } from "react-router-dom";
 import { useQuery } from "convex/react";
 import { ArrowLeft } from "lucide-react";
 import { api } from "../../convex/_generated/api";
+import type { TileId } from "../config/tiles";
 
 type Props = {
   children: ReactNode;
   /** Tuile requise (cochée dans Configurations > Utilisateurs). */
-  tile?: "compta" | "paiements" | "budget" | "abonnements" | "licences_cours" | "contacts_cours";
+  tile?: TileId;
   /** Réservé au rôle admin (page Configurations uniquement). */
   admin?: boolean;
 };

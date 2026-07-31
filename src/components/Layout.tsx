@@ -21,7 +21,9 @@ export default function Layout() {
     !location.pathname.startsWith("/gestion-abonnements") &&
     !location.pathname.startsWith("/licences-cours") &&
     // SAISON-EXEMPT: vue temps réel du snapshot global des élèves en cours.
-    !location.pathname.startsWith("/contacts-cours");
+    !location.pathname.startsWith("/contacts-cours") &&
+    // SAISON-EXEMPT: suivi transversal jusqu'au paiement, indépendant des saisons.
+    !location.pathname.startsWith("/remboursements-eleves");
 
   if (isLoading) {
     return <div className="loading-screen">Chargement...</div>;
