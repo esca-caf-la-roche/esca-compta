@@ -60,9 +60,10 @@ réécriture serveur. L'affichage d'une tuile dans le tableau de bord ne constit
 pas à lui seul une autorisation : `RequireAccess` protège aussi la route, et le
 backend contrôle les droits avant d'accéder aux données.
 
-L'ordre et la couleur des tuiles du tableau de bord sont une préférence globale,
-hors saison, administrable depuis Configurations. Elle ne modifie jamais les
-autorisations : celles-ci restent définies uniquement par `allowedTiles`.
+L'ordre, la couleur, le libellé et la description des tuiles du tableau de bord
+sont des préférences globales, hors saison, administrables depuis Configurations.
+Elles ne modifient jamais les autorisations : celles-ci restent définies
+uniquement par `allowedTiles`.
 
 Les styles globaux sont dans `src/index.css`. Le module Abonnements complète ces
 règles avec `src/abonnements/abo.css` ; le design n'est donc plus contenu dans un
