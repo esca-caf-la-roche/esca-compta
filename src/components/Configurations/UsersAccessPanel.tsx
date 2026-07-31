@@ -5,6 +5,10 @@ import type { FunctionReturnType } from "convex/server";
 import { api } from "../../../convex/_generated/api";
 import EditUserDialog from "./EditUserDialog";
 import UserAccessTable from "./UserAccessTable";
+import {
+  resolveDashboardTiles,
+  type DashboardTileInput,
+} from "../../config/tiles";
 
 type ListedUser = FunctionReturnType<typeof api.users.listUsers>[number];
 
@@ -20,6 +24,7 @@ function errorMessage(error: unknown, fallback: string): string {
 
 export default function UsersAccessPanel() {
   const users = useQuery(api.users.listUsers);
+  const dashboardConfiguration = useQuery(api.users.getDashboardConfiguration);
   const addUser = useMutation(api.users.addUser);
   const removeUser = useMutation(api.users.removeUser);
   const updateUserSettings = useMutation(api.users.updateUserSettings);
@@ -31,6 +36,9 @@ export default function UsersAccessPanel() {
   const [deletingUserId, setDeletingUserId] =
     useState<ListedUser["_id"] | null>(null);
   const [editingUser, setEditingUser] = useState<ListedUser | null>(null);
+  const dashboardTiles = resolveDashboardTiles(
+    dashboardConfiguration?.tiles as DashboardTileInput[] | undefined,
+  );
 
   const handleAddUser = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -148,6 +156,7 @@ export default function UsersAccessPanel() {
         </p>
         <UserAccessTable
           users={users}
+          dashboardTiles={dashboardTiles}
           deletingUserId={deletingUserId}
           onEdit={setEditingUser}
           onDelete={handleDeleteUser}

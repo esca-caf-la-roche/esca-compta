@@ -21,7 +21,50 @@ const dashboardColorValidator = v.union(
   v.literal("bg-warning"),
   v.literal("bg-primary"),
   v.literal("bg-danger"),
+  v.literal("bg-orange"),
+  v.literal("bg-pink"),
+  v.literal("bg-purple"),
+  v.literal("bg-lime"),
 );
+
+const dashboardTileMetadataValidator = v.object({
+  id: dashboardTileValidator,
+  color: dashboardColorValidator,
+  label: v.optional(v.string()),
+  description: v.optional(v.string()),
+});
+
+type DashboardColor =
+  | "bg-info" | "bg-success" | "bg-warning" | "bg-primary" | "bg-danger"
+  | "bg-orange" | "bg-pink" | "bg-purple" | "bg-lime";
+
+type DashboardTile = {
+  id: (typeof TILES)[number];
+  color: DashboardColor;
+  label?: string;
+  description?: string;
+};
+
+function optionalTrimmedText(value: string | undefined, field: string, maximum: number): string | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.length > maximum) throw new ConvexError(`${field} ne peut pas dépasser ${maximum} caractères.`);
+  return trimmed;
+}
+
+function normalizeDashboardTiles(tiles: readonly DashboardTile[]) {
+  return tiles.map((tile) => {
+    const label = optionalTrimmedText(tile.label, "Le nom de la tuile", 80);
+    const description = optionalTrimmedText(tile.description, "La description", 240);
+    return {
+      id: tile.id,
+      color: tile.color,
+      ...(label === undefined ? {} : { label }),
+      ...(description === undefined ? {} : { description }),
+    };
+  });
+}
 
 function hasEachTileExactlyOnce(tileIds: readonly string[]): boolean {
   return (
@@ -32,14 +75,14 @@ function hasEachTileExactlyOnce(tileIds: readonly string[]): boolean {
 }
 
 function dashboardTilesAreEqual(
-  saved: readonly { id: string; color: string }[],
-  submitted: readonly { id: string; color: string }[],
+  saved: readonly DashboardTile[],
+  submitted: readonly DashboardTile[],
 ): boolean {
   return (
     saved.length === submitted.length &&
     saved.every(
       (tile, index) =>
-        tile.id === submitted[index]?.id && tile.color === submitted[index]?.color,
+        tile.id === submitted[index]?.id && tile.color === submitted[index]?.color && tile.label === submitted[index]?.label && tile.description === submitted[index]?.description,
     )
   );
 }
@@ -170,12 +213,7 @@ export const getDashboardConfiguration = authenticatedQuery({
 
 export const updateDashboardConfiguration = authenticatedMutation({
   args: {
-    tiles: v.array(
-      v.object({
-        id: dashboardTileValidator,
-        color: dashboardColorValidator,
-      }),
-    ),
+    tiles: v.array(dashboardTileMetadataValidator),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx, ctx.userId);
@@ -186,13 +224,14 @@ export const updateDashboardConfiguration = authenticatedMutation({
       );
     }
 
+    const tiles = normalizeDashboardTiles(args.tiles as DashboardTile[]);
     const existing = await ctx.db
       .query("dashboardConfiguration")
       .withIndex("by_cle", (q) => q.eq("cle", "global"))
       .unique();
     const configuration = {
       cle: "global" as const,
-      tiles: args.tiles,
+      tiles,
     };
 
     if (!existing) {
