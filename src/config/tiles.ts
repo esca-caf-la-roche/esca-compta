@@ -10,6 +10,16 @@ export const TILE_OPTIONS = [
 
 export type TileId = (typeof TILE_OPTIONS)[number]["id"];
 
+const KNOWN_TILE_IDS = new Set<string>(TILE_OPTIONS.map(({ id }) => id));
+
+export function isKnownTileId(tileId: string): tileId is TileId {
+  return KNOWN_TILE_IDS.has(tileId);
+}
+
+export function unknownTileIds(tileIds: readonly string[]): string[] {
+  return tileIds.filter((tileId) => !isKnownTileId(tileId));
+}
+
 export const TILE_COLOR_OPTIONS = [
   { value: "bg-info", label: "Bleu" },
   { value: "bg-success", label: "Vert" },
