@@ -2,9 +2,10 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Save, Star, Trash2, Users, Calendar, ArrowLeft, Plus } from "lucide-react";
+import { Save, Star, Trash2, Users, Calendar, ArrowLeft, Plus, LayoutDashboard } from "lucide-react";
 import type { Id } from "../../convex/_generated/dataModel";
 import UsersAccessPanel from "../components/Configurations/UsersAccessPanel";
+import DashboardTilesPanel from "../components/Configurations/DashboardTilesPanel";
 
 /** Message d'erreur lisible : privilégie la charge utile d'une ConvexError
  * (error.data), transmise même en production, sinon retombe sur error.message. */
@@ -28,7 +29,7 @@ function nextSaisonLabel(noms: string[]): string | null {
 }
 
 export default function Configurations() {
-  const [activeTab, setActiveTab] = useState<"saisons" | "utilisateurs">("saisons");
+  const [activeTab, setActiveTab] = useState<"saisons" | "utilisateurs" | "tableau-de-bord">("saisons");
 
   // Saisons
   const saisons = useQuery(api.saisons.get);
@@ -121,6 +122,14 @@ export default function Configurations() {
           onClick={() => setActiveTab("utilisateurs")}
         >
           <Users size={18} /> Utilisateurs et Accès
+        </button>
+        <button
+          type="button"
+          aria-pressed={activeTab === "tableau-de-bord"}
+          className={activeTab === "tableau-de-bord" ? "is-active" : ""}
+          onClick={() => setActiveTab("tableau-de-bord")}
+        >
+          <LayoutDashboard size={18} /> Tableau de bord
         </button>
       </div>
 
@@ -220,6 +229,8 @@ export default function Configurations() {
           <UsersAccessPanel />
         </div>
       )}
+
+      {activeTab === "tableau-de-bord" && <DashboardTilesPanel />}
     </div>
   );
 }
