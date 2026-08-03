@@ -2,6 +2,7 @@ import { Migrations } from "@convex-dev/migrations";
 import { components } from "./_generated/api";
 import type { DataModel } from "./_generated/dataModel";
 import { authenticatedMutation as mutation } from "./customFunctions";
+import { requireAdmin } from "./access";
 
 export const migrations = new Migrations<DataModel>(components.migrations);
 
@@ -52,6 +53,7 @@ export const migrateTypesDocuments = migrations.define({
 export const seedSaisons = mutation({
   args: {},
   handler: async (ctx) => {
+    await requireAdmin(ctx, ctx.userId);
     const defaultSeasons = ["2023-24", "2024-25", "2025-26", "2026-27"];
     const existingSaisons = await ctx.db.query("saisons").collect();
     

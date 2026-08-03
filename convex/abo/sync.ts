@@ -124,6 +124,10 @@ async function synchroniserSource(ctx: ActionCtx, source: Source): Promise<Resul
 export const syncPourPaiements = authenticatedAction({
   args: {},
   handler: async (ctx): Promise<{ helloasso: Resultat }> => {
+    await ctx.runQuery(internal.access.requireTileAccess, {
+      userId: ctx.userId,
+      tile: "paiements",
+    });
     return { helloasso: await synchroniserSource(ctx, "helloasso") };
   },
 });

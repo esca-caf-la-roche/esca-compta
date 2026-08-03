@@ -396,7 +396,13 @@ async function runHelloAssoSync(
 // Action publique (staff connecté) — inchangée côté appelants.
 export const syncHelloAsso = authenticatedAction({
   args: {},
-  handler: async (ctx) => runHelloAssoSync(ctx),
+  handler: async (ctx) => {
+    await ctx.runQuery(internal.access.requireTileAccess, {
+      userId: ctx.userId,
+      tile: "paiements",
+    });
+    return await runHelloAssoSync(ctx);
+  },
 });
 
 // Version interne (sans garde d'auth) pour les crons Convex (Phase H).

@@ -1,5 +1,6 @@
 import { authenticatedQuery as query, authenticatedMutation as mutation } from "./customFunctions";
 import { v } from "convex/values";
+import { requireTile } from "./access";
 
 // Synthèse pour l'onglet « Coût par membre » du budget prévisionnel.
 // Renvoie les effectifs et la part « base de données » des dépenses ventilées
@@ -8,6 +9,7 @@ import { v } from "convex/values";
 export const getSynthese = query({
   args: { saison: v.string() },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "budget");
     // Membres loisir : saisi à la main (persisté par saison), 0 par défaut.
     const eff = await ctx.db
       .query("budgetEffectifs")
@@ -55,6 +57,7 @@ export const getSynthese = query({
 export const setMembresLoisir = mutation({
   args: { saison: v.string(), nbMembresLoisir: v.number() },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "budget");
     const nb = Math.max(0, Math.round(args.nbMembresLoisir));
     const existing = await ctx.db
       .query("budgetEffectifs")

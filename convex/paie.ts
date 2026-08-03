@@ -5,6 +5,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { previousSaison, nextSaison } from "./saisonUtils";
 import { computePaie, type ParametresPaie } from "../src/utils/paieCompute";
+import { requireTile } from "./access";
 
 const typeContratValidator = v.union(v.literal("CDII"), v.literal("CDI"));
 
@@ -26,16 +27,6 @@ const cotisPatronaleValidator = v.object({
   label: v.string(),
   taux: v.number(),
 });
-
-async function requireAdmin(ctx: MutationCtx, userId: Id<"users">) {
-  const settings = await ctx.db
-    .query("userSettings")
-    .withIndex("by_userId", (q) => q.eq("userId", userId))
-    .first();
-  if (settings?.role !== "admin") {
-    throw new Error("Seul un administrateur peut effectuer cette action.");
-  }
-}
 
 // --- Paramètres de paie par défaut (issus de l'onglet « Fiche de Paie ») ---
 
@@ -309,6 +300,7 @@ export async function computeMasseSalarialeSplit(
 export const getMasseSalariale = query({
   args: { saison: v.string() },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "budget");
     const params = await ctx.db
       .query("parametresPaie")
       .withIndex("by_saison", (q) => q.eq("saison", args.saison))
@@ -506,7 +498,7 @@ export const addSalarie = mutation({
     heuresSup: v.optional(heuresSupValidator),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, ctx.userId);
+    await requireTile(ctx, ctx.userId, "budget");
     const nom = args.nom.trim();
     if (!nom) throw new Error("Le nom est obligatoire.");
 
@@ -550,7 +542,7 @@ export const updateSalarie = mutation({
     heuresSup: v.optional(heuresSupValidator),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, ctx.userId);
+    await requireTile(ctx, ctx.userId, "budget");
 
     const salarieUpdates: Record<string, unknown> = {};
     if (args.nom !== undefined) {
@@ -599,7 +591,7 @@ export const updateSalarie = mutation({
 export const removeSalarie = mutation({
   args: { salarieId: v.id("salaries") },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, ctx.userId);
+    await requireTile(ctx, ctx.userId, "budget");
     // Supprime toutes les lignes de saison liées + l'identité.
     const lignes = await ctx.db
       .query("salairesSaison")
@@ -616,7 +608,7 @@ export const removeSalarie = mutation({
 export const reprendreSaisonPrecedente = mutation({
   args: { saison: v.string() },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, ctx.userId);
+    await requireTile(ctx, ctx.userId, "budget");
 
     const prev = previousSaison(args.saison);
     if (!prev) throw new Error("Saison invalide (format attendu : AAAA-AA).");
@@ -693,7 +685,7 @@ export const updateParametres = mutation({
     cotisationsPatronales: v.array(cotisPatronaleValidator),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, ctx.userId);
+    await requireTile(ctx, ctx.userId, "budget");
     const { saison, ...rest } = args;
     const existing = await ctx.db
       .query("parametresPaie")

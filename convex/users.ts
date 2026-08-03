@@ -45,6 +45,22 @@ type DashboardTile = {
   description?: string;
 };
 
+/**
+ * Budget s'appuie sur les données comptables : l'accès Budget implique donc
+ * toujours l'accès Compta. Les autres identifiants (y compris d'éventuelles
+ * tuiles ajoutées avant une mise à jour du client) sont conservés tels quels.
+ */
+function ensureBudgetIncludesCompta(allowedTiles: readonly string[]): string[] {
+  if (
+    allowedTiles.includes("budget") &&
+    !allowedTiles.includes("compta")
+  ) {
+    return [...allowedTiles, "compta"];
+  }
+
+  return [...allowedTiles];
+}
+
 function optionalTrimmedText(value: string | undefined, field: string, maximum: number): string | undefined {
   if (value === undefined) return undefined;
   const trimmed = value.trim();
@@ -168,7 +184,7 @@ export const addUser = authenticatedMutation({
     
     await ctx.db.insert("userSettings", {
       userId: newUserId,
-      allowedTiles: ["compta", "paiements", "budget"],
+      allowedTiles: ensureBudgetIncludesCompta(["compta", "paiements", "budget"]),
       role: "user"
     });
     
@@ -264,6 +280,8 @@ export const updateUserSettings = authenticatedMutation({
       throw new Error("Le nom est obligatoire.");
     }
 
+    const allowedTiles = ensureBudgetIncludesCompta(args.allowedTiles);
+
     await ctx.db.patch(args.userId, { name });
 
     const settings = await ctx.db
@@ -273,13 +291,13 @@ export const updateUserSettings = authenticatedMutation({
       
     if (settings) {
       await ctx.db.patch(settings._id, {
-        allowedTiles: args.allowedTiles,
+        allowedTiles,
         role: args.role
       });
     } else {
       await ctx.db.insert("userSettings", {
         userId: args.userId,
-        allowedTiles: args.allowedTiles,
+        allowedTiles,
         role: args.role
       });
     }

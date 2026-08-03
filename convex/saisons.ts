@@ -1,18 +1,8 @@
 import { authenticatedQuery as query, authenticatedMutation as mutation } from "./customFunctions";
 import { v, ConvexError } from "convex/values";
 import { nextSaison } from "./saisonUtils";
-import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
-
-async function requireAdmin(ctx: MutationCtx, userId: Id<"users">) {
-  const settings = await ctx.db
-    .query("userSettings")
-    .withIndex("by_userId", (q) => q.eq("userId", userId))
-    .first();
-  if (settings?.role !== "admin") {
-    throw new ConvexError("Seul un administrateur peut effectuer cette action.");
-  }
-}
+import { requireAdmin } from "./access";
 
 export const get = query({
   args: {},
@@ -25,6 +15,7 @@ export const get = query({
 export const create = mutation({
   args: { nom: v.string(), isDefault: v.optional(v.boolean()) },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx, ctx.userId);
     const isDefault = args.isDefault ?? false;
     
     if (isDefault) {
@@ -114,6 +105,7 @@ export const createNext = mutation({
 export const update = mutation({
   args: { id: v.id("saisons"), isDefault: v.boolean() },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx, ctx.userId);
     if (args.isDefault) {
       const all = await ctx.db.query("saisons").collect();
       for (const s of all) {
@@ -129,6 +121,7 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("saisons") },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx, ctx.userId);
     // NB : on lève des `ConvexError` (et non `Error`) car en production Convex
     // masque le message des `Error` classiques ("Server Error"). La charge utile
     // d'une `ConvexError` est, elle, transmise au client (error.data).

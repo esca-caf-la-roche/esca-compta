@@ -1,7 +1,7 @@
 "use node";
 
 import { authenticatedAction as action } from "./customFunctions";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { v } from "convex/values";
 import { google } from "googleapis";
 
@@ -16,6 +16,10 @@ export const processTransactionDrive = action({
     commentaires: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await ctx.runQuery(internal.access.requireTileAccess, {
+      userId: ctx.userId,
+      tile: "compta",
+    });
     try {
       // 1. Formater le nouveau nom de la transaction
       const dateObj = new Date(args.date);

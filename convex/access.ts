@@ -8,9 +8,10 @@
 //   - Les abonnés publics (provider abo-otp) n'ont pas de userSettings :
 //     ils ne passent jamais ces gardes.
 
+import { internalQuery } from "./_generated/server";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { ConvexError } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
 // Identifiants des tuiles/modules. Doit rester aligné avec TILE_OPTIONS
 // (src/pages/Configurations.tsx) et les tuiles du Dashboard.
@@ -59,3 +60,23 @@ export async function requireAdmin(
   }
   return settings;
 }
+
+const tileValidator = v.union(
+  v.literal("compta"),
+  v.literal("paiements"),
+  v.literal("budget"),
+  v.literal("abonnements"),
+  v.literal("licences_cours"),
+  v.literal("contacts_cours"),
+  v.literal("remboursements_eleves"),
+);
+
+// Les actions n'ont pas accès à ctx.db : elles délèguent cette garde à cette
+// query interne avant tout effet externe.
+export const requireTileAccess = internalQuery({
+  args: { userId: v.id("users"), tile: tileValidator },
+  handler: async (ctx, args) => {
+    await requireTile(ctx, args.userId, args.tile);
+    return null;
+  },
+});

@@ -2,6 +2,7 @@ import { authenticatedQuery as query, authenticatedMutation as mutation } from "
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { computeMasseSalarialeSplit } from "./paie";
+import { requireTile } from "./access";
 
 import { paginationOptsValidator } from "convex/server";
 
@@ -16,6 +17,7 @@ export const getStats = query({
     filterCompetition: v.optional(v.string()), // "Tous", "Oui", "Non"
   },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "budget");
     const previsionnels = await ctx.db
       .query("previsionnels")
       .withIndex("by_saison", (q) => q.eq("saison", args.saison))
@@ -67,6 +69,7 @@ export const getStats = query({
 export const getTrends = query({
   args: { saison: v.string() },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "budget");
     const previsionnels = await ctx.db
       .query("previsionnels")
       .withIndex("by_saison", (q) => q.eq("saison", args.saison))
@@ -154,6 +157,7 @@ export const get = query({
     filterCompetition: v.optional(v.string()) // "Tous", "Oui", "Non"
   },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "budget");
     let q = ctx.db
       .query("previsionnels")
       .withIndex("by_saison", (q) => q.eq("saison", args.saison));
@@ -204,6 +208,7 @@ export const getSorted = query({
     filterCompetition: v.optional(v.string()), // "Tous", "Oui", "Non"
   },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "budget");
     const previsionnels = await ctx.db
       .query("previsionnels")
       .withIndex("by_saison", (q) => q.eq("saison", args.saison))
@@ -254,6 +259,7 @@ export const add = mutation({
     competition: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "budget");
     return await ctx.db.insert("previsionnels", {
       nom: args.nom,
       montant: args.montant,
@@ -276,6 +282,7 @@ export const update = mutation({
     competition: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "budget");
     const { id, ...updates } = args;
     await ctx.db.patch(id, updates);
   },
@@ -284,6 +291,7 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("previsionnels") },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "budget");
     await ctx.db.delete(args.id);
   },
 });

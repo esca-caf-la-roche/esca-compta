@@ -3,6 +3,7 @@ import { authenticatedMutation, authenticatedQuery } from "./customFunctions";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { trouverLienAbo } from "./abo/paiements";
+import { requireTile } from "./access";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELLOASSO LINKS
@@ -28,6 +29,7 @@ async function getAboLinkIds(
 export const getLinks = authenticatedQuery({
   args: {},
   handler: async (ctx) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     const aboIds = await getAboLinkIds(ctx);
     const links = await ctx.db.query("helloasso_links").collect();
     return links.filter((l) => !aboIds.has(l._id));
@@ -42,6 +44,7 @@ export const addLink = authenticatedMutation({
     is_installment: v.boolean(),
   },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     return await ctx.db.insert("helloasso_links", {
       url: args.url,
       label: args.label,
@@ -60,6 +63,7 @@ export const updateLink = authenticatedMutation({
     is_installment: v.boolean(),
   },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     const { id, ...data } = args;
     if ((await getAboLinkIds(ctx)).has(id)) {
       throw new Error(
@@ -73,6 +77,7 @@ export const updateLink = authenticatedMutation({
 export const deleteLink = authenticatedMutation({
   args: { id: v.id("helloasso_links") },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     if ((await getAboLinkIds(ctx)).has(args.id)) {
       throw new Error(
         "Ce lien appartient au formulaire abonnements : à gérer depuis Gestion abonnements."
@@ -114,6 +119,7 @@ export const deleteLink = authenticatedMutation({
 export const getGroups = authenticatedQuery({
   args: {},
   handler: async (ctx) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     const groups = await ctx.db.query("groups").collect();
     const result = [];
     for (const g of groups) {
@@ -137,6 +143,7 @@ export const addGroup = authenticatedMutation({
     link_ids: v.array(v.id("helloasso_links")),
   },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     const groupId = await ctx.db.insert("groups", {
       name: args.name,
       requires_approval: args.requires_approval,
@@ -156,6 +163,7 @@ export const updateGroup = authenticatedMutation({
     link_ids: v.optional(v.array(v.id("helloasso_links"))),
   },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     const patch: Record<string, unknown> = {};
     if (args.name !== undefined) patch.name = args.name;
     if (args.requires_approval !== undefined)
@@ -186,6 +194,7 @@ export const updateGroup = authenticatedMutation({
 export const deleteGroup = authenticatedMutation({
   args: { id: v.id("groups") },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     // Cascade : liaisons de lien
     const groupLinks = await ctx.db
       .query("group_links")
@@ -213,6 +222,7 @@ export const deleteGroup = authenticatedMutation({
 export const getResponsibles = authenticatedQuery({
   args: {},
   handler: async (ctx) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     const users = await ctx.db.query("users").collect();
     const settings = await ctx.db.query("userSettings").collect();
     return users.map((u) => {
@@ -233,6 +243,7 @@ export const getResponsibles = authenticatedQuery({
 export const getDossiers = authenticatedQuery({
   args: {},
   handler: async (ctx) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     const aboIds = await getAboLinkIds(ctx);
     const dossiers = await ctx.db.query("dossiers").collect();
     const links = (await ctx.db.query("helloasso_links").collect()).filter(
@@ -351,6 +362,7 @@ export const setDossierStatus = authenticatedMutation({
     comment: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     const dossier = await ctx.db
       .query("dossiers")
       .withIndex("by_dossier_id", (q) => q.eq("dossier_id", args.dossier_id))
@@ -369,6 +381,7 @@ export const setDossierStatus = authenticatedMutation({
 export const resetDossierStatus = authenticatedMutation({
   args: { dossier_id: v.string() },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     const dossier = await ctx.db
       .query("dossiers")
       .withIndex("by_dossier_id", (q) => q.eq("dossier_id", args.dossier_id))
@@ -387,6 +400,7 @@ export const resetDossierStatus = authenticatedMutation({
 export const resetSeason = authenticatedMutation({
   args: {},
   handler: async (ctx) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     const callerSettings = await ctx.db
       .query("userSettings")
       .withIndex("by_userId", (q) => q.eq("userId", ctx.userId))
@@ -425,6 +439,7 @@ export const resetSeason = authenticatedMutation({
 export const getApprovedStudents = authenticatedQuery({
   args: {},
   handler: async (ctx) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     const students = await ctx.db.query("approved_students").collect();
     return students.map((s) => ({
       id: s._id,
@@ -444,6 +459,7 @@ export const addApprovedStudent = authenticatedMutation({
     group_id: v.id("groups"),
   },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     return await ctx.db.insert("approved_students", {
       first_name: args.first_name,
       last_name: args.last_name,
@@ -462,6 +478,7 @@ export const updateApprovedStudent = authenticatedMutation({
     group_id: v.id("groups"),
   },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     const { id, ...data } = args;
     await ctx.db.patch(id, { ...data, email: data.email.trim() });
   },
@@ -470,6 +487,7 @@ export const updateApprovedStudent = authenticatedMutation({
 export const deleteApprovedStudent = authenticatedMutation({
   args: { id: v.id("approved_students") },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     await ctx.db.delete(args.id);
   },
 });
@@ -481,6 +499,7 @@ export const deleteApprovedStudent = authenticatedMutation({
 export const getWaitingStudents = authenticatedQuery({
   args: {},
   handler: async (ctx) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     const students = await ctx.db.query("waiting_students").collect();
     return students.map((s) => ({
       id: s._id,
@@ -498,6 +517,7 @@ export const addWaitingStudent = authenticatedMutation({
     email: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     return await ctx.db.insert("waiting_students", {
       first_name: args.first_name.trim(),
       last_name: args.last_name.trim(),
@@ -517,6 +537,7 @@ export const addWaitingStudentsBulk = authenticatedMutation({
     ),
   },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     let count = 0;
     for (const s of args.students) {
       await ctx.db.insert("waiting_students", {
@@ -538,6 +559,7 @@ export const updateWaitingStudent = authenticatedMutation({
     email: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     const { id, ...data } = args;
     await ctx.db.patch(id, {
       first_name: data.first_name.trim(),
@@ -550,6 +572,7 @@ export const updateWaitingStudent = authenticatedMutation({
 export const deleteWaitingStudent = authenticatedMutation({
   args: { id: v.id("waiting_students") },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "paiements");
     await ctx.db.delete(args.id);
   },
 });

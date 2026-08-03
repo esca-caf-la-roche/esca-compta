@@ -1,6 +1,7 @@
 import { authenticatedQuery as query, authenticatedMutation as mutation } from "./customFunctions";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import { requireTile } from "./access";
 
 import { paginationOptsValidator } from "convex/server";
 
@@ -17,6 +18,7 @@ export const getStats = query({
     searchQuery: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "compta");
     const transactions = await ctx.db
       .query("transactions")
       .withIndex("by_saison", (q) => q.eq("saison", args.saison))
@@ -95,6 +97,7 @@ export const get = query({
     searchQuery: v.optional(v.string())
   },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "compta");
     let q = ctx.db
       .query("transactions")
       .withIndex("by_saison", (q) => q.eq("saison", args.saison))
@@ -167,6 +170,7 @@ export const create = mutation({
     saison: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "compta");
     return await ctx.db.insert("transactions", {
       nom: args.nom,
       date: args.date,
@@ -198,6 +202,7 @@ export const update = mutation({
     saison: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "compta");
     const { id, ...updates } = args;
     // Convex gère la mise à jour partielle avec patch
     await ctx.db.patch(id, updates);
@@ -208,6 +213,7 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("transactions") },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "compta");
     await ctx.db.delete(args.id);
   },
 });
@@ -221,6 +227,7 @@ export const getExport = query({
     searchQuery: v.optional(v.string())
   },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "compta");
     let q = ctx.db
       .query("transactions")
       .withIndex("by_saison", (q) => q.eq("saison", args.saison))

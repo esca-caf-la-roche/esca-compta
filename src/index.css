@@ -2952,6 +2952,24 @@ a.btn-primary {
   font-weight: 800;
 }
 
+.user-tile-dependency-note,
+.user-tile-dependency-notice {
+  padding: 0.65rem;
+  border: var(--border-width) solid var(--border-color);
+  font-weight: 800;
+}
+
+.user-tile-dependency-note {
+  margin: -0.35rem 0 1rem;
+  background: var(--card);
+}
+
+.user-tile-dependency-notice {
+  margin-top: 1rem;
+  background: var(--warning);
+  box-shadow: 3px 3px 0 var(--border-color);
+}
+
 .user-permissions-fieldset {
   padding: 1rem;
   border: var(--border-width) solid var(--border-color);

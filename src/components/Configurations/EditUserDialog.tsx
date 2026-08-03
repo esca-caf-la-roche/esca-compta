@@ -38,6 +38,7 @@ export default function EditUserDialog({
   const [allowedTiles, setAllowedTiles] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+  const [accessNotice, setAccessNotice] = useState("");
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -45,8 +46,14 @@ export default function EditUserDialog({
 
     setName(user.name || "");
     setRole(user.settings?.role || "user");
-    setAllowedTiles(user.settings?.allowedTiles || []);
+    const initialTiles = user.settings?.allowedTiles || [];
+    setAllowedTiles(
+      initialTiles.includes("budget") && !initialTiles.includes("compta")
+        ? [...initialTiles, "compta"]
+        : initialTiles,
+    );
     setError("");
+    setAccessNotice("");
     setIsSaving(false);
     if (!dialog.open) dialog.showModal();
   }, [user]);
@@ -54,14 +61,30 @@ export default function EditUserDialog({
   const unknownTiles = unknownTileIds(allowedTiles);
 
   const toggleTile = (tileId: string) => {
-    setAllowedTiles((current) =>
-      current.includes(tileId)
-        ? current.filter((id) => id !== tileId)
-        : [...current, tileId],
+    setAccessNotice("");
+    const isEnabled = allowedTiles.includes(tileId);
+
+    if (tileId === "compta" && isEnabled && allowedTiles.includes("budget")) {
+      setAccessNotice(
+        "L'accès Comptabilité est requis par la tuile Budget prévisionnel. Retirez d'abord l'accès Budget pour désélectionner Comptabilité.",
+      );
+      return;
+    }
+
+    if (tileId === "budget" && !isEnabled) {
+      setAllowedTiles(Array.from(new Set([...allowedTiles, "compta", "budget"])));
+      return;
+    }
+
+    setAllowedTiles(
+      isEnabled
+        ? allowedTiles.filter((id) => id !== tileId)
+        : [...allowedTiles, tileId],
     );
   };
 
   const setKnownTiles = (enabled: boolean) => {
+    setAccessNotice("");
     setAllowedTiles([
       ...unknownTiles,
       ...(enabled ? TILE_OPTIONS.map(({ id }) => id) : []),
@@ -175,6 +198,10 @@ export default function EditUserDialog({
             tuiles.
           </p>
 
+          <p className="user-tile-dependency-note">
+            L&apos;accès Budget prévisionnel nécessite aussi l&apos;accès Comptabilité.
+          </p>
+
           <fieldset className="user-permissions-fieldset" disabled={isSaving}>
             <legend>Accès aux modules</legend>
             <div className="user-permission-tools">
@@ -218,6 +245,12 @@ export default function EditUserDialog({
               })}
             </div>
           </fieldset>
+
+          {accessNotice && (
+            <p className="user-tile-dependency-notice" role="status" aria-live="polite">
+              {accessNotice}
+            </p>
+          )}
 
           {unknownTiles.length > 0 && (
             <aside className="user-unknown-tiles">

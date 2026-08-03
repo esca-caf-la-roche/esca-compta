@@ -1,9 +1,10 @@
 import { authenticatedQuery as query, authenticatedMutation as mutation } from "./customFunctions";
 import { internalMutation } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import type { MutationCtx } from "./_generated/server";
 import { previousSaison } from "./saisonUtils";
+import { requireTile } from "./access";
 
 const seanceValidator = v.object({
   jour: v.number(), // 0 = Lundi … 6 = Dimanche
@@ -20,16 +21,6 @@ function repartirMoniteurs(
   const n = salarieIds.length;
   const part = n > 0 ? nbSemaines / n : 0;
   return salarieIds.map((salarieId) => ({ salarieId, nbSemaines: part }));
-}
-
-async function requireAdmin(ctx: MutationCtx, userId: Id<"users">) {
-  const settings = await ctx.db
-    .query("userSettings")
-    .withIndex("by_userId", (q) => q.eq("userId", userId))
-    .first();
-  if (settings?.role !== "admin") {
-    throw new Error("Seul un administrateur peut effectuer cette action.");
-  }
 }
 
 /** Total d'heures hebdomadaires d'un cours (somme des durées de ses séances). */
@@ -151,6 +142,7 @@ async function cascadeTypeCours(
 export const getPlanning = query({
   args: { saison: v.string() },
   handler: async (ctx, args) => {
+    await requireTile(ctx, ctx.userId, "budget");
     const coursDocs = await ctx.db
       .query("cours")
       .withIndex("by_saison", (q) => q.eq("saison", args.saison))
@@ -237,7 +229,7 @@ export const addCours = mutation({
     seances: v.array(seanceValidator),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, ctx.userId);
+    await requireTile(ctx, ctx.userId, "budget");
     const nom = args.nom.trim();
     if (!nom) throw new Error("Le nom du cours est obligatoire.");
     if (args.seances.length === 0) {
@@ -297,7 +289,7 @@ export const updateCours = mutation({
     seances: v.optional(v.array(seanceValidator)),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, ctx.userId);
+    await requireTile(ctx, ctx.userId, "budget");
     const cours = await ctx.db.get(args.coursId);
     if (!cours) throw new Error("Cours introuvable.");
 
@@ -359,7 +351,7 @@ export const updateCours = mutation({
 export const removeCours = mutation({
   args: { coursId: v.id("cours") },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, ctx.userId);
+    await requireTile(ctx, ctx.userId, "budget");
     const cours = await ctx.db.get(args.coursId);
     await ctx.db.delete(args.coursId);
     if (cours) await syncInscriptionsPrevisionnel(ctx, cours.saison);
@@ -382,7 +374,7 @@ export const updateTypeCours = mutation({
     analytiqueId: v.optional(v.union(v.id("analytiques"), v.null())),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, ctx.userId);
+    await requireTile(ctx, ctx.userId, "budget");
     const creneaux = (await ctx.db
       .query("cours")
       .withIndex("by_saison", (q) => q.eq("saison", args.saison))
@@ -409,7 +401,7 @@ export const updateTypeCours = mutation({
 export const reprendrePlanningSaisonPrecedente = mutation({
   args: { saison: v.string() },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, ctx.userId);
+    await requireTile(ctx, ctx.userId, "budget");
 
     const prev = previousSaison(args.saison);
     if (!prev) throw new Error("Saison invalide (format attendu : AAAA-AA).");
