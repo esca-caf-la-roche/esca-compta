@@ -1,24 +1,38 @@
+import { lazy, Suspense, type ReactNode } from "react";
 import { HashRouter, Routes, Route } from "react-router-dom";
 import { SeasonProvider } from "./contexts/SeasonContext";
 import Layout from "./components/Layout";
 import RequireAccess from "./components/RequireAccess";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import Compta from "./pages/Compta";
-import MasseSalariale from "./pages/Budget/MasseSalariale";
-import ParametresPaie from "./pages/Budget/ParametresPaie";
 import Configurations from "./pages/Configurations";
 import LicencesEnCours from "./pages/LicencesEnCours";
 import ContactsCours from "./pages/ContactsCours";
 import RemboursementsEleves from "./pages/RemboursementsEleves";
-import PaiementsLayout from "./pages/Paiements/Layout";
-import ValidationPaiements from "./pages/Paiements/Validation";
-import ConfigPaiements from "./pages/Paiements/Configurations";
-import ApprobationsPaiements from "./pages/Paiements/Approbations";
-import AttentePaiements from "./pages/Paiements/Attente";
-import AboApp from "./abonnements/AboApp";
-import AboAdmin from "./abonnements/admin/AboAdmin";
 import Compteur from "./abonnements/Compteur";
+
+const Compta = lazy(() => import("./pages/Compta"));
+const MasseSalariale = lazy(() => import("./pages/Budget/MasseSalariale"));
+const ParametresPaie = lazy(() => import("./pages/Budget/ParametresPaie"));
+const PaiementsLayout = lazy(() => import("./pages/Paiements/Layout"));
+const ValidationPaiements = lazy(() => import("./pages/Paiements/Validation"));
+const ConfigPaiements = lazy(() => import("./pages/Paiements/Configurations"));
+const ApprobationsPaiements = lazy(() => import("./pages/Paiements/Approbations"));
+const AttentePaiements = lazy(() => import("./pages/Paiements/Attente"));
+const AboApp = lazy(() => import("./abonnements/AboApp"));
+const AboAdmin = lazy(() => import("./abonnements/admin/AboAdmin"));
+
+function RouteLoadingFallback() {
+  return (
+    <div className="loading-screen" role="status" aria-live="polite">
+      Chargement de la page...
+    </div>
+  );
+}
+
+function LazyRoute({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<RouteLoadingFallback />}>{children}</Suspense>;
+}
 
 // Composant temporaire pour les routes non implémentées
 const Placeholder = ({ title }: { title: string }) => (
@@ -37,7 +51,7 @@ function App() {
 
             {/* Espace PUBLIC abonnés — isolé, hors du Layout compta.
                 Les abonnés n'ont pas connaissance de l'outil de gestion. */}
-            <Route path="/abonnements" element={<AboApp />} />
+            <Route path="/abonnements" element={<LazyRoute><AboApp /></LazyRoute>} />
 
             {/* Compteur public ANONYME (iframe embarquable sur le site club) —
                 hors Layout et hors auth ; ne renvoie que des nombres. */}
@@ -47,22 +61,22 @@ function App() {
                 accès uniquement si la tuile est cochée (même pour un admin). */}
             <Route element={<Layout />}>
               {/* Gestion des abonnements (staff), atteinte par la tuile */}
-              <Route path="/gestion-abonnements" element={<RequireAccess tile="abonnements"><AboAdmin /></RequireAccess>} />
+              <Route path="/gestion-abonnements" element={<RequireAccess tile="abonnements"><LazyRoute><AboAdmin /></LazyRoute></RequireAccess>} />
               <Route path="/" element={<Dashboard />} />
-              <Route path="/compta" element={<RequireAccess tile="compta"><Compta /></RequireAccess>} />
-              <Route path="/budget" element={<RequireAccess tile="budget"><MasseSalariale /></RequireAccess>} />
-              <Route path="/budget/parametres" element={<RequireAccess tile="budget"><ParametresPaie /></RequireAccess>} />
+              <Route path="/compta" element={<RequireAccess tile="compta"><LazyRoute><Compta /></LazyRoute></RequireAccess>} />
+              <Route path="/budget" element={<RequireAccess tile="budget"><LazyRoute><MasseSalariale /></LazyRoute></RequireAccess>} />
+              <Route path="/budget/parametres" element={<RequireAccess tile="budget"><LazyRoute><ParametresPaie /></LazyRoute></RequireAccess>} />
               <Route path="/configurations" element={<RequireAccess admin><Configurations /></RequireAccess>} />
               <Route path="/licences-cours" element={<RequireAccess tile="licences_cours"><LicencesEnCours /></RequireAccess>} />
               <Route path="/contacts-cours" element={<RequireAccess tile="contacts_cours"><ContactsCours /></RequireAccess>} />
               <Route path="/remboursements-eleves" element={<RequireAccess tile="remboursements_eleves"><RemboursementsEleves /></RequireAccess>} />
 
               {/* Routes Paiements */}
-              <Route path="/paiements" element={<RequireAccess tile="paiements"><PaiementsLayout /></RequireAccess>}>
-                <Route index element={<ValidationPaiements />} />
-                <Route path="config" element={<ConfigPaiements />} />
-                <Route path="approbations" element={<ApprobationsPaiements />} />
-                <Route path="attente" element={<AttentePaiements />} />
+              <Route path="/paiements" element={<RequireAccess tile="paiements"><LazyRoute><PaiementsLayout /></LazyRoute></RequireAccess>}>
+                <Route index element={<LazyRoute><ValidationPaiements /></LazyRoute>} />
+                <Route path="config" element={<LazyRoute><ConfigPaiements /></LazyRoute>} />
+                <Route path="approbations" element={<LazyRoute><ApprobationsPaiements /></LazyRoute>} />
+                <Route path="attente" element={<LazyRoute><AttentePaiements /></LazyRoute>} />
               </Route>
 
               <Route path="/adherents" element={<Placeholder title="Module Adhérents" />} />
