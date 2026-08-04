@@ -1,0 +1,147 @@
+/// <reference types="vite/client" />
+import { convexTest } from "convex-test";
+import { describe, expect, test } from "vitest";
+import { api } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
+import schema from "./schema";
+
+const modules = import.meta.glob("./**/*.ts");
+type TestContext = ReturnType<typeof convexTest>;
+
+async function createUser(
+  t: TestContext,
+  options: { tiles?: string[]; role?: "admin" | "user" } = {},
+): Promise<Id<"users">> {
+  return await t.run(async (ctx) => {
+    const userId = await ctx.db.insert("users", {
+      email: `test-${crypto.randomUUID()}@example.test`,
+    });
+    if (options.tiles !== undefined || options.role !== undefined) {
+      await ctx.db.insert("userSettings", {
+        userId,
+        allowedTiles: options.tiles ?? [],
+        role: options.role ?? "user",
+      });
+    }
+    return userId;
+  });
+}
+
+async function deniedIdentities(t: TestContext) {
+  const [aboUserId, staffUserId, adminUserId] = await Promise.all([
+    createUser(t),
+    createUser(t, { tiles: [] }),
+    createUser(t, { tiles: [], role: "admin" }),
+  ]);
+  return [
+    t.withIdentity({ subject: aboUserId }),
+    t.withIdentity({ subject: staffUserId }),
+    t.withIdentity({ subject: adminUserId }),
+  ];
+}
+
+describe("protections des tuiles Comptabilité et Drive", () => {
+  test("refusent abo-otp et un admin sans tuile compta", async () => {
+    const t = convexTest(schema, modules);
+    const [abo, staff, admin] = await deniedIdentities(t);
+    const transactionId = await t.run(async (ctx) => {
+      const tiersId = await ctx.db.insert("tiers", { nom: "Fournisseur" });
+      const analytiqueId = await ctx.db.insert("analytiques", { nom: "Escalade" });
+      return await ctx.db.insert("transactions", { nom: "Facture", date: "2026-08-03", realise: 10, tiersId, analytiqueId, saison: "2026-27" });
+    });
+
+    for (const identity of [abo, staff, admin]) {
+      await expect(identity.query(api.transactions.getStats, { saison: "2026-27" })).rejects.toThrow("Accès refusé");
+      await expect(identity.mutation(api.transactions.remove, { id: transactionId })).rejects.toThrow("Accès refusé");
+      await expect(identity.query(api.references.getTiers, {})).rejects.toThrow("Accès refusé");
+      await expect(identity.mutation(api.typesDocuments.create, { nom: "Facture" })).rejects.toThrow("Accès refusé");
+      await expect(identity.action(api.drive.processTransactionDrive, { transactionId, saisonDirName: "2026-27", analytiqueNom: "Escalade", date: "2026-08-03", typeDocumentNom: "Facture", tiersNom: "Fournisseur" })).rejects.toThrow("Accès refusé");
+    }
+  });
+});
+
+describe("protections des tuiles Budget", () => {
+  test("refusent abo-otp, staff sans tuile et admin sans tuile", async () => {
+    const t = convexTest(schema, modules);
+    const identities = await deniedIdentities(t);
+    const analytiqueId = await t.run((ctx) => ctx.db.insert("analytiques", { nom: "Budget test" }));
+    const salarieId = await t.run((ctx) => ctx.db.insert("salaries", { nom: "Moniteur", typeContrat: "CDII" }));
+
+    for (const identity of identities) {
+      await expect(identity.query(api.previsionnels.getStats, { saison: "2026-27" })).rejects.toThrow("Accès refusé");
+      await expect(identity.query(api.effectifs.getSynthese, { saison: "2026-27" })).rejects.toThrow("Accès refusé");
+      await expect(identity.query(api.analytiques.get, {})).rejects.toThrow("Accès refusé");
+      await expect(identity.query(api.paie.getMasseSalariale, { saison: "2026-27" })).rejects.toThrow("Accès refusé");
+      await expect(identity.query(api.cours.getPlanning, { saison: "2026-27" })).rejects.toThrow("Accès refusé");
+      await expect(identity.mutation(api.previsionnels.add, { nom: "Ligne", montant: 10, etat: false, analytiqueId, saison: "2026-27" })).rejects.toThrow("Accès refusé");
+      await expect(identity.mutation(api.effectifs.setMembresLoisir, { saison: "2026-27", nbMembresLoisir: 10 })).rejects.toThrow("Accès refusé");
+      await expect(identity.mutation(api.analytiques.add, { nom: "Interdit" })).rejects.toThrow("Accès refusé");
+      await expect(identity.mutation(api.paie.addSalarie, { nom: "Interdit", typeContrat: "CDII", saison: "2026-27", nbMois: 12, tauxHoraireBrut: 20 })).rejects.toThrow("Accès refusé");
+      await expect(identity.mutation(api.cours.addCours, { saison: "2026-27", nom: "Interdit", tarifAnnuel: 100, nbElevesMax: 10, nbSemaines: 30, moniteurs: [salarieId], seances: [{ jour: 0, heureDebut: "18:00", dureeHeures: 1 }] })).rejects.toThrow("Accès refusé");
+    }
+  });
+
+  test("autorise la tuile budget en lecture et écriture", async () => {
+    const t = convexTest(schema, modules);
+    const budget = t.withIdentity({ subject: await createUser(t, { tiles: ["budget"] }) });
+    await expect(budget.query(api.previsionnels.getStats, { saison: "2026-27" })).resolves.toBeDefined();
+    const analytiqueId = await budget.mutation(api.analytiques.add, { nom: "Autorisé" });
+    await expect(budget.mutation(api.previsionnels.add, { nom: "Ligne", montant: 10, etat: false, analytiqueId, saison: "2026-27" })).resolves.toBeDefined();
+    await expect(budget.mutation(api.effectifs.setMembresLoisir, { saison: "2026-27", nbMembresLoisir: 10 })).resolves.toBeNull();
+    await expect(budget.mutation(api.paie.addSalarie, { nom: "Moniteur", typeContrat: "CDII", saison: "2026-27", nbMois: 12, tauxHoraireBrut: 20 })).resolves.toBeDefined();
+  });
+});
+
+describe("protections de la tuile Paiements", () => {
+  test("refusent abo-otp, staff sans tuile et admin sans tuile", async () => {
+    const t = convexTest(schema, modules);
+    for (const identity of await deniedIdentities(t)) {
+      await expect(identity.query(api.paiements.getLinks, {})).rejects.toThrow("Accès refusé");
+      await expect(identity.query(api.paiements.getGroups, {})).rejects.toThrow("Accès refusé");
+      await expect(identity.mutation(api.paiements.addLink, { url: "https://example.test/payer", label: "Cours", is_installment: false })).rejects.toThrow("Accès refusé");
+      await expect(identity.mutation(api.paiements.addGroup, { name: "Cours", requires_approval: false, link_ids: [] })).rejects.toThrow("Accès refusé");
+    }
+  });
+
+  test("autorise la tuile paiements en lecture et écriture", async () => {
+    const t = convexTest(schema, modules);
+    const paiements = t.withIdentity({ subject: await createUser(t, { tiles: ["paiements"] }) });
+    await expect(paiements.query(api.paiements.getLinks, {})).resolves.toEqual([]);
+    const linkId = await paiements.mutation(api.paiements.addLink, { url: "https://example.test/payer", label: "Cours", is_installment: false });
+    await expect(paiements.mutation(api.paiements.addGroup, { name: "Cours", requires_approval: false, link_ids: [linkId] })).resolves.toBeDefined();
+  });
+});
+
+describe("saisons et administration globale", () => {
+  const tiles = [
+    ["compta", "bg-info"], ["paiements", "bg-success"], ["budget", "bg-warning"],
+    ["abonnements", "bg-primary"], ["licences_cours", "bg-danger"], ["contacts_cours", "bg-orange"],
+    ["remboursements_eleves", "bg-pink"],
+  ] as const;
+  const configuration = { tiles: tiles.map(([id, color]) => ({ id, color })) };
+
+  test("refusent abo-otp et staff non-admin", async () => {
+    const t = convexTest(schema, modules);
+    const abo = t.withIdentity({ subject: await createUser(t) });
+    const staff = t.withIdentity({ subject: await createUser(t, { tiles: [] }) });
+    for (const identity of [abo, staff]) {
+      await expect(identity.mutation(api.saisons.create, { nom: "2026-27" })).rejects.toThrow("Réservé aux administrateurs");
+      await expect(identity.mutation(api.saisons.createNext, {})).rejects.toThrow("Réservé aux administrateurs");
+      await expect(identity.mutation(api.users.updateDashboardConfiguration, configuration)).rejects.toThrow("Réservé aux administrateurs");
+      await expect(identity.query(api.users.listUsers, {})).rejects.toThrow("Réservé aux administrateurs");
+    }
+  });
+
+  test("autorise l'admin de configuration, sans bypass métier", async () => {
+    const t = convexTest(schema, modules);
+    const admin = t.withIdentity({ subject: await createUser(t, { tiles: [], role: "admin" }) });
+    const saisonId = await admin.mutation(api.saisons.create, { nom: "2025-26", isDefault: true });
+    await expect(admin.mutation(api.saisons.update, { id: saisonId, isDefault: true })).resolves.toBeNull();
+    await expect(admin.mutation(api.saisons.createNext, {})).resolves.toMatchObject({ nom: "2026-27" });
+    const removableId = await admin.mutation(api.saisons.create, { nom: "2027-28" });
+    await expect(admin.mutation(api.saisons.remove, { id: removableId })).resolves.toBeNull();
+    await expect(admin.mutation(api.users.updateDashboardConfiguration, configuration)).resolves.toBeDefined();
+    await expect(admin.query(api.users.listUsers, {})).resolves.toBeDefined();
+    await expect(admin.query(api.transactions.getStats, { saison: "2026-27" })).rejects.toThrow("Accès refusé");
+  });
+});
