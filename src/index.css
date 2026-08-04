@@ -299,13 +299,34 @@ h1, h2, h3 {
   box-shadow: 4px 4px 0px 0px #000;
 }
 
-.not-member-notice {
+.login-guidance {
+  margin-top: 2rem;
+  padding: 1.5rem;
   text-align: left;
+  background-color: var(--warning);
+  border: var(--border-width) solid var(--border-color);
+  box-shadow: 5px 5px 0px 0px var(--border-color);
 }
 
-.not-member-notice p {
-  margin-bottom: 1rem;
+.login-guidance h2 {
+  margin: 0 0 1rem;
+  font-size: 1.35rem;
+  text-transform: uppercase;
+}
+
+.login-guidance p {
+  margin: 0 0 0.85rem;
   font-weight: 600;
+}
+
+.login-guidance .btn-primary {
+  margin-top: 1.5rem;
+}
+
+.login-guidance .btn-text {
+  display: block;
+  margin: 1.25rem auto 0;
+  text-align: center;
 }
 
 /* btn-primary appliqué à un <a> (Link) : forcer le rendu bouton */
@@ -314,7 +335,6 @@ a.btn-primary {
   box-sizing: border-box;
   text-align: center;
   text-decoration: none;
-  margin-top: 0.5rem;
 }
 
 /* Layout Global */

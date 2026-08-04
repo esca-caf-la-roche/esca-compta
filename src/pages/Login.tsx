@@ -8,7 +8,7 @@ export default function Login() {
   const [step, setStep] = useState<"email" | "otp">("email");
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
-  const [showSubscriptionGuidance, setShowSubscriptionGuidance] = useState(false);
+  const [showStaffOnlyNotice, setShowStaffOnlyNotice] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const { signIn } = useAuthActions();
@@ -20,17 +20,18 @@ export default function Login() {
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return; // Bloquer les doubles clics strictement
-    
+    if (loading) return;
+
     setError("");
-    setShowSubscriptionGuidance(false);
+    setShowStaffOnlyNotice(false);
     setLoading(true);
     try {
       await signIn("google-otp", { email });
       setStep("otp");
     } catch {
-      setShowSubscriptionGuidance(true);
-      setError("Impossible d'envoyer le code pour le moment. Réessayez dans quelques instants.");
+      // The staff OTP endpoint deliberately keeps the email eligibility private.
+      // Present a single useful next step instead of a misleading technical error.
+      setShowStaffOnlyNotice(true);
     } finally {
       setLoading(false);
     }
@@ -38,7 +39,7 @@ export default function Login() {
 
   const handleOTPSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return; // Bloquer les doubles clics
+    if (loading) return;
 
     const cleanOtp = otp.trim();
     if (!/^\d{6}$/.test(cleanOtp)) {
@@ -49,12 +50,18 @@ export default function Login() {
     setLoading(true);
     try {
       await signIn("google-otp", { email, code: cleanOtp });
-      // Ne pas utiliser navigate("/") ici ! On laisse le useEffect/render s'occuper de la redirection
     } catch {
       setError("Code incorrect ou expiré. Vérifiez le dernier code reçu ou demandez-en un nouveau.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const resetEmailStep = () => {
+    setEmail("");
+    setError("");
+    setShowStaffOnlyNotice(false);
+    setStep("email");
   };
 
   return (
@@ -63,23 +70,29 @@ export default function Login() {
         <h1>Club Escalade</h1>
         <p className="subtitle">Portail de gestion</p>
 
-        {error && <div className="error-message">{error}</div>}
-
-        {showSubscriptionGuidance && (
-          <div className="not-member-notice">
-            <p>Cet espace est réservé aux membres du comité de la section escalade.</p>
-            <p>Pour adhérer ou suivre une demande d'abonnement, utilisez l'espace dédié.</p>
+        {showStaffOnlyNotice ? (
+          <section className="login-guidance" aria-labelledby="staff-only-title">
+            <h2 id="staff-only-title">Accès réservé au comité</h2>
+            <p>
+              Ce portail est destiné aux membres du comité de la section escalade.
+            </p>
+            <p>
+              Pour adhérer ou suivre une demande d&apos;abonnement, rendez-vous sur
+              l&apos;espace dédié.
+            </p>
             <Link to="/abonnements" className="btn-primary">
-              Aller à l'espace abonnement
+              Aller à l&apos;espace abonnement
             </Link>
-          </div>
-        )}
-
-        {step === "email" ? (
+            <button type="button" className="btn-text" onClick={resetEmailStep}>
+              Essayer une autre adresse e-mail
+            </button>
+          </section>
+        ) : step === "email" ? (
           <form onSubmit={handleEmailSubmit}>
             <div className="form-group">
-              <label>Email de connexion</label>
+              <label htmlFor="login-email">Email de connexion</label>
               <input
+                id="login-email"
                 type="email"
                 required
                 value={email}
@@ -94,9 +107,11 @@ export default function Login() {
           </form>
         ) : (
           <form onSubmit={handleOTPSubmit}>
+            {error && <div className="error-message">{error}</div>}
             <div className="form-group">
-              <label>Code OTP (6 chiffres)</label>
+              <label htmlFor="login-otp">Code OTP (6 chiffres)</label>
               <input
+                id="login-otp"
                 type="text"
                 required
                 maxLength={6}
@@ -112,12 +127,8 @@ export default function Login() {
             <button type="submit" disabled={loading} className="btn-primary">
               {loading ? "Vérification..." : "Se connecter"}
             </button>
-            <button
-              type="button"
-              className="btn-text mt-4"
-              onClick={() => setStep("email")}
-            >
-              Changer d'email
+            <button type="button" className="btn-text mt-4" onClick={resetEmailStep}>
+              Changer d&apos;adresse e-mail
             </button>
           </form>
         )}
