@@ -6,17 +6,15 @@ import nodemailer from "nodemailer";
 
 export const sendOTP = action({
   args: { email: v.string(), code: v.string() },
+  returns: v.null(),
   handler: async (_ctx, args) => {
     try {
       const senderEmail = process.env.EMAIL_SENDER;
       const senderPassword = process.env.EMAIL_PASSWORD;
 
-      // Si l'e-mail ou le mot de passe d'application de l'expéditeur ne sont pas configurés,
-      // on fait un fallback propre en mode dev (affichage console).
       if (!senderEmail || !senderPassword) {
-        console.warn("[GoogleOTP] Mode dev ou configuration d'EMAIL_SENDER / EMAIL_PASSWORD incomplète. L'e-mail ne sera pas envoyé via SMTP.");
-        console.log(`[GoogleOTP] Code OTP pour ${args.email} : ${args.code}`);
-        return;
+        console.warn("[GoogleOTP] Configuration SMTP indisponible.");
+        throw new Error("L'envoi du code de connexion est temporairement indisponible. Réessayez plus tard.");
       }
 
       const transporter = nodemailer.createTransport({
@@ -37,11 +35,11 @@ export const sendOTP = action({
         text: body,
       });
       
-      console.log(`[GoogleOTP] Email envoyé avec succès à ${args.email}`);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Erreur inconnue";
-      console.error("[GoogleOTP] Erreur lors de l'envoi de l'email via SMTP:", errorMessage);
-      console.log(`[GoogleOTP] Fallback (Affichage Console) - Code pour ${args.email} : ${args.code}`);
+      console.info("[GoogleOTP] E-mail d'authentification envoyé.");
+      return null;
+    } catch {
+      console.error("[GoogleOTP] Échec de l'envoi SMTP.");
+      throw new Error("L'envoi du code de connexion est temporairement indisponible. Réessayez plus tard.");
     }
   }
 });
@@ -52,17 +50,15 @@ export const sendOTP = action({
 // Secrets Convex : EMAIL_SENDER_ABO / EMAIL_PASSWORD_ABO (mot de passe d'appli).
 export const sendAboEmail = action({
   args: { to: v.string(), subject: v.string(), text: v.string() },
+  returns: v.null(),
   handler: async (_ctx, args) => {
     try {
       const senderEmail = process.env.EMAIL_SENDER_ABO;
       const senderPassword = process.env.EMAIL_PASSWORD_ABO;
 
       if (!senderEmail || !senderPassword) {
-        console.warn(
-          "[Abo] EMAIL_SENDER_ABO / EMAIL_PASSWORD_ABO non configurés — email non envoyé (mode dev).",
-        );
-        console.log(`[Abo] Email pour ${args.to} — ${args.subject}\n${args.text}`);
-        return;
+        console.warn("[Abo] Configuration SMTP indisponible.");
+        throw new Error("L'envoi de l'e-mail est temporairement indisponible. Réessayez plus tard.");
       }
 
       const transporter = nodemailer.createTransport({
@@ -77,11 +73,11 @@ export const sendAboEmail = action({
         text: args.text,
       });
 
-      console.log(`[Abo] Email envoyé à ${args.to} (${args.subject})`);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "Erreur inconnue";
-      console.error("[Abo] Échec de l'envoi SMTP:", msg);
-      console.log(`[Abo] Fallback console — ${args.to} — ${args.subject}\n${args.text}`);
+      console.info("[Abo] E-mail transactionnel envoyé.");
+      return null;
+    } catch {
+      console.error("[Abo] Échec de l'envoi SMTP.");
+      throw new Error("L'envoi de l'e-mail est temporairement indisponible. Réessayez plus tard.");
     }
   },
 });
