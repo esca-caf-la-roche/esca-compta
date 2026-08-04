@@ -1,19 +1,16 @@
 import { useState } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useConvex, useConvexAuth } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import { Navigate, Link } from "react-router-dom";
+import { useConvexAuth } from "convex/react";
+import { Navigate } from "react-router-dom";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [step, setStep] = useState<"email" | "otp">("email");
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
-  const [notMember, setNotMember] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const { signIn } = useAuthActions();
-  const convex = useConvex();
   const { isAuthenticated } = useConvexAuth();
 
   if (isAuthenticated) {
@@ -25,14 +22,8 @@ export default function Login() {
     if (loading) return; // Bloquer les doubles clics strictement
     
     setError("");
-    setNotMember(false);
     setLoading(true);
     try {
-      const isAllowed = await convex.query(api.users.checkEmailExists, { email });
-      if (!isAllowed) {
-        setNotMember(true);
-        return;
-      }
       await signIn("google-otp", { email });
       setStep("otp");
     } catch {
@@ -71,31 +62,7 @@ export default function Login() {
 
         {error && <div className="error-message">{error}</div>}
 
-        {notMember ? (
-          <div className="not-member-notice">
-            <p>
-              Cet espace est réservé aux membres du comité de la section
-              escalade.
-            </p>
-            <p>
-              Si vous souhaitez adhérer ou suivre votre demande d'abonnement,
-              rendez-vous sur l'espace dédié.
-            </p>
-            <Link to="/abonnements" className="btn-primary">
-              Aller à l'espace abonnement
-            </Link>
-            <button
-              type="button"
-              className="btn-text mt-4"
-              onClick={() => {
-                setNotMember(false);
-                setEmail("");
-              }}
-            >
-              Essayer un autre email
-            </button>
-          </div>
-        ) : step === "email" ? (
+        {step === "email" ? (
           <form onSubmit={handleEmailSubmit}>
             <div className="form-group">
               <label>Email de connexion</label>
@@ -126,7 +93,7 @@ export default function Login() {
                 className="input-field text-center font-mono text-xl tracking-widest"
               />
               <p className="text-sm mt-2 text-gray-500">
-                L'email a été envoyé (vérifiez la console en dev).
+                Si cette adresse est autorisée, vous recevrez un code par e-mail.
               </p>
             </div>
             <button type="submit" disabled={loading} className="btn-primary">

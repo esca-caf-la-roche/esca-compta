@@ -115,19 +115,6 @@ export const current = query({
   },
 });
 
-// PUBLIC: appelé AVANT connexion par le provider google-otp pour gater l'envoi
-// de l'OTP aux emails pré-enregistrés. Ne renvoie qu'un booléen.
-export const checkEmailExists = query({
-  args: { email: v.string() },
-  handler: async (ctx, args) => {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("email", (q) => q.eq("email", args.email))
-      .first();
-    return user !== null;
-  },
-});
-
 export const listUsers = authenticatedQuery({
   args: {},
   handler: async (ctx) => {

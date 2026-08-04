@@ -1,6 +1,6 @@
 import { convexAuth } from "@convex-dev/auth/server";
 import { Email } from "@convex-dev/auth/providers/Email";
-import { api, internal } from "./_generated/api";
+import { internal } from "./_generated/api";
 import type { ActionCtx } from "./_generated/server";
 
 // Génère un code OTP à 6 chiffres.
@@ -18,11 +18,15 @@ const GoogleOTP = Email({
     ctx: ActionCtx,
   ) => {
     // Vérification côté serveur que l'utilisateur existe avant d'envoyer l'OTP.
-    const isAllowed = await ctx.runQuery(api.users.checkEmailExists, { email });
-    if (!isAllowed) {
-      throw new Error("Cet email n'est pas autorisé.");
-    }
-    await ctx.runAction(internal.email.sendOTP, { email, code });
+    const isAllowed = await ctx.runMutation(
+      internal.staffOtp.consumeRequest,
+      { email },
+    );
+    await ctx.scheduler.runAfter(0, internal.staffOtp.dispatchEmail, {
+      email,
+      code,
+      shouldSend: isAllowed,
+    });
   },
 });
 
@@ -91,9 +95,7 @@ export const { auth, signIn, signOut, store } = convexAuth({
         .first();
 
       if (!existingUser) {
-        throw new Error(
-          "Cet email n'est pas autorisé. Veuillez contacter un administrateur.",
-        );
+        throw new Error("Code incorrect ou expiré.");
       }
 
       return existingUser._id;

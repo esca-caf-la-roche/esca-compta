@@ -46,6 +46,7 @@ import type * as remboursements from "../remboursements.js";
 import type * as remboursementsHelloAsso from "../remboursementsHelloAsso.js";
 import type * as saisonUtils from "../saisonUtils.js";
 import type * as saisons from "../saisons.js";
+import type * as staffOtp from "../staffOtp.js";
 import type * as tiers from "../tiers.js";
 import type * as transactions from "../transactions.js";
 import type * as typesDocuments from "../typesDocuments.js";
@@ -96,6 +97,7 @@ declare const fullApi: ApiFromModules<{
   remboursementsHelloAsso: typeof remboursementsHelloAsso;
   saisonUtils: typeof saisonUtils;
   saisons: typeof saisons;
+  staffOtp: typeof staffOtp;
   tiers: typeof tiers;
   transactions: typeof transactions;
   typesDocuments: typeof typesDocuments;
@@ -130,4 +132,5 @@ export declare const internal: FilterApi<
 
 export declare const components: {
   migrations: import("@convex-dev/migrations/_generated/component.js").ComponentApi<"migrations">;
+  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
 };
