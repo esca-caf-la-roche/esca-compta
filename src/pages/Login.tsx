@@ -35,9 +35,8 @@ export default function Login() {
       }
       await signIn("google-otp", { email });
       setStep("otp");
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Erreur lors de l'envoi de l'OTP.";
-      setError(errorMessage);
+    } catch {
+      setError("Impossible d'envoyer le code pour le moment. Réessayez dans quelques instants.");
     } finally {
       setLoading(false);
     }
@@ -48,14 +47,17 @@ export default function Login() {
     if (loading) return; // Bloquer les doubles clics
 
     const cleanOtp = otp.trim();
+    if (!/^\d{6}$/.test(cleanOtp)) {
+      setError("Saisissez les 6 chiffres du code reçu par e-mail.");
+      return;
+    }
     setError("");
     setLoading(true);
     try {
       await signIn("google-otp", { email, code: cleanOtp });
       // Ne pas utiliser navigate("/") ici ! On laisse le useEffect/render s'occuper de la redirection
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "OTP incorrect.";
-      setError(errorMessage);
+    } catch {
+      setError("Code incorrect ou expiré. Vérifiez le dernier code reçu ou demandez-en un nouveau.");
     } finally {
       setLoading(false);
     }

@@ -15,7 +15,7 @@
 // Runtime Node (auth par cookies + parsing xlsx). Ce fichier n'exporte QUE des
 // actions (les mutations/queries appelées vivent dans matching.ts / compteur.ts).
 
-import * as XLSX from "xlsx";
+import readXlsxFile from "read-excel-file/node";
 import { internalAction } from "../_generated/server";
 import { authenticatedAction } from "../customFunctions";
 import { internal, api } from "../_generated/api";
@@ -338,15 +338,8 @@ function colonnesExport(head: string[]) {
   };
 }
 
-function parserExport(buf: Buffer): LigneEleve[] {
-  const wb = XLSX.read(buf, { type: "buffer" });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
-  if (!sheet) return [];
-  const grille = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-    header: 1,
-    raw: false,
-    defval: "",
-  });
+async function parserExport(buf: Buffer): Promise<LigneEleve[]> {
+  const grille = (await readXlsxFile(buf))[0]?.data ?? [];
   const iHead = grille.findIndex((row) =>
     row.some((c) => normHeader(c).includes("licence")),
   );
@@ -438,7 +431,7 @@ export const importerElevesEnCours = internalAction({
     if (!x.ok) throw new Error(`GET cours-export-xlsx.php : HTTP ${x.status}`);
     const buf = Buffer.from(await x.arrayBuffer());
 
-    const lignes = parserExport(buf);
+    const lignes = await parserExport(buf);
     // On EXCLUT les élèves en liste d'attente (pas encore admis → pas de passe-droit).
     const enAttente = lignes.filter(
       (l) => normHeader(l.horaire) === "liste d'attente",

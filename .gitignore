@@ -31,6 +31,9 @@ dist-ssr
 # Reports
 audit_convex.md
 
+# Plans de remédiation locaux (non versionnés)
+docs/private/
+
 # Agents & Skills
 # Les skills Convex générées restent ignorées et peuvent être réinstallées avec
 # `npx convex ai-files install`. Les trois skills métier du projet sont suivies.

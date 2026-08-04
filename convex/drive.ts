@@ -1,7 +1,7 @@
 "use node";
 
 import { authenticatedAction as action } from "./customFunctions";
-import { api, internal } from "./_generated/api";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { google } from "googleapis";
 
@@ -138,8 +138,8 @@ export const processTransactionDrive = action({
         console.warn("Impossible de partager le dossier (peut-être déjà partagé):", permError);
       }
 
-      // 6. Mettre à jour la transaction via mutation publique
-      await ctx.runMutation(api.transactions.update, {
+      // 6. Mettre à jour la transaction via mutation interne.
+      await ctx.runMutation(internal.transactions.updateFromDrive, {
         id: args.transactionId,
         nom: newNom,
         lienDrive: folderLink,

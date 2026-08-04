@@ -1,4 +1,5 @@
 import { authenticatedQuery as query, authenticatedMutation as mutation } from "./customFunctions";
+import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { requireTile } from "./access";
@@ -206,6 +207,23 @@ export const update = mutation({
     const { id, ...updates } = args;
     // Convex gère la mise à jour partielle avec patch
     await ctx.db.patch(id, updates);
+  },
+});
+
+// Écriture réservée à l'action Drive. L'action appelante vérifie l'accès
+// à la tuile compta avant tout effet externe.
+export const updateFromDrive = internalMutation({
+  args: {
+    id: v.id("transactions"),
+    nom: v.string(),
+    lienDrive: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, {
+      nom: args.nom,
+      lienDrive: args.lienDrive,
+    });
+    return null;
   },
 });
 

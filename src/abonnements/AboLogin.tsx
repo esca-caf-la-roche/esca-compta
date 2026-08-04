@@ -19,8 +19,8 @@ export default function AboLogin() {
     try {
       await signIn("abo-otp", { email: email.trim() });
       setStep("otp");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur lors de l'envoi du code.");
+    } catch {
+      setError("Impossible d'envoyer le code pour le moment. Réessayez dans quelques instants.");
     } finally {
       setLoading(false);
     }
@@ -29,13 +29,18 @@ export default function AboLogin() {
   const handleOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
+    const cleanOtp = otp.trim();
+    if (!/^\d{6}$/.test(cleanOtp)) {
+      setError("Saisissez les 6 chiffres du code reçu par e-mail.");
+      return;
+    }
     setError("");
     setLoading(true);
     try {
-      await signIn("abo-otp", { email: email.trim(), code: otp.trim() });
+      await signIn("abo-otp", { email: email.trim(), code: cleanOtp });
       // La bascule d'écran est gérée par l'état d'auth (AboApp).
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Code invalide ou expiré.");
+    } catch {
+      setError("Code incorrect ou expiré. Vérifiez le dernier code reçu ou demandez-en un nouveau.");
     } finally {
       setLoading(false);
     }

@@ -2,7 +2,37 @@
 
 import { internalAction as action } from "./_generated/server";
 import { v } from "convex/values";
-import nodemailer from "nodemailer";
+import { SMTPClient } from "emailjs";
+
+function creerTransporteur(email: string, motDePasse: string) {
+  return new SMTPClient({
+    user: email,
+    password: motDePasse,
+    host: "smtp.gmail.com",
+    ssl: true,
+  });
+}
+
+async function envoyerEmail(
+  compteSmtp: string,
+  motDePasse: string,
+  expediteur: string,
+  destinataire: string,
+  sujet: string,
+  texte: string,
+) {
+  const client = creerTransporteur(compteSmtp, motDePasse);
+  try {
+    await client.sendAsync({
+      from: expediteur,
+      to: destinataire,
+      subject: sujet,
+      text: texte,
+    });
+  } finally {
+    client.smtp.close();
+  }
+}
 
 export const sendOTP = action({
   args: { email: v.string(), code: v.string() },
@@ -17,23 +47,17 @@ export const sendOTP = action({
         throw new Error("L'envoi du code de connexion est temporairement indisponible. Réessayez plus tard.");
       }
 
-      const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          user: senderEmail,
-          pass: senderPassword,
-        },
-      });
-
       const subject = `${args.code} : votre code de connexion au portail escalade`;
       const body = `Bonjour,\n\nVotre code de vérification est : ${args.code}\n\nCe code expirera dans 10 minutes.\n\nL'équipe Esca-Compta.`;
 
-      await transporter.sendMail({
-        from: `Esca-Compta <${senderEmail}>`,
-        to: args.email,
-        subject: subject,
-        text: body,
-      });
+      await envoyerEmail(
+        senderEmail,
+        senderPassword,
+        `Esca-Compta <${senderEmail}>`,
+        args.email,
+        subject,
+        body,
+      );
       
       console.info("[GoogleOTP] E-mail d'authentification envoyé.");
       return null;
@@ -61,17 +85,14 @@ export const sendAboEmail = action({
         throw new Error("L'envoi de l'e-mail est temporairement indisponible. Réessayez plus tard.");
       }
 
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: { user: senderEmail, pass: senderPassword },
-      });
-
-      await transporter.sendMail({
-        from: `Abonnements Escalade CAF <${senderEmail}>`,
-        to: args.to,
-        subject: args.subject,
-        text: args.text,
-      });
+      await envoyerEmail(
+        senderEmail,
+        senderPassword,
+        `Abonnements Escalade CAF <${senderEmail}>`,
+        args.to,
+        args.subject,
+        args.text,
+      );
 
       console.info("[Abo] E-mail transactionnel envoyé.");
       return null;
