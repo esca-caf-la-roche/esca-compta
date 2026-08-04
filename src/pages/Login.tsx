@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth } from "convex/react";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [step, setStep] = useState<"email" | "otp">("email");
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
+  const [showSubscriptionGuidance, setShowSubscriptionGuidance] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const { signIn } = useAuthActions();
@@ -22,11 +23,13 @@ export default function Login() {
     if (loading) return; // Bloquer les doubles clics strictement
     
     setError("");
+    setShowSubscriptionGuidance(false);
     setLoading(true);
     try {
       await signIn("google-otp", { email });
       setStep("otp");
     } catch {
+      setShowSubscriptionGuidance(true);
       setError("Impossible d'envoyer le code pour le moment. Réessayez dans quelques instants.");
     } finally {
       setLoading(false);
@@ -61,6 +64,16 @@ export default function Login() {
         <p className="subtitle">Portail de gestion</p>
 
         {error && <div className="error-message">{error}</div>}
+
+        {showSubscriptionGuidance && (
+          <div className="not-member-notice">
+            <p>Cet espace est réservé aux membres du comité de la section escalade.</p>
+            <p>Pour adhérer ou suivre une demande d'abonnement, utilisez l'espace dédié.</p>
+            <Link to="/abonnements" className="btn-primary">
+              Aller à l'espace abonnement
+            </Link>
+          </div>
+        )}
 
         {step === "email" ? (
           <form onSubmit={handleEmailSubmit}>
