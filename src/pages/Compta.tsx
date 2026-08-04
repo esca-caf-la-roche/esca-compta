@@ -27,6 +27,12 @@ type TransactionRecord = {
   saison: string;
 };
 
+type PaginatedExport = {
+  page: TransactionRecord[];
+  isDone: boolean;
+  continueCursor: string;
+};
+
 export default function Compta() {
   const { season } = useSeason();
   const convex = useConvex();
@@ -36,6 +42,7 @@ export default function Compta() {
   const [filterAnalytique, setFilterAnalytique] = useState<string>("Tous");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>("");
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -174,15 +181,38 @@ export default function Compta() {
   };
 
   const handleExportCSV = async () => {
-    try {
-      const data = await convex.query(api.transactions.getExport, {
-        saison: season,
-        filterTiersId: filterTiers,
-        filterAnalytiqueId: filterAnalytique,
-        searchQuery: debouncedSearchQuery
-      });
+    if (isExporting) return;
 
-      if (!data || data.length === 0) {
+    setIsExporting(true);
+    try {
+      const data: TransactionRecord[] = [];
+      const seenCursors = new Set<string>();
+      let cursor: string | null = null;
+      let isDone = false;
+
+      while (!isDone) {
+        const response: PaginatedExport = await convex.query(api.transactions.getExportPage, {
+          saison: season,
+          filterTiersId: filterTiers,
+          filterAnalytiqueId: filterAnalytique,
+          searchQuery: debouncedSearchQuery,
+          paginationOpts: { cursor, numItems: 250 },
+        });
+
+        data.push(...response.page);
+        isDone = response.isDone;
+
+        if (!isDone) {
+          const nextCursor = response.continueCursor;
+          if (!nextCursor || seenCursors.has(nextCursor)) {
+            throw new Error("Pagination d'export invalide");
+          }
+          seenCursors.add(nextCursor);
+          cursor = nextCursor;
+        }
+      }
+
+      if (data.length === 0) {
         alert("Aucune donnée à exporter.");
         return;
       }
@@ -217,6 +247,8 @@ export default function Compta() {
     } catch (error) {
       console.error("Erreur lors de l'export CSV", error);
       alert("Erreur lors de l'export CSV");
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -288,9 +320,14 @@ export default function Compta() {
             </div>
           </div>
           <div className="filter-group">
-            <button className="btn-secondary" style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem", padding: "0.5rem 1rem" }} onClick={handleExportCSV}>
+            <button
+              className="btn-secondary"
+              style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem", padding: "0.5rem 1rem" }}
+              onClick={handleExportCSV}
+              disabled={isExporting}
+            >
               <Download size={16} />
-              Exporter CSV
+              {isExporting ? "Export en cours..." : "Exporter CSV"}
             </button>
           </div>
         </div>

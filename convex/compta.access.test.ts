@@ -91,7 +91,10 @@ describe("endpoints comptabilite", () => {
       staff.mutation(api.transactions.remove, { id: transactionId }),
     ).rejects.toThrow("Accès refusé");
     await expect(
-      staff.query(api.transactions.getExport, { saison: "2026-2027" }),
+      staff.query(api.transactions.getExportPage, {
+        saison: "2026-2027",
+        paginationOpts,
+      }),
     ).rejects.toThrow("Accès refusé");
     await expect(staff.query(api.references.getTiers, {})).rejects.toThrow(
       "Accès refusé",

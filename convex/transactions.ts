@@ -1,13 +1,55 @@
 import { authenticatedQuery as query, authenticatedMutation as mutation } from "./customFunctions";
 import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
+import type { QueryCtx } from "./_generated/server";
 import { requireTile } from "./access";
 
 import { paginationOptsValidator } from "convex/server";
 
 function normalizeStr(s: string) {
   return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+/** Hydrate une page de transactions en lisant chaque relation au plus une fois. */
+async function hydrateTransactions(
+  ctx: Pick<QueryCtx, "db">,
+  transactions: Doc<"transactions">[],
+) {
+  const tiersIds = new Set(transactions.map((transaction) => transaction.tiersId));
+  const analytiqueIds = new Set(
+    transactions.map((transaction) => transaction.analytiqueId),
+  );
+  const typeDocumentIds = new Set(
+    transactions.flatMap((transaction) =>
+      transaction.typeDocumentId ? [transaction.typeDocumentId] : [],
+    ),
+  );
+
+  const [tiersEntries, analytiqueEntries, typeDocumentEntries] = await Promise.all([
+    Promise.all(
+      Array.from(tiersIds, async (id) => [id, await ctx.db.get(id)] as const),
+    ),
+    Promise.all(
+      Array.from(analytiqueIds, async (id) => [id, await ctx.db.get(id)] as const),
+    ),
+    Promise.all(
+      Array.from(typeDocumentIds, async (id) => [id, await ctx.db.get(id)] as const),
+    ),
+  ]);
+
+  const tiersById = new Map(tiersEntries);
+  const analytiquesById = new Map(analytiqueEntries);
+  const typesDocumentsById = new Map(typeDocumentEntries);
+
+  return transactions.map((transaction) => ({
+    ...transaction,
+    tiersNom: tiersById.get(transaction.tiersId)?.nom || "Inconnu",
+    analytiqueNom: analytiquesById.get(transaction.analytiqueId)?.nom || "Inconnu",
+    typeDocumentNom: transaction.typeDocumentId
+      ? typesDocumentsById.get(transaction.typeDocumentId)?.nom || "Inconnu"
+      : transaction.typeDocument || "Inconnu",
+  }));
 }
 
 // Lire les statistiques et filtres uniques pour une saison
@@ -25,13 +67,26 @@ export const getStats = query({
       .withIndex("by_saison", (q) => q.eq("saison", args.saison))
       .collect();
 
-    // Les listes déroulantes restent calculées sur TOUTE la saison
-    // (sinon les options disparaîtraient une fois un filtre appliqué).
+    // Chaque menu dépend de l'autre filtre, mais pas de son propre choix :
+    // cela garde le choix courant visible tout en ne proposant que les
+    // combinaisons réellement présentes dans la saison.
     const tiersIds = new Set<Id<"tiers">>();
     const analytiqueIds = new Set<Id<"analytiques">>();
     for (const t of transactions) {
-      tiersIds.add(t.tiersId as Id<"tiers">);
-      analytiqueIds.add(t.analytiqueId as Id<"analytiques">);
+      if (
+        !args.filterAnalytiqueId ||
+        args.filterAnalytiqueId === "Tous" ||
+        t.analytiqueId === args.filterAnalytiqueId
+      ) {
+        tiersIds.add(t.tiersId as Id<"tiers">);
+      }
+      if (
+        !args.filterTiersId ||
+        args.filterTiersId === "Tous" ||
+        t.tiersId === args.filterTiersId
+      ) {
+        analytiqueIds.add(t.analytiqueId as Id<"analytiques">);
+      }
     }
 
     // Les totaux (recettes / dépenses / solde) sont calculés sur le sous-ensemble filtré.
@@ -137,20 +192,7 @@ export const get = query({
       results = await q.paginate(args.paginationOpts);
     }
 
-    const page = await Promise.all(
-      results.page.map(async (t) => {
-        const tiers = await ctx.db.get(t.tiersId as Id<"tiers">);
-        const analytique = await ctx.db.get(t.analytiqueId as Id<"analytiques">);
-        return {
-          ...t,
-          tiersNom: tiers ? tiers.nom : "Inconnu",
-          analytiqueNom: analytique ? analytique.nom : "Inconnu",
-          typeDocumentNom: t.typeDocumentId 
-            ? ((await ctx.db.get(t.typeDocumentId as Id<"typesDocuments">))?.nom || "Inconnu")
-            : (t.typeDocument || "Inconnu"),
-        };
-      })
-    );
+    const page = await hydrateTransactions(ctx, results.page);
 
     return { ...results, page };
   },
@@ -236,10 +278,11 @@ export const remove = mutation({
   },
 });
 
-// Récupérer les transactions pour l'export CSV (sans pagination)
-export const getExport = query({
+// Récupérer une page bornée pour l'export CSV ; le client parcourt les curseurs.
+export const getExportPage = query({
   args: { 
     saison: v.string(),
+    paginationOpts: paginationOptsValidator,
     filterTiersId: v.optional(v.string()),
     filterAnalytiqueId: v.optional(v.string()),
     searchQuery: v.optional(v.string())
@@ -258,32 +301,18 @@ export const getExport = query({
       q = q.filter((q) => q.eq(q.field("analytiqueId"), args.filterAnalytiqueId));
     }
 
-    const all = await q.collect();
-    let filtered = all;
+    const results = await q.paginate(args.paginationOpts);
+    let filtered = results.page;
 
     if (args.searchQuery && args.searchQuery.trim() !== "") {
       const searchStr = normalizeStr(args.searchQuery.trim());
-      filtered = all.filter(t => 
+      filtered = results.page.filter(t =>
         normalizeStr(t.nom).includes(searchStr) || 
         (t.commentaires && normalizeStr(t.commentaires).includes(searchStr))
       );
     }
 
-    const result = await Promise.all(
-      filtered.map(async (t) => {
-        const tiers = await ctx.db.get(t.tiersId as Id<"tiers">);
-        const analytique = await ctx.db.get(t.analytiqueId as Id<"analytiques">);
-        return {
-          ...t,
-          tiersNom: tiers ? tiers.nom : "Inconnu",
-          analytiqueNom: analytique ? analytique.nom : "Inconnu",
-          typeDocumentNom: t.typeDocumentId 
-            ? ((await ctx.db.get(t.typeDocumentId as Id<"typesDocuments">))?.nom || "Inconnu")
-            : (t.typeDocument || "Inconnu"),
-        };
-      })
-    );
-
-    return result;
+    const page = await hydrateTransactions(ctx, filtered);
+    return { ...results, page };
   },
 });
