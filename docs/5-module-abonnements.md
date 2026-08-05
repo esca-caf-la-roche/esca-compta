@@ -112,7 +112,10 @@ déploiement `npx convex dev` actif.
 - [ ] **Emails** : validation → email `validation` unique (pas de renvoi au
   re-scrap) ; demande → `accuse` ; création/annulation de créneau → `test_annule`.
 - [ ] **Messagerie 🔒** : message instantané des deux côtés (réactivité Convex) ;
-  un owner ne voit que son fil ; badge admin + email abonné `nouveau_message`.
+  un owner ne voit que son fil. L'espace admin affiche un compteur temps réel et
+  une boîte de réception « Messages » qui priorise les conversations non lues ;
+  l'ouverture du fil permet de les lire et d'y répondre. Un email
+  `nouveau_message` prévient l'abonné d'une réponse administrative.
 - [ ] **Non-régression compta** : login staff `google-otp` inchangé ; tuiles
   Comptabilité/Paiements/Budget intactes ; table `dossiers` (cours) non impactée.
 

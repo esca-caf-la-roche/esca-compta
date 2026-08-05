@@ -39,6 +39,19 @@ Pour tout changement fonctionnel :
 Pour le module Abonnements, utiliser la checklist e2e de
 [5-module-abonnements.md](5-module-abonnements.md).
 
+### Scénario ciblé — Messagerie Abonnements
+
+1. avec un compte public `abo-otp`, envoyer un message depuis le suivi d'un
+   dossier ; avec un compte staff ayant la tuile `abonnements`, vérifier que le
+   compteur de l'onglet « Messages » se met à jour sans rechargement ;
+2. ouvrir « Messages » : la conversation doit être visible dans « À traiter »,
+   indépendamment du statut du dossier, avec son nombre de messages non lus ;
+3. ouvrir le fil, vérifier l'historique, répondre, puis vérifier côté compte
+   public la réponse et la notification email associée ;
+4. revenir dans « Toutes les conversations » et vérifier que le fil reste
+   consultable après rechargement ; retirer ensuite la tuile à un compte staff
+   et vérifier le refus de route et du compteur backend.
+
 ### Scénarios ciblés — Contacts des cours
 
 Ces scénarios sont manuels tant qu'aucune suite navigateur n'est installée :

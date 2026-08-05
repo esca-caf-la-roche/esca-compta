@@ -9,11 +9,13 @@ import Tests from "./Tests";
 import Anomalies from "./Anomalies";
 import Paiements from "./Paiements";
 import Configuration from "./Configuration";
+import Messages from "./Messages";
 
-type Vue = "dossiers" | "anomalies" | "licences" | "tests" | "paiements" | "config";
+type Vue = "dossiers" | "messages" | "anomalies" | "licences" | "tests" | "paiements" | "config";
 
 const TABS: { id: Vue; label: string }[] = [
   { id: "dossiers", label: "Dossiers" },
+  { id: "messages", label: "Messages" },
   { id: "paiements", label: "Paiements" },
   { id: "anomalies", label: "Anomalies" },
   { id: "licences", label: "Licences" },
@@ -26,6 +28,7 @@ const TABS: { id: Vue; label: string }[] = [
 // Phase B : coquille à onglets ; les vues sont remplies aux phases suivantes.
 export default function AboAdmin() {
   const me = useQuery(api.abo.identity.me);
+  const messagesNonLus = useQuery(api.abo.messages.messagesNonLusAdmin);
   const [vue, setVue] = useState<Vue>("dossiers");
 
   // Synchro on-demand au chargement (throttle serveur ~1 h) : remplace les crons
@@ -81,6 +84,21 @@ export default function AboAdmin() {
             }}
           >
             {t.label}
+            {t.id === "messages" && (messagesNonLus?.length ?? 0) > 0 && (
+              <span
+                aria-label={`${messagesNonLus!.reduce((total, message) => total + message.count, 0)} messages non lus`}
+                style={{
+                  marginLeft: "0.4rem",
+                  background: "#e5484d",
+                  color: "#fff",
+                  borderRadius: 999,
+                  fontSize: "0.72rem",
+                  padding: "0.05rem 0.4rem",
+                }}
+              >
+                {messagesNonLus!.reduce((total, message) => total + message.count, 0)}
+              </span>
+            )}
           </button>
         ))}
       </nav>
@@ -88,6 +106,8 @@ export default function AboAdmin() {
       <div className="abo-admin-vue">
         {vue === "dossiers" ? (
           <Dossiers />
+        ) : vue === "messages" ? (
+          <Messages />
         ) : vue === "licences" ? (
           <Licences />
         ) : vue === "tests" ? (
