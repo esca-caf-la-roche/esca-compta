@@ -289,15 +289,26 @@ export const resetSaison = authenticatedMutation({
       await ctx.db.delete(l._id);
     }
 
-    // 3) Vide le cache paiements du lien abo courant (dossiers + transactions du
-    //    formulaire abo UNIQUEMENT — les commandes des cours ne sont pas touchées).
+    // 3) Vide le cache et le suivi de TOUS les formulaires Abonnements connus
+    //    (courant et anciens). Les commandes des cours ne sont jamais touchées.
     const cible = await trouverLienAbo(ctx);
-    if (cible?.link) {
+    const liensAbo = (await ctx.db.query("helloasso_links").collect()).filter(
+      (l) => l.type === "abonnement",
+    );
+    if (cible?.link && !liensAbo.some((l) => l._id === cible.link!._id)) {
+      liensAbo.push(cible.link);
+    }
+    for (const lienAbo of liensAbo) {
       const dossiers = await ctx.db
         .query("dossiers")
-        .withIndex("by_link", (q) => q.eq("helloasso_link_id", cible.link!._id))
+        .withIndex("by_link", (q) => q.eq("helloasso_link_id", lienAbo._id))
         .collect();
       for (const d of dossiers) {
+        const suivi = await ctx.db
+          .query("abo_paiements_suivi")
+          .withIndex("by_dossier_id", (q) => q.eq("dossier_id", d._id))
+          .first();
+        if (suivi) await ctx.db.delete(suivi._id);
         const txs = await ctx.db
           .query("helloasso_transactions")
           .withIndex("by_dossier", (q) => q.eq("dossier_id", d.dossier_id))

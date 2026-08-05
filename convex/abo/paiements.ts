@@ -14,11 +14,12 @@ import { v } from "convex/values";
 import { authenticatedQuery, authenticatedMutation, authenticatedAction } from "../customFunctions";
 import type { QueryCtx, MutationCtx } from "../_generated/server";
 import type { Doc, Id } from "../_generated/dataModel";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
+import { internalQuery } from "../_generated/server";
 import { requireAboAdmin } from "./auth";
 import { getConfigValeur } from "./config";
 
-// Vocabulaire du suivi interne abo (sous-ensemble contrôlé de local_status).
+// Vocabulaire du suivi interne Abonnements, stocké dans abo_paiements_suivi.
 const STATUTS = ["a_traiter", "traite", "rembourse", "en_attente"] as const;
 type StatutLocal = (typeof STATUTS)[number];
 
@@ -66,6 +67,11 @@ export async function trouverLienAbo(
   const link = links.find((l) => memeLien(l.url, url)) ?? null;
   return { url, link };
 }
+
+export const getLienAboInterne = internalQuery({
+  args: {},
+  handler: async (ctx) => (await trouverLienAbo(ctx))?.link?._id ?? null,
+});
 
 // Un remboursement HelloAsso : ligne de transaction « Refunded » / id refund-*.
 export function estRemboursement(t: Doc<"helloasso_transactions">): boolean {
@@ -123,8 +129,13 @@ export const getPaiementsAbo = authenticatedQuery({
         .sort((a, b) => a.date.localeCompare(b.date));
       const ha_rembourse = remboursements.length > 0;
 
-      const statut_local = ((d.local_status as StatutLocal | undefined) ??
-        "a_traiter") as StatutLocal;
+      // Le suivi Abonnements est délibérément séparé de dossiers.local_status,
+      // réservé au module Paiements cours. Sans décision Abo, c'est à traiter.
+      const suivi = await ctx.db
+        .query("abo_paiements_suivi")
+        .withIndex("by_dossier_id", (q) => q.eq("dossier_id", d._id))
+        .first();
+      const statut_local: StatutLocal = suivi?.statut ?? "a_traiter";
       const localRembourse = statut_local === "rembourse";
       const besoin_action_remboursement =
         (localRembourse && !ha_rembourse) || (!localRembourse && ha_rembourse);
@@ -146,10 +157,10 @@ export const getPaiementsAbo = authenticatedQuery({
         remboursements,
         ha_rembourse,
         statut_local,
-        commentaire: d.comment ?? null,
+        commentaire: suivi?.commentaire ?? null,
         besoin_action_remboursement,
-        suivi_updater_email: d.updated_by ? await emailAuteur(d.updated_by) : null,
-        suivi_updated_at: d.updated_at ?? null,
+        suivi_updater_email: suivi ? await emailAuteur(suivi.updated_by) : null,
+        suivi_updated_at: suivi?.updated_at ?? null,
       });
     }
 
@@ -177,12 +188,34 @@ export const setStatutPaiementAbo = authenticatedMutation({
       throw new Error("Ce paiement n'appartient pas au formulaire abonnements.");
     }
 
-    await ctx.db.patch(args.dossierId, {
-      local_status: args.statut,
-      comment: args.commentaire?.trim() || undefined,
-      updated_by: ctx.userId,
-      updated_at: new Date().toISOString(),
-    });
+    const now = new Date().toISOString();
+    const existant = await ctx.db
+      .query("abo_paiements_suivi")
+      .withIndex("by_dossier_id", (q) => q.eq("dossier_id", args.dossierId))
+      .first();
+    const commentaire = args.commentaire?.trim() || undefined;
+    if (existant) {
+      if (
+        existant.statut !== args.statut ||
+        existant.commentaire !== commentaire ||
+        existant.updated_by !== ctx.userId
+      ) {
+        await ctx.db.patch(existant._id, {
+          statut: args.statut,
+          commentaire,
+          updated_by: ctx.userId,
+          updated_at: now,
+        });
+      }
+    } else {
+      await ctx.db.insert("abo_paiements_suivi", {
+        dossier_id: args.dossierId,
+        statut: args.statut,
+        commentaire,
+        updated_by: ctx.userId,
+        updated_at: now,
+      });
+    }
     return null;
   },
 });
@@ -243,8 +276,8 @@ export const enregistrerLienAbo = authenticatedMutation({
 });
 
 // ── synchroniserPaiementsAbo : déclenche la sync HelloAsso (admin) ───
-// Réutilise l'action partagée (qui préserve les statuts locaux). Gate rôle abo
-// explicite (syncHelloAsso ne vérifie que la connexion). Phase H ajoutera le cron.
+// Déclenche uniquement le formulaire Abonnements. Les paiements cours ne sont
+// ni comptés ni importés par cette action.
 export const synchroniserPaiementsAbo = authenticatedAction({
   args: {},
   handler: async (ctx): Promise<{ synced_count: number; errors: string[] }> => {
@@ -252,6 +285,15 @@ export const synchroniserPaiementsAbo = authenticatedAction({
     if (!me || me.aboRole !== "admin") {
       throw new Error("Réservé aux administrateurs.");
     }
-    return await ctx.runAction(api.helloasso.syncHelloAsso, {});
+    const linkId = await ctx.runQuery(internal.abo.paiements.getLienAboInterne, {});
+    if (!linkId) {
+      return {
+        synced_count: 0,
+        errors: ["Le lien HelloAsso Abonnements configuré est introuvable dans le cache."],
+      };
+    }
+    return await ctx.runAction(internal.helloasso.syncHelloAssoLinksInternal, {
+      linkIds: [linkId],
+    });
   },
 });

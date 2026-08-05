@@ -240,6 +240,22 @@ export default defineSchema({
     .index("by_dossier_id", ["dossier_id"])
     .index("by_link", ["helloasso_link_id"]),
 
+  // SAISON-EXEMPT: suivi opérationnel d'une commande du formulaire
+  // Abonnements. Il est indépendant de la saison comptable et ne partage
+  // jamais les décisions manuelles des paiements cours (`dossiers`).
+  abo_paiements_suivi: defineTable({
+    dossier_id: v.id("dossiers"),
+    statut: v.union(
+      v.literal("a_traiter"),
+      v.literal("traite"),
+      v.literal("rembourse"),
+      v.literal("en_attente"),
+    ),
+    commentaire: v.optional(v.string()),
+    updated_by: v.id("users"),
+    updated_at: v.string(),
+  }).index("by_dossier_id", ["dossier_id"]),
+
   // Transactions HelloAsso individuelles (échéances + remboursements)
   helloasso_transactions: defineTable({
     helloasso_payment_id: v.string(), // clé naturelle (id paiement ou refund-<id>)

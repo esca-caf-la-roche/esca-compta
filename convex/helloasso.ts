@@ -4,6 +4,7 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery, internalAction } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { authenticatedAction } from "./customFunctions";
 import { internal } from "./_generated/api";
 import { champsModifies } from "./dbUtils";
@@ -124,8 +125,12 @@ function extractPhone(items?: any[]): string | null {
 
 // --- QUERY INTERNE : liens configurés ---
 export const getLinksInternal = internalQuery({
-  args: {},
-  handler: async (ctx) => {
+  args: { linkIds: v.optional(v.array(v.id("helloasso_links"))) },
+  handler: async (ctx, args) => {
+    if (args.linkIds) {
+      const links = await Promise.all(args.linkIds.map((id) => ctx.db.get(id)));
+      return links.filter((link) => link !== null);
+    }
     return await ctx.db.query("helloasso_links").collect();
   },
 });
@@ -228,6 +233,7 @@ export const upsertTransactions = internalMutation({
 // La sync préserve les champs locaux des dossiers (local_status/comment…).
 async function runHelloAssoSync(
   ctx: ActionCtx,
+  linkIds?: Id<"helloasso_links">[],
 ): Promise<{ synced_count: number; errors: string[] }> {
     const clientId = process.env.HELLOASSO_CLIENT_ID;
     const clientSecret = process.env.HELLOASSO_CLIENT_SECRET;
@@ -239,7 +245,10 @@ async function runHelloAssoSync(
       };
     }
 
-    const links = await ctx.runQuery(internal.helloasso.getLinksInternal, {});
+    const links = await ctx.runQuery(
+      internal.helloasso.getLinksInternal,
+      linkIds ? { linkIds } : {},
+    );
     if (!links || links.length === 0) {
       return { synced_count: 0, errors: ["Aucun lien HelloAsso configuré"] };
     }
@@ -409,4 +418,11 @@ export const syncHelloAsso = authenticatedAction({
 export const syncHelloAssoInternal = internalAction({
   args: {},
   handler: async (ctx) => runHelloAssoSync(ctx),
+});
+
+// Synchronisation interne ciblée : les Abonnements ne doivent pas annoncer ni
+// importer les paiements des cours dans leur propre suivi.
+export const syncHelloAssoLinksInternal = internalAction({
+  args: { linkIds: v.array(v.id("helloasso_links")) },
+  handler: async (ctx, args) => runHelloAssoSync(ctx, args.linkIds),
 });
