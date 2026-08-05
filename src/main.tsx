@@ -10,11 +10,6 @@ document.title = isDevelopment
   ? 'CAF La Roche-Bonneville — DEV'
   : 'CAF La Roche-Bonneville — Portail de gestion';
 
-const favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
-if (favicon) {
-  favicon.href = isDevelopment ? '/favicon-dev.svg' : '/favicon-prod.svg';
-}
-
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
 
 createRoot(document.getElementById('root')!).render(
