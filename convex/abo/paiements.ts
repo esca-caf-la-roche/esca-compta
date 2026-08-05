@@ -73,9 +73,19 @@ export const getLienAboInterne = internalQuery({
   handler: async (ctx) => (await trouverLienAbo(ctx))?.link?._id ?? null,
 });
 
-// Un remboursement HelloAsso : ligne de transaction « Refunded » / id refund-*.
+// Un remboursement au sens métier : le paiement initial peut être marqué
+// « Refunded » par HelloAsso, même sans opération détaillée disponible.
 export function estRemboursement(t: Doc<"helloasso_transactions">): boolean {
   return t.helloasso_status === "Refunded" || t.helloasso_payment_id.startsWith("refund-");
+}
+
+// Une opération de remboursement est distincte du paiement initial dont HelloAsso
+// peut aussi passer le statut à « Refunded ». Seules les lignes `refund-*` ont la
+// date et le montant de l'opération à afficher dans la timeline.
+export function estOperationRemboursement(
+  t: Doc<"helloasso_transactions">,
+): boolean {
+  return t.helloasso_payment_id.startsWith("refund-");
 }
 
 // ── getPaiementsAbo : cache HelloAsso du formulaire abo (admin) ──────
@@ -118,8 +128,8 @@ export const getPaiementsAbo = authenticatedQuery({
         .withIndex("by_dossier", (q) => q.eq("dossier_id", d.dossier_id))
         .collect();
 
-      const principales = txs.filter((t) => !estRemboursement(t));
-      const remb = txs.filter(estRemboursement);
+      const principales = txs.filter((t) => !estOperationRemboursement(t));
+      const remb = txs.filter(estOperationRemboursement);
       // Ligne principale = la plus ancienne (porte reçus + statut HelloAsso).
       principales.sort((a, b) => a.payment_date.localeCompare(b.payment_date));
       const ref = principales[0] ?? null;
@@ -127,7 +137,11 @@ export const getPaiementsAbo = authenticatedQuery({
       const remboursements = remb
         .map((r) => ({ montant: Math.abs(r.amount), date: r.payment_date }))
         .sort((a, b) => a.date.localeCompare(b.date));
-      const ha_rembourse = remboursements.length > 0;
+      // Le statut du paiement initial reste un filet de sécurité si HelloAsso ne
+      // fournit pas l'opération détaillée, sans créer une fausse seconde ligne.
+      const ha_rembourse =
+        remboursements.length > 0 ||
+        principales.some((t) => t.helloasso_status === "Refunded");
 
       // Le suivi Abonnements est délibérément séparé de dossiers.local_status,
       // réservé au module Paiements cours. Sans décision Abo, c'est à traiter.
