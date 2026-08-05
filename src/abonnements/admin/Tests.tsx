@@ -38,29 +38,29 @@ export default function Tests() {
   const supprimer = useMutation(api.abo.tests.supprimerTestCreneau);
 
   return (
-    <div>
-      <p style={{ color: "#6b7280", maxWidth: 660 }}>
+    <div className="abo-admin-section">
+      <p className="abo-admin-intro">
         Proposez vos disponibilités : un encadrant teste 2 personnes par tranche
         de 20 min ; la capacité de plusieurs encadrants se cumule. Les candidats
         réservent une tranche de 40 ou 60 min (répartition fine le jour J).
       </p>
 
-      <section style={{ marginTop: "1.5rem" }}>
-        <h3 style={{ marginBottom: "0.5rem" }}>Proposer une disponibilité</h3>
+      <section className="abo-admin-subsection">
+        <h3 className="abo-admin-subheading">Proposer une disponibilité</h3>
         <PickerCreneau creer={creer} />
       </section>
 
-      <hr style={{ margin: "1.75rem 0", border: "none", borderTop: "1px solid #e5e7eb" }} />
+      <hr className="abo-admin-separator" />
 
       <section>
-        <h3 style={{ marginBottom: "0.5rem" }}>Mes créneaux</h3>
+        <h3 className="abo-admin-subheading">Mes créneaux</h3>
         <MesCreneaux creneaux={creneaux} supprimer={supprimer} />
       </section>
 
-      <hr style={{ margin: "1.75rem 0", border: "none", borderTop: "1px solid #e5e7eb" }} />
+      <hr className="abo-admin-separator" />
 
       <section>
-        <h3 style={{ marginBottom: "0.5rem" }}>Inscrits par créneau</h3>
+        <h3 className="abo-admin-subheading">Inscrits par créneau</h3>
         <Inscrits inscrits={inscrits} />
       </section>
     </div>
@@ -123,7 +123,7 @@ function PickerCreneau({
 
   return (
     <div>
-      <label style={{ display: "block", fontWeight: 600, marginBottom: "0.5rem" }}>
+      <label className="abo-admin-label">
         Jour{" "}
         <input
           type="date"
@@ -134,23 +134,23 @@ function PickerCreneau({
             setDebut(null);
             setFin(null);
           }}
-          style={{ padding: "0.3rem" }}
+          className="abo-admin-input abo-admin-input--date"
         />
       </label>
 
       {jour && (
         <>
-          <div style={{ display: "grid", gap: "0.25rem", maxWidth: 320 }}>
+          <div className="abo-admin-slot-grid">
             {heures.map((h) => (
-              <div key={h} style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                <span style={{ width: 34, textAlign: "right", color: "#6b7280", fontSize: "0.8rem" }}>
+              <div key={h} className="abo-admin-slot-row">
+                <span className="abo-admin-slot-hour">
                   {h}h
                 </span>
-                <div style={{ display: "flex", gap: "0.25rem" }}>
+                <div className="abo-admin-slot-buttons">
                   {[0, 20, 40].map((mm) => {
                     const min = h * 60 + mm;
                     if (min < SLOT_MIN || min > SLOT_MAX) {
-                      return <span key={mm} style={{ width: 44 }} />;
+                      return <span key={mm} className="abo-admin-slot-placeholder" />;
                     }
                     const estBorne = min === debut || min === fin;
                     const dans = debut != null && fin != null && min > debut && min < fin;
@@ -159,17 +159,7 @@ function PickerCreneau({
                         key={mm}
                         type="button"
                         onClick={() => cliquer(min)}
-                        style={{
-                          width: 44,
-                          padding: "0.3rem 0",
-                          border: "1px solid #cbd5e1",
-                          borderRadius: 4,
-                          cursor: "pointer",
-                          fontSize: "0.8rem",
-                          background: estBorne ? "#2563eb" : dans ? "#bfdbfe" : "#fff",
-                          color: estBorne ? "#fff" : "#111",
-                          fontWeight: estBorne ? 700 : 400,
-                        }}
+                        className={`abo-admin-slot${estBorne ? " abo-admin-slot--selected" : dans ? " abo-admin-slot--range" : ""}`}
                       >
                         {String(mm).padStart(2, "0")}
                       </button>
@@ -179,16 +169,16 @@ function PickerCreneau({
               </div>
             ))}
           </div>
-          <p style={{ fontSize: "0.85rem", margin: "0.6rem 0" }}>{resume}</p>
+          <p className="abo-admin-status">{resume}</p>
           <button
             type="button"
-            className="btn-secondary"
+            className="abo-admin-button abo-admin-button--secondary"
             onClick={ajouter}
             disabled={!complet || busy}
           >
             Ajouter le créneau
           </button>
-          {msg && <span style={{ marginLeft: "0.75rem", fontSize: "0.85rem" }}>{msg}</span>}
+          {msg && <span className="abo-admin-status">{msg}</span>}
         </>
       )}
     </div>
@@ -226,25 +216,16 @@ function MesCreneaux({
 
   if (creneaux === undefined) return <p>Chargement…</p>;
   if (creneaux.length === 0) {
-    return <p style={{ color: "#9ca3af" }}>Vous n'avez proposé aucun créneau pour l'instant.</p>;
+    return <p className="abo-admin-empty">Vous n'avez proposé aucun créneau pour l'instant.</p>;
   }
 
   return (
     <>
-      <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: "0.4rem" }}>
+      <ul className="abo-admin-list">
         {creneaux.map((c) => (
           <li
             key={c.id}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: "0.75rem",
-              border: "1px solid #e5e7eb",
-              borderRadius: 6,
-              padding: "0.5rem 0.75rem",
-              background: "#fff",
-            }}
+            className="abo-admin-card abo-admin-list-row"
           >
             <span>
               {formatDateJour(c.date_jour)} ·{" "}
@@ -255,20 +236,14 @@ function MesCreneaux({
             <button
               type="button"
               onClick={() => retirer(c.id as Id<"abo_test_creneaux">)}
-              style={{
-                background: "none",
-                border: "none",
-                color: "#b91c1c",
-                cursor: "pointer",
-                fontWeight: 600,
-              }}
+              className="abo-admin-link-button abo-admin-link-button--danger"
             >
               ✕ Supprimer
             </button>
           </li>
         ))}
       </ul>
-      {msg && <p style={{ fontSize: "0.85rem", marginTop: "0.5rem" }}>{msg}</p>}
+      {msg && <p className="abo-admin-status">{msg}</p>}
     </>
   );
 }
@@ -281,7 +256,7 @@ function Inscrits({
 }) {
   if (inscrits === undefined) return <p>Chargement…</p>;
   if (inscrits.length === 0) {
-    return <p style={{ color: "#9ca3af" }}>Aucun candidat inscrit pour l'instant.</p>;
+    return <p className="abo-admin-empty">Aucun candidat inscrit pour l'instant.</p>;
   }
 
   // Regroupe par jour, puis par tranche (clé = début).
@@ -305,27 +280,27 @@ function Inscrits({
   }
 
   return (
-    <div style={{ display: "grid", gap: "1rem" }}>
+    <div className="abo-admin-list">
       {[...jours.values()].map((j) => (
         <div key={j.label}>
-          <h4 style={{ margin: "0 0 0.4rem" }}>{j.label}</h4>
-          <div style={{ display: "grid", gap: "0.5rem" }}>
+          <h4 className="abo-admin-subheading">{j.label}</h4>
+          <div className="abo-admin-list">
             {[...j.tranches.entries()].map(([debut, { fin, gens }]) => (
               <div
                 key={debut}
-                style={{ border: "1px solid #e5e7eb", borderRadius: 6, padding: "0.5rem 0.75rem" }}
+                className="abo-admin-card"
               >
-                <div style={{ display: "flex", gap: "0.75rem", alignItems: "baseline" }}>
+                <div className="abo-admin-toolbar">
                   <strong>{formatTranche(debut, fin)}</strong>
-                  <span style={{ color: "#6b7280", fontSize: "0.85rem" }}>
+                  <span className="abo-admin-meta">
                     {gens.length} inscrit{gens.length > 1 ? "s" : ""}
                   </span>
                 </div>
-                <ul style={{ margin: "0.3rem 0 0", paddingLeft: "1.1rem" }}>
+                <ul className="abo-admin-attendee-list">
                   {gens.map((g) => (
                     <li key={g.personne_id}>
                       {`${g.prenom ?? ""} ${g.nom ?? ""}`.trim() || "—"}{" "}
-                      <span style={{ color: "#6b7280", fontSize: "0.8rem" }}>({g.email})</span>
+                      <span className="abo-admin-meta">({g.email})</span>
                     </li>
                   ))}
                 </ul>

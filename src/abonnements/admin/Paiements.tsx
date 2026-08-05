@@ -73,7 +73,7 @@ export default function Paiements() {
       setSync(
         r.errors.length
           ? `Terminé avec ${r.errors.length} erreur(s) : ${r.errors[0]}`
-          : `✓ ${r.synced_count} transaction(s) synchronisée(s).`,
+          : `✓ ${r.synced_count} transaction(s) Abonnements synchronisée(s).`,
       );
     } catch (err) {
       setSync(`Échec : ${aboError(err).message}`);
@@ -88,92 +88,72 @@ export default function Paiements() {
   const compter = (s: string) => paiements.filter((p) => p.statut_local === s).length;
 
   return (
-    <div>
-      <p style={{ color: "#6b7280", maxWidth: 680 }}>
-        Cache du formulaire HelloAsso abonnements. Le statut interne est votre suivi
-        d'arbitrage ; il n'affecte pas les étapes (le paiement « officiel » vient du
-        scrap).
+    <div className="abo-admin-section">
+      <p className="abo-admin-intro">
+        Cache du formulaire HelloAsso abonnements uniquement. Le statut interne est
+        votre suivi d'arbitrage ; il n'affecte pas les étapes (le paiement « officiel »
+        vient du scrap) ni le suivi des paiements des cours.
       </p>
-      <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
-        <button type="button" className="btn-secondary" onClick={lancerSync}>
+      <div className="abo-admin-toolbar">
+        <button type="button" className="abo-admin-button abo-admin-button--secondary" onClick={lancerSync}>
           🔄 Synchroniser maintenant
         </button>
-        {sync && <span style={{ fontSize: "0.85rem" }}>{sync}</span>}
+        {sync && <span className="abo-admin-status">{sync}</span>}
       </div>
 
       {nbProblemes > 0 && (
-        <p style={{ color: "#b45309", fontWeight: 700, marginTop: "0.75rem" }}>
+        <p className="abo-admin-status abo-admin-status--warning">
           ⚠ {nbProblemes} problème(s) de remboursement à vérifier
         </p>
       )}
 
-      <section
-        style={{
-          display: "flex",
-          gap: "0.5rem",
-          flexWrap: "wrap",
-          margin: "1rem 0",
-        }}
-      >
+      <section className="abo-admin-payment-summary">
         {[["Total", paiements.length] as const, ...Object.entries(STATUTS).map(
           ([v, l]) => [l, compter(v)] as const,
         )].map(([label, n], i) => (
           <div
             key={label}
-            style={{
-              border: "1px solid #e5e7eb",
-              borderRadius: 6,
-              padding: "0.4rem 0.75rem",
-              background: i === 0 ? "#111" : "#fff",
-              color: i === 0 ? "#fff" : "#111",
-              minWidth: 72,
-              textAlign: "center",
-            }}
+            className={`abo-admin-payment-stat${i === 0 ? " abo-admin-payment-stat--total" : ""}`}
           >
-            <div style={{ fontSize: "1.25rem", fontWeight: 800 }}>{n}</div>
-            <div style={{ fontSize: "0.75rem" }}>{label}</div>
+            <div className="abo-admin-payment-stat-value">{n}</div>
+            <div className="abo-admin-payment-stat-label">{label}</div>
           </div>
         ))}
       </section>
 
-      <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
-        <label>
-          Statut{" "}
-          <select value={statut} onChange={(e) => setStatutFiltre(e.target.value)}>
+      <div className="abo-admin-toolbar abo-admin-payment-filters">
+        <label className="abo-admin-filter-field">
+          <span>Statut</span>
+          <select className="abo-admin-input abo-admin-select" value={statut} onChange={(e) => setStatutFiltre(e.target.value)}>
             <option value="tous">Tous</option>
             {Object.entries(STATUTS).map(([v, l]) => (
               <option key={v} value={v}>{l}</option>
             ))}
           </select>
         </label>
-        <label>
-          Recherche{" "}
+        <label className="abo-admin-filter-field">
+          <span>Recherche</span>
           <input
             type="search"
             placeholder="Nom ou email…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            className="abo-admin-input abo-admin-search"
           />
         </label>
-        <label style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}>
+        <label className="abo-admin-check-label">
           <input type="checkbox" checked={problemes} onChange={(e) => setProblemes(e.target.checked)} />
           ⚠ Problèmes uniquement
         </label>
       </div>
 
-      <p style={{ color: "#6b7280", margin: "0.75rem 0" }}>
+      <p className="abo-admin-intro">
         {filtres.length} paiement{filtres.length > 1 ? "s" : ""}
       </p>
 
-      <div
-        style={{
-          display: "grid",
-          gap: "1rem",
-          gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-        }}
-      >
+      <div className="abo-admin-card-grid">
         {filtres.length === 0 ? (
-          <p style={{ color: "#9ca3af" }}>Aucun paiement ne correspond.</p>
+          <p className="abo-admin-empty">Aucun paiement ne correspond.</p>
         ) : (
           filtres.map((p) => (
             <Card key={p.id} p={p} adminUrl={reponse.adminUrl} setStatut={setStatut} />
@@ -242,34 +222,19 @@ function Card({
     if (adminUrl) window.open(adminUrl, "_blank", "noopener,noreferrer");
   }
 
-  const lien: React.CSSProperties = { color: "#2563eb", fontWeight: 600, fontSize: "0.85rem" };
-
   return (
     <article
-      style={{
-        border: `1px solid ${p.besoin_action_remboursement ? "#f59e0b" : "#e5e7eb"}`,
-        borderRadius: 8,
-        padding: "0.85rem",
-        background: p.besoin_action_remboursement ? "#fffbeb" : "#fff",
-      }}
+      className={`abo-admin-card abo-admin-payment-card${p.besoin_action_remboursement ? " abo-admin-card--attention" : ""}`}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem" }}>
+      <div className="abo-admin-card-header">
         <strong>{inscrit}</strong>
-        <span style={{ fontWeight: 800 }}>{euros.format(p.montant ?? 0)}</span>
+        <span className="abo-admin-payment-amount">{euros.format(p.montant ?? 0)}</span>
       </div>
-      <div style={{ fontSize: "0.8rem", color: "#6b7280", margin: "0.35rem 0" }}>
+      <div className="abo-admin-meta abo-admin-payment-meta">
         Payé le {dateHeureFr(p.date_paiement)} · {p.statut_helloasso ?? "—"}
         {p.ha_rembourse && (
           <span
-            style={{
-              marginLeft: "0.4rem",
-              fontSize: "0.7rem",
-              fontWeight: 700,
-              padding: "0.05rem 0.4rem",
-              borderRadius: 999,
-              background: "#dc262622",
-              color: "#dc2626",
-            }}
+            className="abo-admin-badge abo-admin-badge--danger"
           >
             Remboursé HA
           </span>
@@ -279,24 +244,24 @@ function Card({
       </div>
 
       {p.remboursements.map((r, i) => (
-        <div key={i} style={{ fontSize: "0.8rem", color: "#b45309" }}>
+        <div key={i} className="abo-admin-payment-refund">
           ↩ Remboursé {euros.format(r.montant)} le {dateHeureFr(r.date)}
         </div>
       ))}
       {probleme && (
-        <p style={{ color: "#b45309", fontWeight: 600, fontSize: "0.82rem", margin: "0.4rem 0" }}>
+        <p className="abo-admin-status abo-admin-status--warning">
           {probleme}
         </p>
       )}
 
-      <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", margin: "0.5rem 0" }}>
+      <div className="abo-admin-toolbar abo-admin-payment-links">
         {p.recu_url && (
-          <a href={p.recu_url} target="_blank" rel="noopener noreferrer" style={lien}>
+          <a className="abo-admin-link" href={p.recu_url} target="_blank" rel="noopener noreferrer">
             📄 Reçu
           </a>
         )}
         {p.attestation_url && (
-          <a href={p.attestation_url} target="_blank" rel="noopener noreferrer" style={lien}>
+          <a className="abo-admin-link" href={p.attestation_url} target="_blank" rel="noopener noreferrer">
             🧾 Reçu fiscal
           </a>
         )}
@@ -304,29 +269,21 @@ function Card({
           <button
             type="button"
             onClick={rembourser}
-            style={{ ...lien, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            className="abo-admin-link-button"
           >
             ↩ Rembourser
           </button>
         )}
-        {copie && <span style={{ fontSize: "0.8rem", color: "#16a34a" }}>✓ Email copié</span>}
+        {copie && <span className="abo-admin-status abo-admin-status--success">✓ Email copié</span>}
       </div>
 
-      <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
+      <div className="abo-admin-decision-group">
         {Object.entries(STATUTS).map(([v, l]) => (
           <button
             key={v}
             type="button"
             onClick={() => onStatut(v)}
-            style={{
-              fontSize: "0.75rem",
-              padding: "0.25rem 0.5rem",
-              borderRadius: 4,
-              border: "1px solid #d1d5db",
-              cursor: "pointer",
-              background: p.statut_local === v ? "#111" : "#fff",
-              color: p.statut_local === v ? "#fff" : "#374151",
-            }}
+            className={`abo-admin-decision${p.statut_local === v ? " is-active" : ""}`}
           >
             {l}
           </button>
@@ -334,22 +291,22 @@ function Card({
       </div>
 
       {pending && (
-        <div style={{ marginTop: "0.5rem" }}>
+        <div className="abo-admin-payment-comment-form">
           <textarea
             rows={2}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             placeholder="Commentaire…"
-            style={{ width: "100%", boxSizing: "border-box" }}
+            className="abo-admin-input abo-admin-payment-comment"
           />
-          <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.25rem" }}>
-            <button type="button" onClick={() => enregistrer(pending, comment.trim() || undefined)}>
+          <div className="abo-admin-toolbar">
+            <button className="abo-admin-button" type="button" onClick={() => enregistrer(pending, comment.trim() || undefined)}>
               Confirmer
             </button>
             <button
               type="button"
               onClick={() => setPending(null)}
-              style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer" }}
+              className="abo-admin-link-button"
             >
               Annuler
             </button>
@@ -357,12 +314,12 @@ function Card({
         </div>
       )}
 
-      {err && <p style={{ color: "#b91c1c", fontSize: "0.75rem", margin: "0.35rem 0 0" }}>Échec : {err}</p>}
+      {err && <p className="abo-admin-status abo-admin-status--error">Échec : {err}</p>}
       {!pending && p.commentaire && (
-        <p style={{ fontSize: "0.82rem", margin: "0.4rem 0 0" }}>💬 {p.commentaire}</p>
+        <p className="abo-admin-payment-comment">💬 {p.commentaire}</p>
       )}
       {p.suivi_updater_email && (
-        <p style={{ fontSize: "0.72rem", color: "#9ca3af", margin: "0.25rem 0 0" }}>
+        <p className="abo-admin-meta abo-admin-payment-updated">
           Statué par {p.suivi_updater_email}
           {p.suivi_updated_at ? ` le ${dateHeureFr(p.suivi_updated_at)}` : ""}
         </p>
@@ -391,24 +348,24 @@ function ConfigLien({
   }
 
   return (
-    <div style={{ maxWidth: 560 }}>
-      <p style={{ color: "#6b7280" }}>
+    <div className="abo-admin-section abo-admin-payment-config">
+      <p className="abo-admin-intro">
         Aucun formulaire HelloAsso n'est encore configuré pour les abonnements.
         Collez le lien public du formulaire de paiement des abonnements :
       </p>
-      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+      <div className="abo-admin-toolbar">
         <input
           type="url"
           placeholder="https://www.helloasso.com/associations/…/paiements/…"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          style={{ flex: "1 1 320px", padding: "0.4rem" }}
+          className="abo-admin-input abo-admin-payment-url"
         />
-        <button type="button" className="btn-secondary" onClick={valider} disabled={!url.trim()}>
+        <button type="button" className="abo-admin-button abo-admin-button--secondary" onClick={valider} disabled={!url.trim()}>
           Enregistrer
         </button>
       </div>
-      {msg && <p style={{ fontSize: "0.85rem", marginTop: "0.5rem" }}>{msg}</p>}
+      {msg && <p className="abo-admin-status">{msg}</p>}
     </div>
   );
 }

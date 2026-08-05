@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>CAF La Roche-Bonneville — Développement</title>
+  <circle cx="32" cy="32" r="30" fill="#245501"/>
+  <path d="m9 48 16-26 8 12 7-10 15 24H9Z" fill="#b9f227"/>
+  <path d="m25 22 8 12 7-10 5 8-5 5-7-3-8 7-5-3 5-13Z" fill="#f8ffe8"/>
+  <circle cx="34" cy="20" r="3.5" fill="#f8ffe8"/>
+  <path d="m32 25 4 7-5 8m5-8 7 3m-12 5-5 6" fill="none" stroke="#f8ffe8" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  <rect x="8" y="45" width="48" height="12" rx="3" fill="#101b0a"/>
+  <text x="32" y="54" fill="#b9f227" font-family="Arial, sans-serif" font-size="10" font-weight="700" text-anchor="middle">DEV</text>
+</svg>

@@ -36,9 +36,12 @@ const COLUMNS = "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17";
 
 // ── Configuration club (secrets d'environnement) ────────────────────────
 function configClub(): { base: string; username: string; password: string } {
-  const base = process.env.CLUB_BASE_URL;
-  const username = process.env.CLUB_USERNAME;
-  const password = process.env.CLUB_PASSWORD;
+  // Les valeurs collées dans le dashboard Convex peuvent contenir un retour à
+  // la ligne final. Il ne doit ni casser les en-têtes HTTP ni être envoyé au
+  // site comme une partie des identifiants.
+  const base = process.env.CLUB_BASE_URL?.trim();
+  const username = process.env.CLUB_USERNAME?.trim();
+  const password = process.env.CLUB_PASSWORD?.trim();
   if (!base || !username || !password) {
     throw new Error(
       "Site club non configuré (CLUB_BASE_URL / CLUB_USERNAME / CLUB_PASSWORD manquants).",
@@ -114,7 +117,9 @@ async function authentifier(club: {
 
   // Comme dans le workflow n8n (`neverError`), on rejoue même si la première
   // réponse est un 4xx : le frontal peut utiliser cette réponse pour poser son
-  // cookie de challenge. Le vrai garde-fou est la présence finale de cafuser.
+  // cookie de challenge. Le vieux site ne garantit pas une valeur `success`
+  // homogène dans sa réponse JSON ; le cookie de session reste le signal
+  // compatible entre les deux variantes connues du site.
   await posterAuthAjax();
   await posterAuthAjax();
 
@@ -153,11 +158,14 @@ function texteCellule(htmlCell: string): string {
     .trim();
 }
 function parserListe(html: string): Record<string, string>[] {
-  const m = html.match(
-    /<table[^>]*class=["'][^"']*\bPersonnes\b[^"']*["'][\s\S]*?<\/table>/i,
+  const tables = html.match(/<table\b[\s\S]*?<\/table>/gi) ?? [];
+  const table = tables.find((candidate) =>
+    /\bclass\s*=\s*(?:"[^"]*\bPersonnes\b[^"]*"|'[^']*\bPersonnes\b[^']*'|[^\s>]*\bPersonnes\b)/i.test(
+      candidate,
+    ) || /\bid\s*=\s*(?:"ListFiles"|'ListFiles'|ListFiles)\b/i.test(candidate),
   );
-  if (!m) return [];
-  const rows = m[0].match(/<tr[\s\S]*?<\/tr>/gi) || [];
+  if (!table) return [];
+  const rows = table.match(/<tr[\s\S]*?<\/tr>/gi) || [];
   let headers: string[] = [];
   const data: Record<string, string>[] = [];
   for (const row of rows) {
@@ -215,6 +223,15 @@ export const scraperAbonnes = internalAction({
     });
     if (!r.ok) throw new Error(`POST AdminMode=Liste : HTTP ${r.status}`);
     const html = await r.text();
+
+    // Un compte connecté mais sans le droit d'administrer les abonnements est
+    // renvoyé vers la page publique. Distinguer ce cas d'un changement de HTML
+    // permet de corriger les droits du compte sans exposer son contenu.
+    if (/id=["']abonnement-escalade-anonymous["']/i.test(html)) {
+      throw new Error(
+        "Accès refusé à la liste des abonnements : le compte club n'a pas le droit d'administration Abonnements.",
+      );
+    }
 
     const lignes = parserListe(html);
     console.log(`→ ${lignes.length} ligne(s) parsée(s).`);

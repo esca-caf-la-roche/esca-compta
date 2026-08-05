@@ -547,3 +547,207 @@ textarea.abo-input {
   font-weight: 600;
   opacity: 0.8;
 }
+
+/* ── Espace staff Abonnements ──────────────────────────────────────────── */
+/* Cette route appartient au portail staff : elle réutilise les variables
+   globales plutôt que celles, volontairement isolées, de .abo-root. */
+.abo-admin-page { max-width: 1100px; margin: 0 auto; }
+
+.abo-admin-header {
+  margin-bottom: 1.5rem;
+  padding: 1.25rem;
+  border: var(--border-width) solid var(--border-color);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+.abo-admin-header .back-link { margin-bottom: 1rem; }
+.abo-admin-header h1 { font-size: clamp(2rem, 6vw, 3.25rem); text-shadow: 3px 3px 0 var(--success); }
+.abo-admin-header .subtitle { margin-bottom: 0; }
+
+.abo-admin-nav { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-bottom: 1.5rem; }
+
+.abo-admin-tab,
+.abo-admin-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.85rem;
+  border: var(--border-width) solid var(--border-color);
+  background: var(--card);
+  box-shadow: 3px 3px 0 var(--border-color);
+  color: var(--foreground);
+  font: 800 0.8rem var(--font-sans);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s, background-color 0.1s;
+}
+.abo-admin-tab:hover,
+.abo-admin-tab:focus-visible,
+.abo-admin-button:hover:not(:disabled),
+.abo-admin-button:focus-visible { background: var(--warning); transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--border-color); }
+.abo-admin-tab.is-active,
+.abo-admin-tab[aria-selected="true"],
+.abo-admin-button[aria-pressed="true"] { background: var(--info); }
+
+.abo-admin-badge { min-width: 1.5rem; padding: 0.1rem 0.35rem; border: 2px solid var(--border-color); background: var(--danger); color: #fff; font-size: 0.7rem; line-height: 1.2; }
+.abo-admin-view,
+.abo-admin-section { display: grid; gap: 1rem; }
+.abo-admin-section { padding: clamp(1rem, 3vw, 1.5rem); border: var(--border-width) solid var(--border-color); background: var(--card); box-shadow: var(--shadow); }
+.abo-admin-section > h2,
+.abo-admin-section > h3 { margin: 0; }
+.abo-admin-intro,
+.abo-admin-empty { max-width: 45rem; color: #444; font-weight: 600; }
+.abo-admin-empty { padding: 1rem; border: 2px dashed var(--border-color); background: var(--background); }
+.abo-admin-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; }
+.abo-admin-button--primary { background: var(--primary); }
+.abo-admin-button--secondary { background: var(--info); }
+.abo-admin-button--danger { background: var(--danger); color: #fff; }
+.abo-admin-button:disabled { cursor: not-allowed; opacity: 0.6; box-shadow: none; }
+.abo-admin-list { display: grid; gap: 0.85rem; margin: 0; padding: 0; list-style: none; }
+.abo-admin-card { padding: 1rem; border: var(--border-width) solid var(--border-color); background: var(--card); box-shadow: 4px 4px 0 var(--border-color); }
+.abo-admin-card--attention { background: #fff1db; }
+.abo-admin-card-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.abo-admin-muted { color: #555; font-size: 0.85rem; font-weight: 600; }
+.abo-admin-status { font-weight: 800; }
+.abo-admin-status--error { color: #a00020; }
+.abo-admin-status--success { color: #087f3d; }
+.abo-admin-status--warning { color: #8a4700; }
+.abo-admin-divider { margin: 1.5rem 0; border: 0; border-top: var(--border-width) solid var(--border-color); }
+.abo-admin-field { min-height: 2.75rem; padding: 0.55rem 0.7rem; border: var(--border-width) solid var(--border-color); background: var(--card); color: var(--foreground); font: 600 1rem var(--font-sans); }
+.abo-admin-field:focus-visible,
+.abo-admin-tab:focus-visible,
+.abo-admin-button:focus-visible { outline: 4px solid var(--info); outline-offset: 2px; }
+
+@media (max-width: 640px) {
+  .abo-admin-header,
+  .abo-admin-section { padding: 1rem; box-shadow: 4px 4px 0 var(--border-color); }
+  .abo-admin-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .abo-admin-tab { width: 100%; padding-inline: 0.5rem; }
+  .abo-admin-toolbar > .abo-admin-button { flex: 1 1 10rem; }
+}
+
+.abo-admin-state { padding: 2rem; border: var(--border-width) solid var(--border-color); background: var(--warning); box-shadow: var(--shadow); font-weight: 800; }
+.abo-admin-copy { margin: 0; }
+.abo-admin-url { overflow-wrap: anywhere; padding: 0.2rem 0.35rem; background: var(--background); font-weight: 700; }
+.abo-admin-separator { margin: 0.5rem 0; border: 0; border-top: var(--border-width) solid var(--border-color); }
+.abo-admin-label { display: block; margin: 0; font-weight: 800; text-transform: uppercase; }
+.abo-admin-configuration > div { display: grid; gap: 0.4rem; }
+.abo-admin-input { width: min(100%, 34rem); min-height: 2.75rem; padding: 0.55rem 0.7rem; border: var(--border-width) solid var(--border-color); background: var(--card); font: 600 1rem var(--font-sans); }
+.abo-admin-input:focus-visible { outline: 4px solid var(--info); outline-offset: 2px; }
+.abo-admin-input--short { width: 10rem; }
+.abo-admin-input--date { width: min(100%, 17rem); }
+.abo-admin-heading--danger { color: #a00020; }
+.abo-admin-card-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.75rem; }
+.abo-admin-meta { color: #555; font-size: 0.82rem; font-weight: 600; overflow-wrap: anywhere; }
+.abo-admin-sublist { display: grid; gap: 0.5rem; margin: 0.75rem 0 0; padding: 0; list-style: none; }
+.abo-admin-list-row,
+.abo-admin-person-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem; padding: 0.6rem; border: 2px solid var(--border-color); background: var(--background); }
+.abo-admin-person-row { align-items: flex-start; }
+.abo-admin-decision-group,
+.abo-admin-slot-buttons,
+.abo-admin-jauge-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.abo-admin-decision { flex: 1 1 9rem; }
+.abo-admin-link-button { padding: 0.3rem 0.5rem; border: 2px solid var(--border-color); background: var(--card); color: var(--foreground); font: 800 0.75rem var(--font-sans); cursor: pointer; }
+.abo-admin-link-button:hover:not(:disabled),
+.abo-admin-link-button:focus-visible { background: var(--warning); outline: 3px solid var(--info); outline-offset: 1px; }
+.abo-admin-link-button--danger { background: var(--danger); color: #fff; }
+.abo-admin-badge--unread { background: var(--danger); color: #fff; }
+.abo-admin-badge--success { background: var(--success); }
+.abo-admin-card-copy { margin-top: 0.5rem; }
+.abo-admin-comment { width: 100%; min-height: 2.75rem; padding: 0.55rem; border: 2px solid var(--border-color); font: inherit; }
+.abo-admin-count { display: inline-block; padding: 0.15rem 0.4rem; border: 2px solid var(--border-color); background: var(--info); font-weight: 800; }
+.abo-admin-emphasis { font-weight: 800; }
+.abo-admin-reason { color: #8a4700; font-weight: 800; }
+.abo-admin-subsection { display: grid; gap: 0.75rem; }
+.abo-admin-subheading { margin: 0; }
+.abo-admin-slot-grid { display: grid; gap: 0.35rem; }
+.abo-admin-slot-row { display: grid; grid-template-columns: 2.5rem minmax(0, 1fr); align-items: center; gap: 0.4rem; }
+.abo-admin-slot-hour { color: #555; font-size: 0.8rem; font-weight: 800; text-align: right; }
+.abo-admin-slot-buttons { gap: 0.25rem; }
+.abo-admin-slot { min-width: 2.75rem; min-height: 2.4rem; padding: 0.25rem; border: 2px solid var(--border-color); background: var(--card); font: 800 0.75rem var(--font-sans); cursor: pointer; }
+.abo-admin-slot:hover:not(:disabled),
+.abo-admin-slot--selected { background: var(--info); }
+.abo-admin-slot--range { background: var(--success); }
+.abo-admin-slot-placeholder { display: block; width: 2.75rem; }
+.abo-admin-attendee-list { margin: 0.5rem 0 0; padding-left: 1.25rem; }
+.abo-admin-jauge { display: grid; gap: 0.75rem; }
+.abo-admin-jauge-header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.abo-admin-jauge-total { font-size: 1.7rem; font-weight: 800; }
+.abo-admin-jauge-alert { font-weight: 800; }
+.abo-admin-jauge-track { height: 1.35rem; overflow: hidden; border: var(--border-width) solid var(--border-color); background: var(--card); }
+.abo-admin-jauge-fill { display: block; height: 100%; background: var(--success); }
+.abo-admin-jauge--warning .abo-admin-jauge-fill { background: var(--warning); }
+.abo-admin-jauge--danger .abo-admin-jauge-fill { background: var(--danger); }
+.abo-admin-jauge-detail { margin: 0; font-size: 0.85rem; font-weight: 600; }
+.abo-admin-jauge-anomalies { color: #555; font-size: 0.8rem; }
+.abo-admin-conversation-thread { margin-top: 1rem; border-top: 2px solid var(--border-color); padding-top: 1rem; }
+
+@media (max-width: 640px) {
+  .abo-admin-card-grid,
+  .abo-admin-slot-row { grid-template-columns: 1fr; }
+  .abo-admin-slot-hour { text-align: left; }
+  .abo-admin-list-row,
+  .abo-admin-person-row { align-items: stretch; }
+}
+
+.abo-admin-payment-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.65rem; }
+.abo-admin-payment-stat { padding: 0.75rem; border: var(--border-width) solid var(--border-color); background: var(--warning); text-align: center; }
+.abo-admin-payment-stat--total { background: var(--info); box-shadow: 3px 3px 0 var(--border-color); }
+.abo-admin-payment-stat-value { display: block; font-size: 1.35rem; font-weight: 800; }
+.abo-admin-payment-stat-label { display: block; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; }
+.abo-admin-payment-filters { align-items: flex-end; }
+.abo-admin-filter-field { display: grid; gap: 0.3rem; font-weight: 800; text-transform: uppercase; }
+.abo-admin-filter-field > span { font-size: 0.75rem; }
+.abo-admin-select,
+.abo-admin-search { width: auto; min-width: 12rem; }
+.abo-admin-check-label { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.75rem; padding: 0.5rem 0.7rem; border: 2px solid var(--border-color); background: var(--background); font-weight: 700; }
+.abo-admin-payment-card { display: grid; gap: 0.75rem; }
+.abo-admin-payment-amount { font-size: 1.25rem; font-weight: 800; white-space: nowrap; }
+.abo-admin-payment-meta { display: grid; gap: 0.2rem; }
+.abo-admin-payment-links { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.abo-admin-link { color: var(--foreground); font-weight: 800; text-decoration-thickness: 2px; }
+.abo-admin-link:hover { color: #004f65; }
+.abo-admin-payment-refund { padding: 0.6rem; border: 2px solid var(--border-color); background: #fff1db; color: #8a4700; font-size: 0.82rem; font-weight: 700; }
+.abo-admin-payment-comment { margin: 0; padding: 0.55rem; border-left: 4px solid var(--info); background: var(--background); font-size: 0.85rem; }
+.abo-admin-payment-comment-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; }
+.abo-admin-payment-updated { color: #666; font-size: 0.72rem; }
+.abo-admin-payment-config { max-width: 38rem; }
+.abo-admin-payment-url { flex: 1 1 20rem; }
+.abo-admin-archive { margin-top: 1.5rem; }
+.abo-admin-archive-summary { cursor: pointer; font-weight: 800; }
+.abo-admin-archive-item { margin: 0.35rem 0; font-size: 0.85rem; }
+.abo-admin-badge--course { background: var(--info); color: var(--foreground); white-space: nowrap; }
+.abo-admin-badge--nouvelle_demande { background: var(--info); }
+.abo-admin-badge--validee { background: var(--success); }
+.abo-admin-badge--liste_attente { background: var(--warning); }
+.abo-admin-badge--refusee { background: var(--danger); color: #fff; }
+.abo-admin-badge--complete { background: #ddd; }
+.abo-admin-modal-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 1rem; background: rgba(0, 0, 0, 0.65); }
+.abo-admin-modal { width: min(100%, 30rem); max-height: 85vh; overflow: auto; padding: 1.25rem; border: var(--border-width) solid var(--border-color); background: var(--card); box-shadow: 8px 8px 0 var(--border-color); }
+.abo-admin-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-bottom: 0.75rem; border-bottom: var(--border-width) solid var(--border-color); }
+.abo-admin-modal-header h3 { margin: 0; }
+.abo-admin-modal-close { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border: 2px solid var(--border-color); background: var(--primary); color: var(--foreground); font-size: 1.2rem; font-weight: 800; cursor: pointer; box-shadow: 2px 2px 0 var(--border-color); }
+.abo-admin-modal-close:hover,
+.abo-admin-modal-close:focus-visible { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--border-color); outline: 3px solid var(--info); outline-offset: 2px; }
+.abo-admin-modal-copy { margin: 0.75rem 0; font-size: 0.85rem; }
+.abo-admin-steps { margin: 1rem 0; padding: 0; list-style: none; }
+.abo-admin-step { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0; }
+.abo-admin-step--after { border-top: 2px solid var(--border-color); }
+.abo-admin-step-mark { display: grid; flex: 0 0 1.35rem; width: 1.35rem; height: 1.35rem; place-items: center; border: 2px solid var(--border-color); background: #ddd; font-size: 0.7rem; font-weight: 800; }
+.abo-admin-step-mark--done { background: var(--success); }
+.abo-admin-step-mark--rejected { background: var(--danger); color: #fff; }
+.abo-admin-step-mark--attente { background: var(--warning); }
+.abo-admin-step-title { flex: 1; font-weight: 700; }
+.abo-admin-step-state { color: #555; font-size: 0.75rem; font-weight: 600; }
+.abo-admin-modal-subtitle { margin: 1rem 0 0.4rem; }
+
+@media (max-width: 640px) {
+  .abo-admin-payment-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .abo-admin-payment-comment-form { grid-template-columns: 1fr; }
+  .abo-admin-modal { padding: 1rem; box-shadow: 4px 4px 0 var(--border-color); }
+  .abo-admin-step { align-items: flex-start; }
+  .abo-admin-step-state { max-width: 8rem; text-align: right; }
+}

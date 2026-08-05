@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAction, useQuery } from "convex/react";
 import { ArrowLeft } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
+import "../abo.css";
 import Dossiers from "./Dossiers";
 import Licences from "./Licences";
 import Tests from "./Tests";
@@ -47,11 +48,11 @@ export default function AboAdmin() {
   }, [syncAbo, me]);
 
   if (me === undefined) {
-    return <div style={{ padding: "2rem" }}>Chargement…</div>;
+    return <div className="abo-admin-page abo-admin-state">Chargement…</div>;
   }
   if (!me || me.aboRole !== "admin") {
     return (
-      <div style={{ padding: "2rem" }}>
+      <div className="abo-admin-page abo-admin-state">
         <h2>Accès refusé</h2>
         <p>Vous n'avez pas accès à la gestion des abonnements.</p>
       </div>
@@ -59,8 +60,8 @@ export default function AboAdmin() {
   }
 
   return (
-    <div className="abo-admin" style={{ padding: "1.5rem", maxWidth: "1100px", margin: "0 auto" }}>
-      <header className="page-header" style={{ marginBottom: "1.5rem" }}>
+    <div className="abo-admin abo-admin-page">
+      <header className="page-header abo-admin-header">
         <Link to="/" className="back-link">
           <ArrowLeft size={16} /> Retour au tableau de bord
         </Link>
@@ -68,33 +69,18 @@ export default function AboAdmin() {
         <p className="subtitle">Gestion des nouvelles inscriptions aux créneaux autonomes.</p>
       </header>
 
-      <nav className="abo-admin-nav" style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1.5rem", borderBottom: "2px solid #e5e7eb", paddingBottom: "0.5rem" }}>
+      <nav className="abo-admin-nav">
         {TABS.map((t) => (
           <button
             key={t.id}
             onClick={() => setVue(t.id)}
-            style={{
-              background: "transparent",
-              border: "none",
-              padding: "0.5rem 1rem",
-              fontWeight: "bold",
-              cursor: "pointer",
-              color: vue === t.id ? "#000" : "#6b7280",
-              borderBottom: vue === t.id ? "3px solid #000" : "3px solid transparent",
-            }}
+            className={`abo-admin-tab${vue === t.id ? " is-active" : ""}`}
           >
             {t.label}
             {t.id === "messages" && (messagesNonLus?.length ?? 0) > 0 && (
               <span
                 aria-label={`${messagesNonLus!.reduce((total, message) => total + message.count, 0)} messages non lus`}
-                style={{
-                  marginLeft: "0.4rem",
-                  background: "#e5484d",
-                  color: "#fff",
-                  borderRadius: 999,
-                  fontSize: "0.72rem",
-                  padding: "0.05rem 0.4rem",
-                }}
+                className="abo-admin-badge"
               >
                 {messagesNonLus!.reduce((total, message) => total + message.count, 0)}
               </span>
@@ -103,7 +89,7 @@ export default function AboAdmin() {
         ))}
       </nav>
 
-      <div className="abo-admin-vue">
+      <div className="abo-admin-view">
         {vue === "dossiers" ? (
           <Dossiers />
         ) : vue === "messages" ? (
@@ -119,7 +105,7 @@ export default function AboAdmin() {
         ) : vue === "config" ? (
           <Configuration />
         ) : (
-          <p style={{ color: "#6b7280" }}>
+          <p className="abo-admin-empty">
             Module « {TABS.find((t) => t.id === vue)?.label} » en cours de
             développement.
           </p>

@@ -63,5 +63,11 @@ BS.pdf
 *.pdf
 !src/abonnements/assets/test-d-autonomie.pdf
 
+# Configurations et notes personnelles d'assistants locaux
+.claude/
+.codex/memory/
+CLAUDE.md
+TODO.md
+
 # Clés JWKS générées (Convex Auth) — public mais propre au déploiement local
 jwks.json

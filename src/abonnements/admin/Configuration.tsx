@@ -13,30 +13,11 @@ type Statut = { texte: string; erreur: boolean } | null;
 function Message({ statut }: { statut: Statut }) {
   if (!statut) return null;
   return (
-    <p style={{ margin: "0.5rem 0 0", fontSize: "0.9rem", color: statut.erreur ? "#b91c1c" : "#047857" }}>
+    <p className={`abo-admin-status ${statut.erreur ? "abo-admin-status--error" : "abo-admin-status--success"}`}>
       {statut.texte}
     </p>
   );
 }
-
-const SEP: React.CSSProperties = {
-  border: "none",
-  borderTop: "2px solid #e5e7eb",
-  margin: "2rem 0",
-};
-const LABEL: React.CSSProperties = { display: "block", fontWeight: 600, margin: "0.75rem 0 0.25rem" };
-const INPUT: React.CSSProperties = { width: "100%", maxWidth: "460px", padding: "0.4rem 0.5rem", boxSizing: "border-box" };
-const BTN: React.CSSProperties = {
-  marginTop: "0.75rem",
-  background: "#111827",
-  color: "#fff",
-  border: "none",
-  borderRadius: "6px",
-  padding: "0.5rem 1rem",
-  fontWeight: "bold",
-  cursor: "pointer",
-};
-const AIDE: React.CSSProperties = { color: "#6b7280", fontSize: "0.85rem", maxWidth: "560px" };
 
 export default function Configuration() {
   const cfg = useQuery(api.abo.config.getConfig);
@@ -168,46 +149,46 @@ export default function Configuration() {
   }
 
   return (
-    <div style={{ maxWidth: "640px" }}>
+    <div className="abo-admin-section abo-admin-configuration">
       <h2>Configuration</h2>
 
-      <p style={{ margin: "0.25rem 0" }}>Lien HelloAsso actuel :</p>
-      <p style={{ margin: "0.25rem 0" }}>
+      <p className="abo-admin-copy">Lien HelloAsso actuel :</p>
+      <p className="abo-admin-copy">
         {cfg.helloasso_lien ? (
-          <code style={{ wordBreak: "break-all" }}>{cfg.helloasso_lien}</code>
+          <code className="abo-admin-url">{cfg.helloasso_lien}</code>
         ) : (
-          <span style={{ color: "#9ca3af" }}>(non défini)</span>
+          <span className="abo-admin-empty">(non défini)</span>
         )}
       </p>
 
-      <hr style={SEP} />
+      <hr className="abo-admin-separator" />
 
       <h3>Plafond de places</h3>
-      <p style={AIDE}>
+      <p className="abo-admin-intro">
         Nombre maximum de places affiché par le compteur (jauge « X / plafond »).
         Indicatif : aucun blocage automatique. Modifiable à tout moment.
       </p>
-      <label style={LABEL} htmlFor="places-max">Plafond</label>
+      <label className="abo-admin-label" htmlFor="places-max">Plafond</label>
       <input
         id="places-max"
         type="number"
         min={1}
         step={1}
-        style={{ ...INPUT, maxWidth: "160px" }}
+        className="abo-admin-input abo-admin-input--short"
         value={places}
         onChange={(e) => setPlaces(e.target.value)}
       />
       <div>
-        <button type="button" style={BTN} disabled={busy} onClick={enregistrerPlaces}>
+        <button type="button" className="abo-admin-button" disabled={busy} onClick={enregistrerPlaces}>
           Enregistrer le plafond
         </button>
       </div>
       <Message statut={msgPlaces} />
 
-      <hr style={SEP} />
+      <hr className="abo-admin-separator" />
 
       <h3>Liens des étapes d'inscription</h3>
-      <p style={AIDE}>
+      <p className="abo-admin-intro">
         Liens affichés sur la page de suivi d'une demande <strong>acceptée</strong>
         (prendre sa licence, activer son compte, s'inscrire, passer le test). Le lien
         de <strong>paiement</strong> reste le lien HelloAsso ci-dessus. Ces liens
@@ -222,60 +203,60 @@ export default function Configuration() {
         ["test_autonomie", "Test d'autonomie — formulaire"],
       ] as const).map(([cle, label]) => (
         <div key={cle}>
-          <label style={LABEL} htmlFor={`lien-${cle}`}>{label}</label>
+          <label className="abo-admin-label" htmlFor={`lien-${cle}`}>{label}</label>
           <input
             id={`lien-${cle}`}
             type="url"
-            style={INPUT}
+            className="abo-admin-input"
             value={liens[cle]}
             onChange={(e) => setLiensState((s) => ({ ...s, [cle]: e.target.value }))}
           />
         </div>
       ))}
       <div>
-        <button type="button" style={BTN} disabled={busy} onClick={enregistrerLiens}>
+        <button type="button" className="abo-admin-button" disabled={busy} onClick={enregistrerLiens}>
           Enregistrer les liens
         </button>
       </div>
       <Message statut={msgLiens} />
 
-      <hr style={SEP} />
+      <hr className="abo-admin-separator" />
 
       <h3>Dates des vagues</h3>
-      <p style={AIDE}>
+      <p className="abo-admin-intro">
         Ouverture de la <strong>demande</strong> (heure de Paris). La vague 1
         (abonnés N-1) se fait <strong>directement sur le site du club</strong>. La
         demande s'ouvre à la <strong>vague 2</strong> (élèves en cours, sur licence)
         puis à la <strong>vague 3</strong> (tous). À re-saisir chaque saison. Vide =
         vague non encore ouverte.
       </p>
-      <label style={LABEL} htmlFor="vague2">Vague 2 (+ élèves en cours)</label>
+      <label className="abo-admin-label" htmlFor="vague2">Vague 2 (+ élèves en cours)</label>
       <input
         id="vague2"
         type="datetime-local"
-        style={{ ...INPUT, maxWidth: "260px" }}
+        className="abo-admin-input abo-admin-input--date"
         value={vagues.vague2_debut}
         onChange={(e) => setVaguesState((s) => ({ ...s, vague2_debut: e.target.value }))}
       />
-      <label style={LABEL} htmlFor="vague3">Vague 3 (ouverture à tous)</label>
+      <label className="abo-admin-label" htmlFor="vague3">Vague 3 (ouverture à tous)</label>
       <input
         id="vague3"
         type="datetime-local"
-        style={{ ...INPUT, maxWidth: "260px" }}
+        className="abo-admin-input abo-admin-input--date"
         value={vagues.vague3_debut}
         onChange={(e) => setVaguesState((s) => ({ ...s, vague3_debut: e.target.value }))}
       />
       <div>
-        <button type="button" style={BTN} disabled={busy} onClick={enregistrerVagues}>
+        <button type="button" className="abo-admin-button" disabled={busy} onClick={enregistrerVagues}>
           Enregistrer les dates
         </button>
       </div>
       <Message statut={msgVagues} />
 
-      <hr style={SEP} />
+      <hr className="abo-admin-separator" />
 
-      <h3 style={{ color: "#b91c1c" }}>Changer de saison</h3>
-      <p style={AIDE}>
+      <h3 className="abo-admin-heading abo-admin-heading--danger">Changer de saison</h3>
+      <p className="abo-admin-intro">
         Le lien HelloAsso ne change qu'ici. Cette action <strong>archive</strong> les
         abonnés de la saison qui se termine (N-1), <strong>vide</strong> le scrap, les
         paiements et les élèves en cours, <strong>supprime</strong> les demandes et les
@@ -283,28 +264,28 @@ export default function Configuration() {
         puis enregistre le <strong>nouveau lien</strong>. À faire <strong>avant</strong> le
         premier scrap de la nouvelle saison. Irréversible.
       </p>
-      <label style={LABEL} htmlFor="saison">Saison qui se termine (archivée en N-1)</label>
+      <label className="abo-admin-label" htmlFor="saison">Saison qui se termine (archivée en N-1)</label>
       <input
         id="saison"
         type="text"
         placeholder="2025-2026"
-        style={{ ...INPUT, maxWidth: "260px" }}
+        className="abo-admin-input abo-admin-input--date"
         value={saison}
         onChange={(e) => setSaison(e.target.value)}
       />
-      <label style={LABEL} htmlFor="nouveau-lien">Nouveau lien HelloAsso (nouvelle saison)</label>
+      <label className="abo-admin-label" htmlFor="nouveau-lien">Nouveau lien HelloAsso (nouvelle saison)</label>
       <input
         id="nouveau-lien"
         type="url"
         placeholder="https://www.helloasso.com/associations/…"
-        style={INPUT}
+        className="abo-admin-input"
         value={nouveauLien}
         onChange={(e) => setNouveauLien(e.target.value)}
       />
       <div>
         <button
           type="button"
-          style={{ ...BTN, background: "#b91c1c" }}
+          className="abo-admin-button abo-admin-button--danger"
           disabled={busy}
           onClick={changerSaison}
         >

@@ -106,17 +106,10 @@ export default function Dossiers() {
   }
 
   return (
-    <div>
+    <div className="abo-admin-section">
       <CompteurJauge />
       <SyncClub />
-      <div
-        style={{
-          display: "flex",
-          gap: "1rem",
-          flexWrap: "wrap",
-          marginBottom: "1rem",
-        }}
-      >
+      <div className="abo-admin-toolbar">
         <label>
           Statut{" "}
           <select value={statut} onChange={(e) => setStatut(e.target.value)}>
@@ -139,60 +132,31 @@ export default function Dossiers() {
         </label>
       </div>
 
-      <p style={{ color: "#6b7280" }}>
+      <p className="abo-admin-intro">
         {filtres.length} dossier{filtres.length > 1 ? "s" : ""}
       </p>
 
-      <div
-        style={{
-          display: "grid",
-          gap: "1rem",
-          gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-        }}
-      >
+      <div className="abo-admin-card-grid">
         {filtres.length === 0 ? (
-          <p style={{ color: "#9ca3af" }}>Aucun dossier ne correspond.</p>
+          <p className="abo-admin-empty">Aucun dossier ne correspond.</p>
         ) : (
           filtres.map((d) => (
-            <article
-              key={d.id}
-              style={{
-                border: "1px solid #e5e7eb",
-                borderRadius: 8,
-                padding: "1rem",
-                background: "#fff",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  marginBottom: "0.5rem",
-                }}
-              >
+            <article key={d.id} className="abo-admin-card abo-admin-dossier-card">
+              <div className="abo-admin-card-header">
                 <Badge statut={d.statut_dossier} />
-                <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                <span className="abo-admin-toolbar">
                   {(nonLusParDossier.get(d.id) ?? 0) > 0 && (
                     <span
                       title="Messages non lus"
-                      style={{
-                        background: "#e5484d",
-                        color: "#fff",
-                        borderRadius: 999,
-                        fontSize: "0.72rem",
-                        fontWeight: "bold",
-                        padding: "0.05rem 0.45rem",
-                      }}
+                      className="abo-admin-badge abo-admin-badge--unread"
                     >
                       💬 {nonLusParDossier.get(d.id)}
                     </span>
                   )}
-                  <span style={{ fontSize: "0.85rem", color: "#6b7280" }}>{d.email}</span>
+                  <span className="abo-admin-meta">{d.email}</span>
                 </span>
               </div>
-              <p style={{ fontSize: "0.8rem", color: "#9ca3af", margin: "0 0 0.5rem" }}>
+              <p className="abo-admin-meta">
                 Soumis le{" "}
                 {d.date_soumission
                   ? new Date(d.date_soumission).toLocaleDateString("fr-FR")
@@ -200,77 +164,46 @@ export default function Dossiers() {
               </p>
               {d.commentaire && (
                 <p
-                  style={{
-                    fontSize: "0.85rem",
-                    fontStyle: "italic",
-                    background: "#f9fafb",
-                    padding: "0.5rem",
-                    borderRadius: 4,
-                  }}
+                  className="abo-admin-comment"
                 >
                   {d.commentaire}
                 </p>
               )}
-              <ul style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}>
+              <ul className="abo-admin-sublist">
                 {d.personnes.map((p, i) => (
                   <li
                     key={p.id}
-                    style={{
-                      borderTop: "1px solid #f3f4f6",
-                      padding: "0.5rem 0",
-                    }}
+                    className="abo-admin-person-row"
                   >
                     <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.5rem",
-                        flexWrap: "wrap",
-                      }}
+                      className="abo-admin-toolbar"
                     >
                       <button
                         onClick={() => setDetail({ dossier: d, personne: p })}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          color: "#2563eb",
-                          cursor: "pointer",
-                          padding: 0,
-                          fontWeight: 600,
-                        }}
+                        className="abo-admin-link-button"
                       >
                         {`${p.prenom} ${p.nom}`.trim() || "—"}
                       </button>
                       {i === 0 && (
-                        <span style={{ fontSize: "0.7rem", color: "#9ca3af" }}>
+                        <span className="abo-admin-meta">
                           demandeur
                         </span>
                       )}
                       <ChipEnCours horaire={horaireEleve(p)} />
                     </div>
-                    <div style={{ display: "flex", gap: "0.25rem", marginTop: "0.35rem" }}>
+                    <div className="abo-admin-decision-group">
                       {DECISIONS.map((dec) => (
                         <button
                           key={dec.valeur}
                           onClick={() => decider(p, dec.valeur)}
-                          style={{
-                            fontSize: "0.75rem",
-                            padding: "0.25rem 0.5rem",
-                            borderRadius: 4,
-                            border: "1px solid #d1d5db",
-                            cursor: "pointer",
-                            background:
-                              p.etape_validation === dec.valeur ? "#111" : "#fff",
-                            color:
-                              p.etape_validation === dec.valeur ? "#fff" : "#374151",
-                          }}
+                          className={`abo-admin-decision${p.etape_validation === dec.valeur ? " is-active" : ""}`}
                         >
                           {dec.label}
                         </button>
                       ))}
                     </div>
                     {erreurs[p.id] && (
-                      <p style={{ color: "#b91c1c", fontSize: "0.75rem", margin: "0.25rem 0 0" }}>
+                      <p className="abo-admin-status abo-admin-status--error">
                         Échec : {erreurs[p.id]}
                       </p>
                     )}
@@ -283,13 +216,13 @@ export default function Dossiers() {
       </div>
 
       {suppressions && suppressions.length > 0 && (
-        <details style={{ marginTop: "1.5rem" }}>
-          <summary style={{ cursor: "pointer", fontWeight: 600 }}>
+        <details className="abo-admin-archive">
+          <summary className="abo-admin-archive-summary">
             Demandes supprimées ({suppressions.length})
           </summary>
           <ul>
             {suppressions.map((s, i) => (
-              <li key={i} style={{ fontSize: "0.85rem", margin: "0.25rem 0" }}>
+              <li key={i} className="abo-admin-archive-item">
                 <strong>{(s.personnes ?? "").trim() || s.email}</strong> a supprimé
                 sa demande le{" "}
                 {s.supprime_le
@@ -298,7 +231,7 @@ export default function Dossiers() {
                       timeStyle: "short",
                     })
                   : "—"}{" "}
-                <span style={{ color: "#9ca3af" }}>({s.email})</span>
+                <span className="abo-admin-muted">({s.email})</span>
               </li>
             ))}
           </ul>
@@ -325,15 +258,7 @@ function ChipEnCours({ horaire }: { horaire: string | null | undefined }) {
   return (
     <span
       title="Élève en cours d'escalade (export des cours)"
-      style={{
-        fontSize: "0.7rem",
-        fontWeight: 700,
-        padding: "0.1rem 0.45rem",
-        borderRadius: 999,
-        background: "#dbeafe",
-        color: "#1d4ed8",
-        whiteSpace: "nowrap",
-      }}
+      className="abo-admin-badge abo-admin-badge--course"
     >
       🧗 {creneau ? `en cours · ${creneau}` : "en cours d'escalade"}
     </span>
@@ -341,24 +266,8 @@ function ChipEnCours({ horaire }: { horaire: string | null | undefined }) {
 }
 
 function Badge({ statut }: { statut: string }) {
-  const couleurs: Record<string, string> = {
-    nouvelle_demande: "#2563eb",
-    validee: "#16a34a",
-    liste_attente: "#d97706",
-    refusee: "#dc2626",
-    complete: "#6b7280",
-  };
   return (
-    <span
-      style={{
-        fontSize: "0.7rem",
-        fontWeight: 700,
-        padding: "0.15rem 0.5rem",
-        borderRadius: 999,
-        background: (couleurs[statut] ?? "#6b7280") + "22",
-        color: couleurs[statut] ?? "#6b7280",
-      }}
-    >
+    <span className={`abo-admin-badge abo-admin-badge--${statut}`}>
       {STATUTS[statut] ?? statut}
     </span>
   );
@@ -440,84 +349,47 @@ function DetailModal({
 }) {
   const nom = `${personne.prenom} ${personne.nom}`.trim() || "—";
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.4)",
-        display: "grid",
-        placeItems: "center",
-        zIndex: 1000,
-        padding: "1rem",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "#fff",
-          borderRadius: 8,
-          padding: "1.5rem",
-          maxWidth: 480,
-          width: "100%",
-          maxHeight: "85vh",
-          overflow: "auto",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h3 style={{ margin: 0 }}>{nom}</h3>
+    <div className="abo-admin-modal-backdrop" onClick={onClose}>
+      <div className="abo-admin-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="abo-admin-modal-header">
+          <h3>{nom}</h3>
           <button
             onClick={onClose}
-            style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.2rem" }}
+            className="abo-admin-modal-close"
             aria-label="Fermer"
           >
             ✕
           </button>
         </div>
-        <p style={{ fontSize: "0.85rem", color: "#6b7280" }}>
+        <p className="abo-admin-meta">
           <code>{dossier.email}</code> <Badge statut={dossier.statut_dossier} />
         </p>
         {personne.licence && (
-          <p style={{ fontSize: "0.85rem" }}>
+          <p className="abo-admin-modal-copy">
             Licence : <code>{personne.licence}</code>
             {personne.licence_statut ? ` (${personne.licence_statut})` : ""}
           </p>
         )}
-        <ol style={{ listStyle: "none", padding: 0 }}>
+        <ol className="abo-admin-steps">
           {etapesDe(personne).map((e, i) => (
             <li
               key={i}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                padding: "0.4rem 0",
-                borderTop: i > 0 ? "1px solid #f3f4f6" : "none",
-              }}
+              className={`abo-admin-step${i > 0 ? " abo-admin-step--after" : ""}`}
             >
               <span
                 aria-hidden="true"
-                style={{
-                  width: 20,
-                  height: 20,
-                  display: "grid",
-                  placeItems: "center",
-                  borderRadius: 999,
-                  fontSize: "0.7rem",
-                  background: e.etat === "done" ? "#16a34a" : "#e5e7eb",
-                  color: e.etat === "done" ? "#fff" : "#6b7280",
-                }}
+                className={`abo-admin-step-mark abo-admin-step-mark--${e.etat}`}
               >
                 {MARQUES[e.etat] ?? ""}
               </span>
-              <span style={{ flex: 1 }}>{e.titre}</span>
-              <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>{e.etatLabel}</span>
+              <span className="abo-admin-step-title">{e.titre}</span>
+              <span className="abo-admin-step-state">{e.etatLabel}</span>
             </li>
           ))}
         </ol>
 
-        <h4 style={{ margin: "1rem 0 0.5rem" }}>Messagerie</h4>
-        <p style={{ fontSize: "0.75rem", color: "#6b7280", margin: "0 0 0.5rem" }}>
+        <h4 className="abo-admin-modal-subtitle">Messagerie</h4>
+        <p className="abo-admin-step-state">
           Fil partagé avec l'abonné·e (rattaché au dossier, pas à la personne).
         </p>
         <FilDiscussion dossierId={dossier.id as Id<"abo_dossiers">} hauteur={220} />

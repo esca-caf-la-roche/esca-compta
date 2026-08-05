@@ -30,26 +30,17 @@ export default function SyncClub() {
   }
 
   return (
-    <div style={{ marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+    <div className="abo-admin-toolbar abo-admin-sync">
       <button
         type="button"
         onClick={lancer}
         disabled={enCours}
-        style={{
-          background: "#111827",
-          color: "#fff",
-          border: "none",
-          borderRadius: "6px",
-          padding: "0.5rem 1rem",
-          fontWeight: "bold",
-          cursor: enCours ? "default" : "pointer",
-          opacity: enCours ? 0.6 : 1,
-        }}
+        className="abo-admin-button"
       >
         {enCours ? "Synchronisation…" : "Synchroniser le site club"}
       </button>
-      {message && <span style={{ color: "#047857", fontSize: "0.9rem" }}>{message}</span>}
-      {erreur && <span style={{ color: "#b91c1c", fontSize: "0.9rem" }}>{erreur}</span>}
+      {message && <span className="abo-admin-status abo-admin-status--success">{message}</span>}
+      {erreur && <span className="abo-admin-status abo-admin-status--error">{erreur}</span>}
     </div>
   );
 }
