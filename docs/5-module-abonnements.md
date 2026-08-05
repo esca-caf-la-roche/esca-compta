@@ -43,6 +43,20 @@ Le **lien HelloAsso du formulaire abonnements** n'est PAS une variable
 d'environnement : il se configure dans l'UI admin (*Configuration*) et est stocké
 dans `abo_app_config` (clé `helloasso_lien`) + une ligne `helloasso_links`.
 
+## Suivi des paiements Abonnements
+
+L'onglet *Paiements* importe uniquement le formulaire HelloAsso configuré pour
+les Abonnements. Son compteur de synchronisation ne couvre donc jamais les
+formulaires des cours. Les commandes et transactions HelloAsso sont conservées
+dans le cache partagé, mais la décision manuelle de l'équipe (`À traiter`,
+`Traité`, `Remboursé`, `En attente`, commentaire et auteur) est stockée dans
+`abo_paiements_suivi` et reste strictement propre aux Abonnements.
+
+En l'absence de décision manuelle, une commande Abonnements est affichée *À
+traiter*. Les statuts historiques des paiements cours ne sont ni lus ni copiés.
+Un remboursement détecté par HelloAsso est comparé à la décision Abonnements
+pour signaler les divergences à traiter par l'administrateur sur le site du club.
+
 ### Partagées avec la compta (déjà en place)
 
 `HELLOASSO_CLIENT_ID`, `HELLOASSO_CLIENT_SECRET` (mêmes credentials que

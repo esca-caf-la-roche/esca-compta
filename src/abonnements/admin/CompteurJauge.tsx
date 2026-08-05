@@ -19,7 +19,7 @@ export default function CompteurJauge() {
   const [copie, setCopie] = useState(false);
 
   if (c === undefined) {
-    return <p style={{ color: "#6b7280" }}>Chargement du compteur…</p>;
+    return <p className="abo-admin-empty">Chargement du compteur…</p>;
   }
 
   const max = c.places_max;
@@ -27,7 +27,6 @@ export default function CompteurJauge() {
   const pct = max > 0 ? Math.min(100, Math.round((c.occupe / max) * 100)) : 0;
   const seuilProche = Math.max(5, Math.round(max * 0.05));
   const etat = restantes < 0 ? "depassement" : restantes <= seuilProche ? "proche" : "ok";
-  const couleur = etat === "depassement" ? "#dc2626" : etat === "proche" ? "#d97706" : "#16a34a";
   const alerte =
     etat === "depassement"
       ? `⚠ Plafond dépassé de ${-restantes}`
@@ -48,68 +47,34 @@ export default function CompteurJauge() {
   }
 
   return (
-    <section
-      style={{
-        border: `2px solid ${couleur}`,
-        borderRadius: 8,
-        padding: "0.85rem 1rem",
-        background: couleur + "0d",
-        marginBottom: "1.5rem",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "baseline",
-          gap: "0.75rem",
-          flexWrap: "wrap",
-        }}
-      >
-        <span style={{ fontSize: "1.35rem", fontWeight: 800 }}>
+    <section className={`abo-admin-jauge abo-admin-jauge--${etat}`}>
+      <div className="abo-admin-jauge-header">
+        <span className="abo-admin-jauge-total">
           {c.occupe} / {max}
         </span>
-        <span style={{ fontWeight: 700, color: couleur }}>{alerte}</span>
+        <span className="abo-admin-jauge-alert">{alerte}</span>
       </div>
-      <div
-        style={{
-          marginTop: "0.5rem",
-          height: "0.6rem",
-          borderRadius: 999,
-          background: "#e5e7eb",
-          overflow: "hidden",
-        }}
-      >
-        <span
-          style={{ display: "block", height: "100%", width: `${pct}%`, background: couleur }}
-        />
+      <div className="abo-admin-jauge-track">
+        <span className="abo-admin-jauge-fill" style={{ width: `${pct}%` }} />
       </div>
-      <p style={{ fontSize: "0.85rem", color: "#374151", margin: "0.6rem 0 0" }}>
+      <p className="abo-admin-jauge-detail">
         {VAGUES[c.vague] ?? `Vague ${c.vague}`} · {c.legit_scrap} inscription(s)
         légitime(s) + {c.validees_hors_legit} demande(s) validée(s) hors scrap{" "}
-        <span style={{ color: "#9ca3af" }}>
+        <span className="abo-admin-jauge-anomalies">
           ({c.anomalies} anomalie{c.anomalies > 1 ? "s" : ""} non comptée
           {c.anomalies > 1 ? "s" : ""})
         </span>
       </p>
-      <div style={{ marginTop: "0.5rem" }}>
+      <div className="abo-admin-jauge-actions">
         <button
           type="button"
           onClick={copier}
-          style={{
-            background: "none",
-            border: "none",
-            color: "#2563eb",
-            cursor: "pointer",
-            fontSize: "0.85rem",
-            padding: 0,
-            fontWeight: 600,
-          }}
+          className="abo-admin-link-button"
         >
           📋 Copier le code d'intégration (iframe)
         </button>
         {copie && (
-          <span style={{ marginLeft: "0.5rem", fontSize: "0.85rem", color: "#16a34a" }}>
+          <span className="abo-admin-status abo-admin-status--success">
             ✓ Code copié
           </span>
         )}

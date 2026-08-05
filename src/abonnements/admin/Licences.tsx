@@ -48,37 +48,37 @@ export default function Licences() {
   }
 
   return (
-    <div>
-      <p style={{ color: "#6b7280", maxWidth: 640 }}>
+    <div className="abo-admin-section">
+      <p className="abo-admin-intro">
         La licence relie les demandes au scrap et aux cours. Les correspondances
         exactes (nom/prénom, même inversé) sont résolues automatiquement.
         Ci-dessous, les personnes à <strong>arbitrer</strong> : choisissez le bon
         candidat de l'annuaire, ou saisissez une licence à la main.
       </p>
 
-      <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center", margin: "1rem 0" }}>
-        <button onClick={lancerResolution} className="btn-secondary">
+      <div className="abo-admin-toolbar">
+        <button onClick={lancerResolution} className="abo-admin-button abo-admin-button--secondary">
           ↻ Relancer la résolution automatique
         </button>
-        {msgResoudre && <span style={{ fontSize: "0.85rem" }}>{msgResoudre}</span>}
+        {msgResoudre && <span className="abo-admin-status">{msgResoudre}</span>}
       </div>
-      <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center", marginBottom: "1.25rem" }}>
-        <button onClick={lancerImport} className="btn-secondary" disabled={busy}>
+      <div className="abo-admin-toolbar">
+        <button onClick={lancerImport} className="abo-admin-button abo-admin-button--secondary" disabled={busy}>
           ⬇ Synchroniser l'annuaire des licences
         </button>
-        {msgImport && <span style={{ fontSize: "0.85rem" }}>{msgImport}</span>}
+        {msgImport && <span className="abo-admin-status">{msgImport}</span>}
       </div>
 
-      <p style={{ fontWeight: 600 }}>
+      <p className="abo-admin-count">
         {personnes.length} personne{personnes.length > 1 ? "s" : ""} à valider
       </p>
 
       {personnes.length === 0 ? (
-        <p style={{ color: "#9ca3af" }}>
+        <p className="abo-admin-empty">
           Aucune personne à valider : toutes les licences sont résolues.
         </p>
       ) : (
-        <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: "1rem" }}>
+        <ul className="abo-admin-list">
           {personnes.map((p) => (
             <CartePersonne key={p.personne_id} personne={p} />
           ))}
@@ -113,18 +113,11 @@ function CartePersonne({ personne }: { personne: PersonneAValider }) {
   const nom = `${personne.prenom} ${personne.nom}`.trim() || "—";
 
   return (
-    <li
-      style={{
-        border: "1px solid #e5e7eb",
-        borderRadius: 8,
-        padding: "1rem",
-        background: "#fff",
-      }}
-    >
-      <div style={{ fontWeight: 700, marginBottom: "0.5rem" }}>{nom}</div>
-      <ul style={{ listStyle: "none", padding: 0, margin: "0 0 0.75rem" }}>
+    <li className="abo-admin-card abo-admin-licence-card">
+      <div className="abo-admin-card-title">{nom}</div>
+      <ul className="abo-admin-sublist">
         {personne.candidats.length === 0 ? (
-          <li style={{ color: "#9ca3af", fontStyle: "italic" }}>
+          <li className="abo-admin-empty">
             Aucun candidat proche dans l'annuaire.
           </li>
         ) : (
@@ -133,29 +126,17 @@ function CartePersonne({ personne }: { personne: PersonneAValider }) {
             return (
               <li
                 key={c.licence}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  padding: "0.3rem 0",
-                }}
+                className="abo-admin-list-row"
               >
                 <span>
                   {cn} — <code>{c.licence}</code>{" "}
-                  <span style={{ color: "#6b7280", fontSize: "0.8rem" }}>
+                  <span className="abo-admin-meta">
                     {Math.round((c.score ?? 0) * 100)}%
                   </span>
                 </span>
                 <button
                   onClick={() => associer(c.licence)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "#2563eb",
-                    cursor: "pointer",
-                    fontWeight: 600,
-                  }}
+                  className="abo-admin-link-button"
                 >
                   Associer
                 </button>
@@ -164,7 +145,7 @@ function CartePersonne({ personne }: { personne: PersonneAValider }) {
           })
         )}
       </ul>
-      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+      <div className="abo-admin-toolbar">
         <input
           type="text"
           inputMode="numeric"
@@ -174,19 +155,13 @@ function CartePersonne({ personne }: { personne: PersonneAValider }) {
         />
         <button
           onClick={() => associer(manuel)}
-          style={{
-            background: "none",
-            border: "none",
-            color: "#2563eb",
-            cursor: "pointer",
-            fontWeight: 600,
-          }}
+          className="abo-admin-link-button"
         >
           Associer cette licence
         </button>
       </div>
       {msg && (
-        <p style={{ fontSize: "0.8rem", color: "#b91c1c", margin: "0.4rem 0 0" }}>
+        <p className="abo-admin-status abo-admin-status--error">
           {msg}
         </p>
       )}

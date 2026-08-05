@@ -23,11 +23,11 @@ export default function Anomalies() {
   const vague = compteur?.vague ?? 0;
 
   return (
-    <div>
-      <p style={{ fontWeight: 600, color: "#374151" }}>
+    <div className="abo-admin-section">
+      <p className="abo-admin-emphasis">
         {VAGUES[vague] ?? `Vague ${vague}`}
       </p>
-      <p style={{ color: "#6b7280", maxWidth: 680 }}>
+      <p className="abo-admin-intro">
         Lignes du <strong>scrap courant</strong> sans autorisation pour la vague en
         cours : ni abonné·e validé·e N-1, ni élève en cours d'escalade, ni demande
         validée chez nous. Ces inscriptions directes sont{" "}
@@ -35,14 +35,14 @@ export default function Anomalies() {
         <strong>pas comptées</strong> par le compteur. La liste se met à jour avec
         le dernier scrap et rétrécit quand une nouvelle vague s'ouvre.
       </p>
-      <p style={{ fontWeight: 700 }}>
+      <p className="abo-admin-count">
         {anomalies.length} anomalie{anomalies.length > 1 ? "s" : ""}
       </p>
 
       {anomalies.length === 0 ? (
-        <p style={{ color: "#9ca3af" }}>Aucune anomalie pour la vague courante.</p>
+        <p className="abo-admin-empty">Aucune anomalie pour la vague courante.</p>
       ) : (
-        <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: "0.5rem" }}>
+        <ul className="abo-admin-list">
           {anomalies.map((r, i) => {
             const nom =
               `${(r.prenom ?? "").trim()} ${(r.nom ?? "").trim()}`.trim() ||
@@ -51,35 +51,18 @@ export default function Anomalies() {
             return (
               <li
                 key={i}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: "0.75rem",
-                  border: "1px solid #fed7aa",
-                  background: "#fff7ed",
-                  borderRadius: 6,
-                  padding: "0.6rem 0.8rem",
-                }}
+                className="abo-admin-card abo-admin-card--attention abo-admin-anomaly"
               >
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
+                <div className="abo-admin-card-copy">
                   <strong>{nom}</strong>
-                  <span style={{ fontSize: "0.8rem", color: "#6b7280" }}>
+                  <span className="abo-admin-meta">
                     Licence : {r.licence || "—"}
                   </span>
-                  <span style={{ fontSize: "0.8rem", color: "#b45309" }}>{r.raison}</span>
+                  <span className="abo-admin-reason">{r.raison}</span>
                 </div>
                 {r.abonnement_valide && (
                   <span
-                    style={{
-                      fontSize: "0.7rem",
-                      fontWeight: 700,
-                      padding: "0.15rem 0.5rem",
-                      borderRadius: 999,
-                      background: "#16a34a22",
-                      color: "#16a34a",
-                      whiteSpace: "nowrap",
-                    }}
+                    className="abo-admin-badge abo-admin-badge--success"
                   >
                     Abonné·e validé·e
                   </span>

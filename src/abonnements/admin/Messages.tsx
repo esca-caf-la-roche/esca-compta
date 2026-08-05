@@ -51,30 +51,30 @@ export default function Messages() {
 
   const totalNonLus = nonLus.reduce((total, message) => total + message.count, 0);
   return (
-    <section aria-labelledby="abo-messages-title">
+    <section className="abo-admin-section" aria-labelledby="abo-messages-title">
       <h2 id="abo-messages-title">Messages</h2>
-      <p style={{ color: "#4b5563" }}>
+      <p className="abo-admin-intro">
         {totalNonLus > 0
           ? `${totalNonLus} message${totalNonLus > 1 ? "s" : ""} à traiter.`
           : "Aucun message à traiter."}
       </p>
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-        <button type="button" onClick={() => setAfficher("non_lus")} aria-pressed={afficher === "non_lus"}>
+      <div className="abo-admin-toolbar">
+        <button className={`abo-admin-button${afficher === "non_lus" ? " is-active" : " abo-admin-button--secondary"}`} type="button" onClick={() => setAfficher("non_lus")} aria-pressed={afficher === "non_lus"}>
           À traiter ({totalNonLus})
         </button>
-        <button type="button" onClick={() => setAfficher("tous")} aria-pressed={afficher === "tous"}>
+        <button className={`abo-admin-button${afficher === "tous" ? " is-active" : " abo-admin-button--secondary"}`} type="button" onClick={() => setAfficher("tous")} aria-pressed={afficher === "tous"}>
           Toutes les conversations
         </button>
       </div>
 
       {conversations.length === 0 ? (
-        <p style={{ color: "#6b7280" }}>
+        <p className="abo-admin-empty">
           {afficher === "non_lus"
             ? "Tous les messages ont été lus."
             : "Aucune conversation n’est encore ouverte."}
         </p>
       ) : (
-        <div style={{ display: "grid", gap: "0.75rem" }}>
+        <div className="abo-admin-list">
           {conversations.map((dossier) => (
             <Conversation
               key={dossier.id}
@@ -104,19 +104,19 @@ function Conversation({
   const demandeur = dossier.personnes[0];
   const nom = demandeur ? `${demandeur.prenom} ${demandeur.nom}`.trim() : dossier.email;
   return (
-    <article style={{ border: "2px solid #111", padding: "1rem", background: nonLus > 0 ? "#fff7ed" : "#fff" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+    <article className={`abo-admin-card abo-admin-conversation${nonLus > 0 ? " abo-admin-card--attention" : ""}`}>
+      <div className="abo-admin-card-header">
         <div>
           <strong>{nom || "Demandeur non renseigné"}</strong>
-          <div style={{ fontSize: "0.85rem", color: "#4b5563" }}>{dossier.email}</div>
+          <div className="abo-admin-meta">{dossier.email}</div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-          {nonLus > 0 && <strong style={{ color: "#b91c1c" }}>{nonLus} non lu{nonLus > 1 ? "s" : ""}</strong>}
-          <button type="button" onClick={onOuvrir}>{ouverte ? "Fermer" : "Voir et répondre"}</button>
+        <div className="abo-admin-toolbar">
+          {nonLus > 0 && <strong className="abo-admin-status abo-admin-status--error">{nonLus} non lu{nonLus > 1 ? "s" : ""}</strong>}
+          <button className="abo-admin-button abo-admin-button--secondary" type="button" onClick={onOuvrir}>{ouverte ? "Fermer" : "Voir et répondre"}</button>
         </div>
       </div>
       {ouverte && (
-        <div style={{ marginTop: "1rem" }}>
+        <div className="abo-admin-conversation-thread">
           <FilDiscussion dossierId={dossier.id as Id<"abo_dossiers">} hauteur={300} />
         </div>
       )}
