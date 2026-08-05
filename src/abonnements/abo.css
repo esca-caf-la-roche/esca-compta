@@ -389,6 +389,28 @@ textarea.abo-input {
   text-decoration: underline;
 }
 
+.abo-fstep-lien--button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.abo-fstep-lien--button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.abo-pdf-erreur {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--danger);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
 .abo-fstep-lien--vide {
   color: #999;
   text-decoration: none;

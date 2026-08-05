@@ -61,6 +61,7 @@ Budget_Escalade_2024-25.xlsx
 # Bulletins de salaire / documents avec données personnelles (RGPD)
 BS.pdf
 *.pdf
+!src/abonnements/assets/test-d-autonomie.pdf
 
 # Clés JWKS générées (Convex Auth) — public mais propre au déploiement local
 jwks.json

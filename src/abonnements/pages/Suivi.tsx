@@ -4,6 +4,10 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { aboError } from "../lib/errors";
 import { cleJour, formatJour, formatTranche } from "../lib/tests";
+import {
+  creerFormulaireTestAutonomie,
+  telechargerPdf,
+} from "../lib/testAutonomiePdf";
 import FilDiscussion from "../FilDiscussion";
 
 // Tableau de suivi (abonné, lecture seule pour l'essentiel).
@@ -204,7 +208,7 @@ function CarteFinalisation({
     test_autonomie: null,
     age: personne.age,
   };
-  const etapes = construireEtapes(c, liens, (
+  const etapes = construireEtapes(c, liens, personne, (
     <ReservationTest
       personneId={personne.id as Id<"abo_personnes">}
       reservation={reservation}
@@ -266,6 +270,7 @@ const etatBool = (v: boolean): { etat: "done" | "todo"; etatLabel: string } =>
 function construireEtapes(
   c: Check,
   liens: Liens,
+  personne: PersonneVue,
   reservationWidget: React.ReactNode,
 ): Etape[] {
   const etapes: Etape[] = [
@@ -344,7 +349,13 @@ function construireEtapes(
             <strong>Où :</strong> gymnase de St Pierre en Faucigny.
           </p>
           <p className="abo-fstep-liens">
-            {lienAction(liens?.test_autonomie, "Télécharger le formulaire")}
+            <TelechargerFormulaireTest personne={personne} />
+            {liens?.test_autonomie && (
+              <>
+                {" "}
+                {lienAction(liens.test_autonomie, "Formulaire vierge")}
+              </>
+            )}
           </p>
           {reservationWidget}
         </>
@@ -353,6 +364,42 @@ function construireEtapes(
   }
 
   return etapes;
+}
+
+function TelechargerFormulaireTest({ personne }: { personne: PersonneVue }) {
+  const [enCours, setEnCours] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
+
+  async function telecharger() {
+    setEnCours(true);
+    setErreur(null);
+    try {
+      const pdf = await creerFormulaireTestAutonomie({
+        nom: personne.nom,
+        prenom: personne.prenom,
+        licence: personne.licence,
+      });
+      telechargerPdf(pdf, "test-autonomie.pdf");
+    } catch (err) {
+      setErreur(err instanceof Error ? err.message : "Le téléchargement a échoué.");
+    } finally {
+      setEnCours(false);
+    }
+  }
+
+  return (
+    <span>
+      <button
+        type="button"
+        className="abo-fstep-lien abo-fstep-lien--button"
+        onClick={telecharger}
+        disabled={enCours}
+      >
+        {enCours ? "Préparation du formulaire…" : "Télécharger le formulaire pré-rempli"}
+      </button>
+      {erreur && <span className="abo-pdf-erreur" role="alert">{erreur}</span>}
+    </span>
+  );
 }
 
 // ── Réservation du test d'autonomie (étape 5) ────────────────────────

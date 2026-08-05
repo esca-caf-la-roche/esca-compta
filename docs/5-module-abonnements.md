@@ -95,6 +95,9 @@ déploiement `npx convex dev` actif.
 - [ ] **Test d'autonomie** : créer des créneaux (plusieurs admins) → tranches
   40/60 min à capacité cumulée ; réserver/annuler ; supprimer un créneau surbooké
   → délogement LIFO + email `test_annule`.
+- [ ] **Formulaire du test** : depuis le suivi d'une personne validée, télécharger
+  le PDF pré-rempli (date Europe/Paris, nom, prénom, licence) ; vérifier le
+  rendu après réouverture et le cas d'une licence absente.
 - [ ] **Compteur/anomalies** : peupler scrap/archive/élèves/validées → `occupe`
   sans double comptage ; anomalies = scrap non légitime ; iframe `/#/compteur`
   affiche les nombres **sans connexion**.
