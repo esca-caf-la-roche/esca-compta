@@ -109,10 +109,14 @@ export default function Dossiers() {
     <div className="abo-admin-section">
       <CompteurJauge />
       <SyncClub />
-      <div className="abo-admin-toolbar">
-        <label>
-          Statut{" "}
-          <select value={statut} onChange={(e) => setStatut(e.target.value)}>
+      <div className="abo-admin-toolbar abo-admin-dossier-filters">
+        <label className="abo-admin-filter-field">
+          <span>Statut</span>
+          <select
+            className="abo-admin-input abo-admin-select"
+            value={statut}
+            onChange={(e) => setStatut(e.target.value)}
+          >
             <option value="tous">Tous</option>
             {Object.entries(STATUTS).map(([v, l]) => (
               <option key={v} value={v}>
@@ -121,13 +125,14 @@ export default function Dossiers() {
             ))}
           </select>
         </label>
-        <label>
-          Recherche{" "}
+        <label className="abo-admin-filter-field">
+          <span>Recherche</span>
           <input
             type="search"
             placeholder="Nom ou email…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            className="abo-admin-input abo-admin-search"
           />
         </label>
       </div>
