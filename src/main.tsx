@@ -7,8 +7,8 @@ import App from './App.tsx'
 
 const isDevelopment = import.meta.env.DEV;
 document.title = isDevelopment
-  ? 'CAF La Roche-Bonneville — DEV'
-  : 'CAF La Roche-Bonneville — Portail de gestion';
+  ? 'CAF LRB — DEV'
+  : 'CAF LRB — Portail de gestion';
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
 
