@@ -36,7 +36,7 @@ export default function Dossiers() {
   const dossiers = useQuery(api.abo.demandes.getDossiersAdmin);
   const suppressions = useQuery(api.abo.demandes.getSuppressions);
   const eleves = useQuery(api.abo.compteur.getElevesEnCours);
-  const compteur = useQuery(api.abo.compteur.vCompteur);
+  const compteur = useQuery(api.abo.compteur.vCompteur, {});
   const nonLus = useQuery(api.abo.messages.messagesNonLusAdmin);
   const validerPersonne = useMutation(api.abo.demandes.validerPersonne);
 
@@ -142,6 +142,16 @@ export default function Dossiers() {
     <div className="abo-admin-section">
       <CompteurJauge />
       <SyncClub />
+      <section className="abo-admin-card abo-admin-card--attention">
+        <h2>Décider les demandes du portail</h2>
+        <p className="abo-admin-rules-lead"><strong>Votre rôle ici :</strong> décider la demande de chaque personne dans le portail. Cette page ne modifie jamais le site du club.</p>
+        <ul className="abo-admin-rules-list">
+          <li><strong>N-1 :</strong> une personne déjà abonnée l’année dernière s’inscrit directement sur le site du club — pas ici.</li>
+          <li><strong>Vague 2 :</strong> priorité de dépôt réservée aux élèves actuellement en cours, avec leur licence reconnue.</li>
+          <li><strong>Vague 3 :</strong> le portail est ouvert à tous ; les demandes déjà déposées continuent d’être décidées normalement, quelle que soit leur vague.</li>
+          <li><strong>Inscription déjà sur le site :</strong> ne pas supprimer depuis le portail. La retirer d’abord sur le site du club, puis synchroniser.</li>
+        </ul>
+      </section>
       <div className="abo-admin-toolbar abo-admin-dossier-filters">
         <label className="abo-admin-filter-field">
           <span>Statut</span>

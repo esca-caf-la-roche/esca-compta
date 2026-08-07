@@ -501,6 +501,15 @@ export default defineSchema({
     etape_photo: v.boolean(),
     etape_paiement: v.boolean(),
     etape_abonnement_valide: v.boolean(),
+    // WIDEN: fenêtre de dépôt conservée par personne, backfill avant narrowing.
+    vague_depot: v.optional(
+      v.union(v.literal("vague_2"), v.literal("vague_3"), v.literal("historique")),
+    ),
+    deposee_le: v.optional(v.string()),
+    // Compatibilité temporaire DEV : les délais ne sont plus une règle métier.
+    // Une migration préparée les retire avant le prochain narrowing.
+    echeance_decision: v.optional(v.union(v.string(), v.null())),
+    decision_validee_le: v.optional(v.string()),
   })
     .index("by_dossier", ["dossier_id"])
     .index("by_nom_prenom_normalise", ["nom_prenom_normalise"])
@@ -538,7 +547,13 @@ export default defineSchema({
     autonomie: v.optional(v.string()),
     photo: v.optional(v.string()),
     paiement: v.optional(v.string()),
-    abonnement_valide: v.boolean(),
+    abonnement_valide: v.union(
+      v.boolean(),
+      v.literal("oui"),
+      v.literal("non"),
+      v.literal("bloque"),
+      v.literal("inconnu"),
+    ),
     last_scrap_at: v.optional(v.string()),
   })
     .index("by_licence", ["licence"])
@@ -550,9 +565,18 @@ export default defineSchema({
     nom: v.optional(v.string()),
     prenom: v.optional(v.string()),
     nom_prenom_normalise: v.string(),
-    abonnement_valide: v.boolean(),
+    abonnement_valide: v.union(
+      v.boolean(),
+      v.literal("oui"),
+      v.literal("non"),
+      v.literal("bloque"),
+      v.literal("inconnu"),
+    ),
+    // SAISON-EXEMPT: libellé de provenance de l'archive N-1, sans navigation par saison.
     saison: v.string(),
-  }).index("by_licence", ["licence"]),
+  })
+    .index("by_licence", ["licence"])
+    .index("by_nom_prenom_normalise", ["nom_prenom_normalise"]),
 
   // Élèves « en cours d'escalade » (passe-droit vague 2), importés de l'Excel.
   // Colonnes mappées 1:1 sur l'export cours-export-xlsx.php du site club
@@ -648,6 +672,16 @@ export default defineSchema({
   })
     .index("by_personne", ["personne_id"])
     .index("by_tranche", ["tranche"]),
+
+  // SAISON-EXEMPT: singleton du dernier compteur public calculé, transversal
+  // et remplacé à chaque recalcul indépendamment de la saison sélectionnée.
+  abo_compteur_public_cache: defineTable({
+    cle: v.literal("courant"),
+    occupe: v.number(),
+    places_max: v.number(),
+    places_restantes: v.number(),
+    calcule_le: v.string(),
+  }).index("by_cle", ["cle"]),
 
   // Configuration applicative clé/valeur (vagues, liens, places_max, helloasso).
   abo_app_config: defineTable({

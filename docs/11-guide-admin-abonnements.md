@@ -164,15 +164,30 @@ interpréter « traité » comme une validation automatique de l'abonnement.
 
 ### À quoi sert cet onglet ?
 
-**Anomalies** est une liste de contrôle, en lecture seule. Elle recense les
-personnes présentes dans le dernier snapshot du site club qui ne sont pas
-légitimes pour la vague d'ouverture courante.
+**Anomalies** est une liste de contrôle, en lecture seule. Elle affiche
+uniquement les inscriptions du dernier snapshot du site club qui ne respectent
+pas les règles d'inscription. Une inscription conforme n'apparaît donc pas
+dans cet onglet. Le portail ne modifie jamais ce site : si une inscription doit
+disparaître, le staff la retire manuellement sur le site du club puis relance
+la synchronisation.
 
-Selon la vague, une inscription est légitime si la personne est :
+Chaque ligne indique le statut de la demande portail et l'action attendue. La
+présence parmi les élèves en cours est utile au dépôt en vague 2, mais ne rend
+jamais conforme une inscription déjà présente sur le site.
 
-- un abonné validé de la saison précédente (vagues 0 et 1) ;
-- ou un élève déjà en cours d'escalade (vague 2) ;
-- ou, en vague 3, titulaire d'une demande validée dans le portail.
+Une inscription site est **validée** seulement si la personne est :
+
+- un abonné validé N-1, rapproché sans ambiguïté par nom et prénom ;
+- ou titulaire d'une demande portail validée.
+
+Une demande trouvée mais en attente, en liste d'attente ou refusée donne une
+**anomalie**. Les inscriptions déjà marquées **Bloqué** sur le site ne figurent
+pas dans cette liste.
+
+Le statut **Inconnu** signale une ancienne donnée qui disait seulement « pas
+Oui », sans permettre de distinguer `Non` de `Bloqué`. Elle est exclue de la
+jauge jusqu'à une nouvelle synchronisation du site et doit être traitée en
+priorité avant l'ouverture de la campagne.
 
 ### Que faire d'une anomalie ?
 
@@ -184,8 +199,10 @@ Selon la vague, une inscription est légitime si la personne est :
 4. Si elle correspond à une personne qui devrait être admise, corriger le canal
    manquant : dossier à valider, licence à rapprocher ou vague à ouvrir.
 
-Les anomalies ne sont pas comptées dans la jauge des places et la liste se
-réduit automatiquement quand une vague suivante ouvre de nouveaux droits.
+Les anomalies restent visibles tant que l'inscription existe sur le site. Un
+statut `Non` figure dans le total affiché, mais n'occupe pas automatiquement le
+plafond qui bloque la validation d'une demande. Les statuts `Inconnu` et
+`Bloqué` sont exclus de ce total.
 
 ## 5. Licences
 
@@ -289,6 +306,11 @@ Vérifier les liens dans un navigateur avant enregistrement. Le lien HelloAsso
 de paiement est séparé : il est défini pour la campagne et ne se modifie qu'au
 changement de saison.
 
+Tous les liens doivent utiliser HTTPS. Le lien d'inscription au créneau
+autonome, utilisé notamment pour rediriger les abonnés N-1, doit en plus rester
+sur `caflarochebonneville.fr` ou l'un de ses sous-domaines. Le portail refuse
+son enregistrement sur un domaine tiers.
+
 ### Dates des vagues
 
 Les heures sont interprétées en heure de Paris.
@@ -312,7 +334,8 @@ HelloAsso. Elle :
 - vide les snapshots, créneaux, réservations, cache de paiements et journal
   d'e-mails de la campagne ;
 - programme la suppression des demandes et comptes publics ;
-- conserve les comptes staff en théorie ;
+- conserve le compte, les sessions et l'authentification d'un staff qui a aussi
+  utilisé le portail public, tout en purgeant ses données publiques de campagne ;
 - enregistre le nouveau lien HelloAsso et efface les dates de vagues.
 
 > **Autorisation requise :** ne lancer le reset que lorsque les
@@ -320,15 +343,36 @@ HelloAsso. Elle :
 > accessible qu'à l'administrateur général disposant à la fois de la tuile
 > Abonnements et de l'autorisation nominative de reset, réglée dans
 > **Configurations > Utilisateurs et Accès** par un autre administrateur. Il
-> faut aussi s'assurer que les
-> comptes publics et staff sont strictement séparés par e-mail. Un défaut connu
-> peut sinon exposer un compte staff ayant aussi été utilisé dans le portail
-> public à la purge. Voir [l'audit complet](10-audit-abonnements-escalade.md).
+> Avant le premier reset réel, répéter néanmoins l'opération sur une copie de
+> données représentative et vérifier les deux cas : compte public pur et compte
+> staff ayant aussi déposé une demande. Voir
+> [l'audit complet](10-audit-abonnements-escalade.md).
 
 Après le reset, reconfigurer les vagues, contrôler les liens puis lancer les
 synchronisations nécessaires avant de rouvrir la campagne.
 
 ## Routine opérationnelle minimale
+
+### Règles de campagne
+
+Le portail est strictement **en lecture seule** vis-à-vis du site du club : il
+lit le snapshot synchronisé, ne modifie jamais une inscription externe et ne
+la retire jamais. Lorsqu'une ligne est à vérifier, le staff agit manuellement
+sur le site du club puis synchronise le portail.
+
+Une personne reconnue N-1 est redirigée vers le site du club ; une
+correspondance ambiguë ne donne jamais un droit automatique. En vague 2, seule
+une licence présente dans l'export des élèves en cours permet le dépôt. Cette
+condition ne valide pas une inscription déjà présente sur le site. Les vagues
+organisent seulement la priorité de dépôt : le staff peut décider normalement
+une demande déposée pendant une vague précédente, même après la vague 3.
+
+Un même compte peut vérifier au maximum 20 personnes en 10 minutes. Cette
+limite freine les recherches répétées ; un abonné qui l'atteint doit simplement
+patienter avant de reprendre son dossier.
+
+Une personne déjà liée à une inscription du site ne peut pas être retirée du
+dossier portail. Retirez d'abord l'inscription sur le site, puis synchronisez.
 
 1. Synchroniser le site du club, puis lire Dossiers et Anomalies.
 2. Répondre aux messages non lus.

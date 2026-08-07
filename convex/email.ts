@@ -3,6 +3,7 @@
 import { internalAction as action } from "./_generated/server";
 import { v } from "convex/values";
 import { SMTPClient } from "emailjs";
+import { canoniserEmailUnique } from "./emailValidation";
 
 function creerTransporteur(email: string, motDePasse: string) {
   return new SMTPClient({
@@ -38,6 +39,7 @@ export const sendOTP = action({
   args: { email: v.string(), code: v.string() },
   returns: v.null(),
   handler: async (_ctx, args) => {
+    const destinataire = canoniserEmailUnique(args.email);
     try {
       const senderEmail = process.env.EMAIL_SENDER;
       const senderPassword = process.env.EMAIL_PASSWORD;
@@ -54,7 +56,7 @@ export const sendOTP = action({
         senderEmail,
         senderPassword,
         `Esca-Compta <${senderEmail}>`,
-        args.email,
+        destinataire,
         subject,
         body,
       );
@@ -76,6 +78,7 @@ export const sendAboEmail = action({
   args: { to: v.string(), subject: v.string(), text: v.string() },
   returns: v.null(),
   handler: async (_ctx, args) => {
+    const destinataire = canoniserEmailUnique(args.to);
     try {
       const senderEmail = process.env.EMAIL_SENDER_ABO;
       const senderPassword = process.env.EMAIL_PASSWORD_ABO;
@@ -89,7 +92,7 @@ export const sendAboEmail = action({
         senderEmail,
         senderPassword,
         `Abonnements Escalade CAF <${senderEmail}>`,
-        args.to,
+        destinataire,
         args.subject,
         args.text,
       );

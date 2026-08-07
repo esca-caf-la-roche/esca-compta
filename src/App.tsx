@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ReactNode } from "react";
+import { Component, lazy, Suspense, type ErrorInfo, type ReactNode } from "react";
 import { HashRouter, Routes, Route } from "react-router-dom";
 import { SeasonProvider } from "./contexts/SeasonContext";
 import Layout from "./components/Layout";
@@ -30,8 +30,43 @@ function RouteLoadingFallback() {
   );
 }
 
+class RouteErrorBoundary extends Component<
+  { children: ReactNode },
+  { erreur: boolean }
+> {
+  state = { erreur: false };
+
+  static getDerivedStateFromError() {
+    return { erreur: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("Échec du chargement de la route", error, info);
+  }
+
+  render() {
+    if (this.state.erreur) {
+      return (
+        <main className="loading-screen" role="alert" aria-labelledby="route-error-title">
+          <h1 id="route-error-title">La page n’a pas pu être chargée</h1>
+          <p>Une nouvelle version de l’application est peut-être disponible.</p>
+          <button type="button" className="btn-primary" onClick={() => window.location.reload()}>
+            Recharger la page
+          </button>
+        </main>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 function LazyRoute({ children }: { children: ReactNode }) {
-  return <Suspense fallback={<RouteLoadingFallback />}>{children}</Suspense>;
+  return (
+    <RouteErrorBoundary>
+      <Suspense fallback={<RouteLoadingFallback />}>{children}</Suspense>
+    </RouteErrorBoundary>
+  );
 }
 
 // Composant temporaire pour les routes non implémentées

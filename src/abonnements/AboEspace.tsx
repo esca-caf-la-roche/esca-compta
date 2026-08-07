@@ -1,8 +1,18 @@
+import { lazy, Suspense } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import Demande from "./pages/Demande";
-import Suivi from "./pages/Suivi";
+
+const Demande = lazy(() => import("./pages/Demande"));
+const Suivi = lazy(() => import("./pages/Suivi"));
+
+function ChargementContenu({ message }: { message: string }) {
+  return (
+    <div className="abo-content" role="status" aria-live="polite">
+      <p>{message}</p>
+    </div>
+  );
+}
 
 // Espace de l'abonné connecté (route /abonnements, authentifié). Aiguillage selon
 // l'existence d'un dossier (getMonDossier, réactif) :
@@ -27,13 +37,15 @@ export default function AboEspace() {
 
       <main>
         {dossier === undefined ? (
-          <div className="abo-content">
-            <p>Chargement…</p>
-          </div>
+          <ChargementContenu message="Chargement de votre demande…" />
         ) : dossier === null ? (
-          <Demande />
+          <Suspense fallback={<ChargementContenu message="Préparation du formulaire…" />}>
+            <Demande />
+          </Suspense>
         ) : (
-          <Suivi dossier={dossier} />
+          <Suspense fallback={<ChargementContenu message="Préparation du suivi…" />}>
+            <Suivi dossier={dossier} />
+          </Suspense>
         )}
       </main>
     </div>

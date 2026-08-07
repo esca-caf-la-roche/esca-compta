@@ -193,6 +193,14 @@ function versEntier(val?: string): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+function statutAbonnementSite(valeur?: string): "oui" | "non" | "bloque" {
+  const normalise = (valeur ?? "").trim().toLocaleLowerCase("fr-FR");
+  if (normalise === "oui") return "oui";
+  if (normalise === "non") return "non";
+  if (normalise === "bloqué" || normalise === "bloque") return "bloque";
+  throw new Error(`Statut « Abonnement valide ? » inconnu : ${valeur ?? "vide"}.`);
+}
+
 // ── scraperAbonnes : liste des abonnés → abo_abonnes_scrap → matching ────
 export const scraperAbonnes = internalAction({
   args: {},
@@ -258,7 +266,7 @@ export const scraperAbonnes = internalAction({
       autonomie: row["Autonomie"] || undefined,
       photo: row["Photo"] || undefined,
       paiement: row["Paiement"] || undefined,
-      abonnement_valide: row["Abonnementvalide ?"] === "Oui",
+      abonnement_valide: statutAbonnementSite(row["Abonnementvalide ?"]),
     }));
 
     // Upsert par lots (transactions bornées).
@@ -278,6 +286,7 @@ export const scraperAbonnes = internalAction({
       internal.abo.matching.matcherScrapPersonnes,
       {},
     );
+    await ctx.runMutation(internal.abo.compteur.rafraichirCompteurPublic, {});
     console.log(
       `→ scrap : ${upsertees} upsertées, ${sansLicence} sans licence ; ${maj} personne(s) mise(s) à jour.`,
     );

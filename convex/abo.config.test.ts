@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
 
@@ -70,6 +70,125 @@ describe("purge annuelle des comptes Abonnements", () => {
       role: "admin",
     });
     expect(state.staffProfile).toBeNull();
+  });
+
+  test("progresse au-delà d'une première page composée de profils admin", async () => {
+    vi.useFakeTimers();
+    try {
+      const t = convexTest(schema, modules);
+      const { admins, publicUserId } = await t.run(async (ctx) => {
+        const admins = [];
+        for (let i = 0; i < 25; i++) {
+          const userId = await ctx.db.insert("users", { email: `admin-${i}@example.test` });
+          await ctx.db.insert("abo_profiles", {
+            userId,
+            email: `admin-${i}@example.test`,
+            role: "admin",
+          });
+          admins.push(userId);
+        }
+        const publicUserId = await ctx.db.insert("users", { email: "apres-admins@example.test" });
+        await ctx.db.insert("abo_profiles", {
+          userId: publicUserId,
+          email: "apres-admins@example.test",
+          role: "utilisateur",
+        });
+        return { admins, publicUserId };
+      });
+
+      await t.mutation(internal.abo.config.purgerComptesPublics, {});
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+      const etat = await t.run(async (ctx) => ({
+        publicUser: await ctx.db.get(publicUserId),
+        admins: await Promise.all(admins.map((id) => ctx.db.get(id))),
+      }));
+      expect(etat.publicUser).toBeNull();
+      expect(etat.admins.every(Boolean)).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("liens de finalisation Abonnements", () => {
+  test("accepte uniquement une URL HTTPS absolue ou une valeur vide", async () => {
+    const t = convexTest(schema, modules);
+    const adminId = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", { email: "liens-admin@example.test" });
+      await ctx.db.insert("userSettings", {
+        userId,
+        allowedTiles: ["abonnements"],
+        role: "user",
+      });
+      return userId;
+    });
+    const admin = t.withIdentity({ subject: adminId });
+
+    await expect(admin.mutation(api.abo.config.setLiens, {
+      inscription: "http://club.example.test/inscription",
+    })).rejects.toThrow("HTTPS absolue");
+    await expect(admin.mutation(api.abo.config.setLiens, {
+      inscription: "/inscription",
+    })).rejects.toThrow("HTTPS absolue");
+    await expect(admin.mutation(api.abo.config.setLiens, {
+      inscription: "https://www.caflarochebonneville.fr/inscription",
+    })).resolves.toBeNull();
+    await expect(admin.mutation(api.abo.config.setLiens, {
+      inscription: "https://club.example.test/inscription",
+    })).rejects.toThrow("domaine caflarochebonneville.fr");
+    await expect(admin.mutation(api.abo.config.setLiens, {
+      licence_nouvelle: "https://licences.ffcam.fr/adhesion",
+    })).resolves.toBeNull();
+    await expect(admin.mutation(api.abo.config.setLiens, {
+      inscription: "",
+    })).resolves.toBeNull();
+    const valeur = await t.run(async (ctx) =>
+      await ctx.db
+        .query("abo_app_config")
+        .withIndex("by_cle", (q) => q.eq("cle", "inscription_lien"))
+        .first(),
+    );
+    expect(valeur?.valeur).toBeUndefined();
+  });
+
+  test("ne propose jamais un ancien lien d'inscription externe ou malformé", async () => {
+    const t = convexTest(schema, modules);
+    const adminId = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", { email: "legacy-link-admin@example.test" });
+      await ctx.db.insert("userSettings", {
+        userId,
+        allowedTiles: ["abonnements"],
+        role: "user",
+      });
+      await ctx.db.insert("abo_app_config", {
+        cle: "inscription_lien",
+        valeur: "https://tiers.example.test/inscription",
+      });
+      return userId;
+    });
+    const admin = t.withIdentity({ subject: adminId });
+
+    expect(await admin.query(api.abo.config.liensFinalisation, {})).toMatchObject({
+      inscription: null,
+    });
+    expect(await admin.query(api.abo.config.getConfig, {})).toMatchObject({
+      inscription_lien: "https://tiers.example.test/inscription",
+    });
+
+    await t.run(async (ctx) => {
+      const row = await ctx.db
+        .query("abo_app_config")
+        .withIndex("by_cle", (q) => q.eq("cle", "inscription_lien"))
+        .unique();
+      if (row) await ctx.db.patch(row._id, { valeur: "pas une url" });
+    });
+    expect(await admin.query(api.abo.config.liensFinalisation, {})).toMatchObject({
+      inscription: null,
+    });
+    expect(await admin.query(api.abo.config.getConfig, {})).toMatchObject({
+      inscription_lien: "pas une url",
+    });
   });
 });
 

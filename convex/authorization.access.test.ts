@@ -145,6 +145,31 @@ describe("saisons et administration globale", () => {
     await expect(admin.query(api.transactions.getStats, { saison: "2026-27" })).rejects.toThrow("Accès refusé");
   });
 
+  test("addUser canonise l'email et refuse une collision canonique", async () => {
+    const t = convexTest(schema, modules);
+    const admin = t.withIdentity({
+      subject: await createUser(t, { tiles: [], role: "admin" }),
+    });
+    const userId = await admin.mutation(api.users.addUser, {
+      email: "  Nouveau.Staff@Example.TEST  ",
+      name: "Nouveau staff",
+    });
+    const user = await t.run(async (ctx) => await ctx.db.get(userId));
+    expect(user?.email).toBe("nouveau.staff@example.test");
+    await expect(admin.mutation(api.users.addUser, {
+      email: "nouveau.staff@example.test",
+      name: "Doublon",
+    })).rejects.toThrow("existe déjà");
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", { email: " Legacy.Staff@Example.TEST " });
+    });
+    await expect(admin.mutation(api.users.addUser, {
+      email: "legacy.staff@example.test",
+      name: "Doublon legacy",
+    })).rejects.toThrow("existe déjà");
+  });
+
   test("normalise le droit de reset Abonnements selon le rôle et la tuile", async () => {
     const t = convexTest(schema, modules);
     const targetId = await createUser(t, { tiles: ["abonnements"], role: "admin" });

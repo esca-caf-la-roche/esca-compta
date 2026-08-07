@@ -23,7 +23,7 @@ crée aucun `userSettings` et ne donne accès à aucune tuile staff. Voir
    - La méthode `sendVerificationRequest` vérifie à nouveau côté serveur la présence de l'email dans la base (sécurité renforcée).
    - L'action Node.js interne `internal.email.sendOTP` est exécutée pour envoyer l'e-mail :
      - **Mode Production / SMTP** : Si les variables d'environnement `EMAIL_SENDER` et `EMAIL_PASSWORD` (mot de passe d'application Google) sont définies, l'e-mail contenant l'OTP est envoyé directement via Gmail.
-     - **Mode Développement / Fallback** : Si les variables ne sont pas définies, le code est simplement affiché dans les logs de la console du serveur Convex, permettant un développement local simplifié.
+     - **Configuration absente** : Si les variables ne sont pas définies, l'envoi échoue explicitement. Le code OTP n'est jamais écrit dans les logs ; les secrets SMTP doivent donc être configurés aussi sur le déploiement DEV utilisé pour les essais d'authentification.
 
 3. **Vérification et Session** :
    - L'utilisateur saisit le code reçu.

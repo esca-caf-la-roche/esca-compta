@@ -4,6 +4,18 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { authenticatedQuery, authenticatedMutation } from "./customFunctions";
 import { getUserSettings, requireAdmin, TILES } from "./access";
 import { champsModifies } from "./dbUtils";
+import { canoniserEmailUnique } from "./emailValidation";
+
+const MAX_USERS_FALLBACK_EMAIL = 2_000;
+
+function emailCanoniqueSiValide(email: unknown): string | null {
+  if (typeof email !== "string") return null;
+  try {
+    return canoniserEmailUnique(email);
+  } catch {
+    return null;
+  }
+}
 
 const dashboardTileValidator = v.union(
   v.literal("compta"),
@@ -155,25 +167,40 @@ export const getCurrentUserSettings = authenticatedQuery({
 
 export const addUser = authenticatedMutation({
   args: { email: v.string(), name: v.string() },
+  returns: v.id("users"),
   handler: async (ctx, args) => {
     await requireAdmin(ctx, ctx.userId);
 
     const name = args.name.trim();
     if (!name) {
-      throw new Error("Le nom est obligatoire.");
+      throw new ConvexError("Le nom est obligatoire.");
     }
+    const email = canoniserEmailUnique(args.email);
 
     const existingUser = await ctx.db
       .query("users")
-      .withIndex("email", (q) => q.eq("email", args.email))
+      .withIndex("email", (q) => q.eq("email", email))
       .first();
 
     if (existingUser) {
-      throw new Error("Un utilisateur avec cet email existe déjà.");
+      throw new ConvexError("Un utilisateur avec cet email existe déjà.");
+    }
+
+    // Compatibilité avant le backfill : l'index exact ne voit pas les emails
+    // historiques avec casse ou espaces. La lecture de secours reste bornée et
+    // ne fusionne jamais automatiquement des comptes administrés.
+    const utilisateurs = await ctx.db.query("users").take(MAX_USERS_FALLBACK_EMAIL + 1);
+    if (utilisateurs.length > MAX_USERS_FALLBACK_EMAIL) {
+      throw new ConvexError(
+        "Impossible de vérifier les anciens emails : migration requise avant l'ajout.",
+      );
+    }
+    if (utilisateurs.some((user) => emailCanoniqueSiValide(user.email) === email)) {
+      throw new ConvexError("Un utilisateur avec cet email existe déjà.");
     }
 
     const newUserId = await ctx.db.insert("users", {
-      email: args.email,
+      email,
       name
     });
     

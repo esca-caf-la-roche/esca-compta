@@ -20,6 +20,64 @@ tuiles compta ; le `Layout` le redirige vers `/abonnements`. Un staff qui dépos
 une demande conserve ses droits staff ; au reset, seules ses données publiques
 de campagne et son profil public sont purgés.
 
+## Règles de campagne et site du club
+
+Le portail et le site du club sont séparés. Le portail lit le snapshot
+`abo_abonnes_scrap`, mais ne crée, ne modifie et ne supprime jamais une
+inscription sur le site : le staff y intervient manuellement puis synchronise.
+Un ancien abonné N-1, rapproché de façon unique par nom et prénom normalisés,
+est redirigé vers le site du club. En vague 2, la licence doit figurer dans le
+snapshot des élèves en cours ; cette priorité de dépôt ne rend jamais conforme
+une inscription déjà présente sur le site.
+
+Pour empêcher les recherches de noms en série sans alourdir ce parcours, le
+serveur limite chaque compte connecté à **20 personnes vérifiées sur 10
+minutes**. Les tentatives qui aboutissent à une redirection ou à une
+correspondance ambiguë sont bien comptabilisées. Au-delà, le portail demande de
+patienter quelques minutes.
+
+La décision est portée par personne. La vague de dépôt est conservée comme
+information de priorité, sans échéance de décision : après l'ouverture de vague
+3, le staff peut toujours décider les demandes déposées précédemment. Les
+inscriptions lues sur le site sont rangées dans une catégorie exclusive :
+**validée** (N-1 certain ou demande portail validée), **non validée** (aucun
+droit N-1 certain et aucune demande portail validée), **bloquée** (le site
+porte explicitement ce statut) ou **inconnue** (ancienne donnée booléenne
+insuffisante). Les rapprochements ambigus restent à vérifier manuellement.
+
+Le compteur public et la jauge staff affichent les inscriptions du site aux
+statuts `Oui` et `Non`, puis les demandes portail validées qui ne sont pas
+encore sur le site. Une ligne est comptée comme **Bloquée** uniquement lorsque
+le site porte explicitement ce statut. Le plafond qui protège la validation des
+demandes conserve son calcul métier plus strict.
+
+Le champ du site **Abonnement valide ?** est lu sans le réduire : `Oui`, `Non`
+et `Bloqué`. Après une évolution de ce champ, une synchronisation complète est
+nécessaire ; les anciennes lignes dont le statut était seulement connu comme
+« non Oui » sont temporairement exclues du compteur plutôt que mal classées.
+
+La transition de données suit un déploiement *widen–migrate–narrow* : déployer
+d'abord le schéma compatible avec les booléens historiques, exécuter ensuite
+les migrations internes `migrations:migrateAboAbonnesScrapStatut` et
+`migrations:migrateAboAbonnesArchiveStatut`, vérifier qu'il ne reste aucun
+booléen avec les inspections paginées associées, puis seulement retirer les
+booléens du schéma lors d'un déploiement ultérieur. Une valeur historique
+`false` devient `inconnu`, jamais `non` ni `bloque`.
+
+Les adresses historiques de `users` suivent la même discipline : exécuter
+d'abord l'inspection interne paginée
+`migrations:inspectUsersEmailCanonique`, traiter manuellement tout compteur
+`invalide` ou `conflit`, puis lancer
+`migrations:migrateUsersEmailCanonique`. Cette migration ne fusionne et ne
+supprime aucun compte ; elle refuse aussi de choisir arbitrairement entre deux
+anciennes variantes équivalentes. La laisser aller à son terme — une relance
+reprend un lot interrompu — puis rejouer l'inspection : `a_normaliser` doit être
+à zéro avant la suite de la mise en production.
+
+Le compteur public lit un agrégat sans donnée nominative, recalculé après les
+opérations métier qui peuvent modifier la jauge. En l'absence initiale de cet
+agrégat, un calcul de transition borné permet de servir l'iframe.
+
 La **réinitialisation annuelle** est plus restrictive que la gestion courante :
 elle exige la tuile `abonnements`, le rôle d'administrateur général et
 l'autorisation nominative `canResetAboSeason`, accordée dans
@@ -31,16 +89,16 @@ campagne.
 ## Variables d'environnement (dashboard Convex → *Settings > Environment Variables*)
 
 > ⚠️ Ces variables se posent **côté Convex** (pas dans `.env.local`, qui ne sert
-> qu'au front). En dev, l'absence de secrets email fait basculer l'envoi en
-> **fallback console** (l'OTP / les emails s'affichent dans les logs Convex).
-> Pour la prod : `npx convex env set NOM valeur --prod`.
+> qu'au front). Sans secrets email, l'envoi échoue explicitement, y compris en
+> DEV : aucun OTP ni contenu d'email n'est écrit dans les logs Convex. Pour la
+> prod : `npx convex env set NOM valeur --prod`.
 
 ### Spécifiques au module Abonnements
 
 | Variable | Rôle | Obligatoire |
 |---|---|---|
-| `EMAIL_SENDER_ABO` | Adresse d'envoi des emails abonnés (OTP `abo-otp` + transactionnels). **Boîte distincte** de l'OTP compta. | Oui (sinon fallback console) |
-| `EMAIL_PASSWORD_ABO` | Mot de passe / app-password de la boîte abo. | Oui (sinon fallback console) |
+| `EMAIL_SENDER_ABO` | Adresse d'envoi des emails abonnés (OTP `abo-otp` + transactionnels). **Boîte distincte** de l'OTP compta. | Oui pour tout envoi |
+| `EMAIL_PASSWORD_ABO` | Mot de passe / app-password de la boîte abo. | Oui pour tout envoi |
 | `CLUB_BASE_URL` | URL de base du site club (scraping abonnés + export élèves en cours). | Oui pour le scraping |
 | `CLUB_USERNAME` | Identifiant d'authentification AJAX au site club. | Oui pour le scraping |
 | `CLUB_PASSWORD` | Mot de passe du site club. | Oui pour le scraping |
@@ -125,17 +183,27 @@ inscription, une annulation ou un autre changement externe qui n'a pas encore
 été synchronisé. Avant une décision sensible, actualiser ce snapshot et vérifier
 que la synchronisation a abouti.
 
-⚠️ Le compteur public ne se rafraîchit que lorsqu'un administrateur ouvre
-l'application. Si une fraîcheur indépendante de toute présence devient
-nécessaire, un cron lâche pourra être réintroduit dans `convex/crons.ts`, précédé
-de `// CRON-OK: <raison>`.
+Le compteur public est un agrégat événementiel : il est recalculé après les
+synchronisations et les mutations métier qui peuvent modifier la jauge, sans
+cron périodique. Lors du premier déploiement de cette table, exécuter une fois
+la fonction interne `abo/compteur:rafraichirCompteurPublic` après la migration,
+puis vérifier la présence du singleton `cle = "courant"` avant d'ouvrir
+l'iframe publique. Le calcul borné de transition ne doit pas devenir le régime
+normal.
+
+Les destinataires sont validés comme adresses uniques à l'entrée de
+l'authentification puis de nouveau dans les actions SMTP. Les listes de
+destinataires, noms d'affichage et injections d'en-têtes sont refusés, y compris
+si une ancienne donnée malformée subsiste en base. Les liens de finalisation
+sont HTTPS ; `inscription_lien` est limité au domaine officiel
+`caflarochebonneville.fr` et à ses sous-domaines.
 
 ## Checklist de validation e2e (à exécuter en dev une fois les secrets posés)
 
 Cocher au fur et à mesure. La plupart nécessitent des secrets et/ou un
 déploiement `npx convex dev` actif.
 
-- [ ] **Auth/isolation 🔒** : email non-staff → OTP abo (console en dev) → n'ouvre
+- [ ] **Auth/isolation 🔒** : configurer le SMTP DEV, puis email non-staff → OTP abo → n'ouvre
   QUE `/abonnements` ; `/` et les endpoints admin refusent. Staff avec tuile
   cochée → tuile visible + `/gestion-abonnements`.
 - [ ] **Parcours vagues** : configurer `vague2_debut`/`vague3_debut` + peupler
@@ -157,9 +225,9 @@ déploiement `npx convex dev` actif.
 - [ ] **Formulaire du test** : depuis le suivi d'une personne validée, télécharger
   le PDF pré-rempli (date Europe/Paris, nom, prénom, licence) ; vérifier le
   rendu après réouverture et le cas d'une licence absente.
-- [ ] **Compteur/anomalies** : peupler scrap/archive/élèves/validées → `occupe`
-  sans double comptage ; anomalies = scrap non légitime ; iframe `/#/compteur`
-  affiche les nombres **sans connexion**.
+- [ ] **Compteur/anomalies** : peupler scrap/archive/élèves/validées → total
+  affiché sans double comptage, bloqués exclus ; le plafond de validation reste
+  distinct. L'iframe `/#/compteur` affiche les nombres **sans connexion**.
 - [ ] **HelloAsso abo** : configurer le lien → sync remonte les paiements du
   formulaire abo ; statut manuel persistant ; désaccord local↔HA signalé.
 - [ ] **Scraping club** : poser `CLUB_*` → « Synchroniser le site club » remonte

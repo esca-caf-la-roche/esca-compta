@@ -1,6 +1,6 @@
 // Emails transactionnels du module Abonnements (Phase J). Envoi via la boîte
 // mail DISTINCTE de l'OTP compta (internal.email.sendAboEmail, secrets
-// EMAIL_SENDER_ABO / EMAIL_PASSWORD_ABO ; fallback console en dev).
+// EMAIL_SENDER_ABO / EMAIL_PASSWORD_ABO ; échec explicite si absents).
 //
 // Pipeline (déclenché par ctx.scheduler.runAfter depuis les mutations) :
 //   1. contexteEmail  (query)    → destinataire + prénoms + liens de finalisation

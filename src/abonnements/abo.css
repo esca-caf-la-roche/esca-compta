@@ -23,6 +23,88 @@
   font-weight: 700;
 }
 
+/* Compteur public embarquable. Ces classes ne dépendent pas de .abo-root car
+   la route /compteur est aussi rendue seule dans une iframe. */
+.abo-compteur-embed {
+  padding: 4px;
+  color: var(--foreground);
+  background: transparent;
+  font-family: var(--font-sans);
+}
+
+.abo-compteur-loading {
+  margin: 0;
+  color: color-mix(in srgb, var(--foreground) 65%, var(--background));
+  font-size: 0.85rem;
+}
+
+.abo-compteur-card {
+  padding: 0.8rem 1rem;
+  border: 2px solid var(--border-color);
+  background: var(--card);
+  box-shadow: 4px 4px 0 var(--border-color);
+}
+
+.abo-compteur-title {
+  margin-bottom: 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.abo-compteur-value {
+  color: var(--foreground);
+  font-size: 2.4rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.abo-compteur-value.is-complet {
+  color: var(--danger);
+}
+
+.abo-compteur-total {
+  margin-top: 0.15rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.abo-compteur-vague,
+.abo-compteur-note {
+  color: color-mix(in srgb, var(--foreground) 65%, var(--background));
+  font-weight: 700;
+}
+
+.abo-compteur-vague {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+}
+
+.abo-compteur-note {
+  margin: 0.6rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.abo-compteur-track {
+  height: 0.7rem;
+  margin-top: 0.5rem;
+  overflow: hidden;
+  border: 2px solid var(--border-color);
+  background: var(--background);
+}
+
+.abo-compteur-fill {
+  display: block;
+  height: 100%;
+  background: var(--foreground);
+}
+
+.abo-compteur-fill.is-complet {
+  background: var(--danger);
+}
+
 /* ── Login ─────────────────────────────────────────────── */
 .abo-login {
   display: grid;
@@ -609,6 +691,9 @@ textarea.abo-input {
 .abo-admin-list { display: grid; gap: 0.85rem; margin: 0; padding: 0; list-style: none; }
 .abo-admin-card { padding: 1rem; border: var(--border-width) solid var(--border-color); background: var(--card); box-shadow: 4px 4px 0 var(--border-color); }
 .abo-admin-card--attention { background: #fff1db; }
+.abo-admin-rules-lead { margin: 0.5rem 0 0; }
+.abo-admin-rules-list { display: grid; gap: 0.45rem; margin: 0.8rem 0 0; padding-left: 1.3rem; }
+.abo-admin-rules-list li { padding-left: 0.15rem; }
 .abo-admin-card-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
 .abo-admin-muted { color: #555; font-size: 0.85rem; font-weight: 600; }
 .abo-admin-status { font-weight: 800; }
@@ -640,7 +725,7 @@ textarea.abo-input {
 .abo-admin-input--short { width: 10rem; }
 .abo-admin-input--date { width: min(100%, 17rem); }
 .abo-admin-heading--danger { color: #a00020; }
-.abo-admin-card-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.75rem; }
+.abo-admin-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
 .abo-admin-meta { color: #555; font-size: 0.82rem; font-weight: 600; overflow-wrap: anywhere; }
 .abo-admin-sublist { display: grid; gap: 0.5rem; margin: 0.75rem 0 0; padding: 0; list-style: none; }
 .abo-admin-list-row,
@@ -683,11 +768,35 @@ textarea.abo-input {
 .abo-admin-jauge--danger .abo-admin-jauge-fill { background: var(--danger); }
 .abo-admin-jauge-detail { margin: 0; font-size: 0.85rem; font-weight: 600; }
 .abo-admin-jauge-anomalies { color: #555; font-size: 0.8rem; }
+.abo-admin-counter-explanation { padding: 0.75rem; border: 2px solid var(--border-color); background: var(--info); }
+.abo-admin-counter-explanation h3 { margin: 0 0 0.35rem; font-size: 0.85rem; text-transform: uppercase; }
+.abo-admin-counter-explanation p { margin: 0; font-size: 0.85rem; font-weight: 600; }
+.abo-admin-counter-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.abo-admin-counter-group { padding: 0.75rem; border: 2px solid var(--border-color); background: var(--background); }
+.abo-admin-counter-group h3 { margin: 0 0 0.6rem; font-size: 0.85rem; text-transform: uppercase; }
+.abo-admin-counter-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.45rem; margin: 0; }
+.abo-admin-counter-stat { padding: 0.45rem; border: 2px solid var(--border-color); background: var(--card); }
+.abo-admin-counter-stat--attention { background: var(--warning); }
+.abo-admin-counter-stat dt { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; }
+.abo-admin-counter-stat dd { margin: 0.2rem 0 0; font-size: 1.35rem; font-weight: 800; }
+.abo-admin-anomaly-checks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.45rem; margin: 0.7rem 0 0; }
+.abo-admin-anomaly-checks > div { padding: 0.4rem; border: 2px solid var(--border-color); background: var(--background); }
+.abo-admin-anomaly-checks dt { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; }
+.abo-admin-anomaly-checks dd { margin: 0.2rem 0 0; font-weight: 800; }
+.abo-admin-site-status { background: var(--card) !important; }
+.abo-admin-site-status--oui { border-left: 6px solid var(--success) !important; }
+.abo-admin-site-status--non { border-left: 6px solid var(--warning) !important; }
+.abo-admin-site-status--bloque { border-left: 6px solid var(--danger) !important; }
+.abo-admin-site-status--inconnu { border-left: 6px solid var(--info) !important; }
+.abo-admin-site-status dd { display: grid; gap: 0.25rem; }
+.abo-admin-site-status dd span { font-size: 0.78rem; font-weight: 600; }
 .abo-admin-conversation-thread { margin-top: 1rem; border-top: 2px solid var(--border-color); padding-top: 1rem; }
 
 @media (max-width: 640px) {
   .abo-admin-card-grid,
-  .abo-admin-slot-row { grid-template-columns: 1fr; }
+  .abo-admin-slot-row,
+  .abo-admin-counter-details,
+  .abo-admin-anomaly-checks { grid-template-columns: 1fr; }
   .abo-admin-slot-hour { text-align: left; }
   .abo-admin-list-row,
   .abo-admin-person-row { align-items: stretch; }

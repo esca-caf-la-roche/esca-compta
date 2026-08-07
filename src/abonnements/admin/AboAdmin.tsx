@@ -32,6 +32,10 @@ export default function AboAdmin() {
   const messagesNonLus = useQuery(api.abo.messages.messagesNonLusAdmin);
   const [vue, setVue] = useState<Vue>("dossiers");
 
+  const compteurs: Partial<Record<Vue, number>> = {
+    messages: messagesNonLus?.reduce((total, message) => total + message.count, 0),
+  };
+
   // Synchro on-demand au chargement (throttle serveur ~1 h) : remplace les crons
   // horaires. Non-bloquante — les vues lisent le cache et se rafraîchissent
   // toutes seules quand les données changent. Ordre géré côté serveur
@@ -70,23 +74,26 @@ export default function AboAdmin() {
       </header>
 
       <nav className="abo-admin-nav">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setVue(t.id)}
-            className={`abo-admin-tab${vue === t.id ? " is-active" : ""}`}
-          >
-            {t.label}
-            {t.id === "messages" && (messagesNonLus?.length ?? 0) > 0 && (
-              <span
-                aria-label={`${messagesNonLus!.reduce((total, message) => total + message.count, 0)} messages non lus`}
-                className="abo-admin-badge"
-              >
-                {messagesNonLus!.reduce((total, message) => total + message.count, 0)}
-              </span>
-            )}
-          </button>
-        ))}
+        {TABS.map((t) => {
+          const compteur = compteurs[t.id];
+          return (
+            <button
+              key={t.id}
+              onClick={() => setVue(t.id)}
+              className={`abo-admin-tab${vue === t.id ? " is-active" : ""}`}
+            >
+              {t.label}
+              {compteur !== undefined && compteur > 0 && (
+                <span
+                  aria-label={`${compteur} élément${compteur > 1 ? "s" : ""} à traiter dans ${t.label}`}
+                  className="abo-admin-badge"
+                >
+                  {compteur}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </nav>
 
       <div className="abo-admin-view">

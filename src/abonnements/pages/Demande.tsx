@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { aboError, formatDateHeure } from "../lib/errors";
+import { useMaintenantMinute } from "../lib/useMaintenantMinute";
+import N1RedirectModal from "../N1RedirectModal";
 
 // Formulaire de demande (abonné), gaté par la vague d'inscription :
 //   - vague ≤ 1 : demande FERMÉE (écran « ouverture le … »).
@@ -20,9 +22,11 @@ interface Ligne {
 const formatOk = (l: string) => [12, 14].includes(l.replace(/\D/g, "").length);
 
 export default function Demande() {
-  const cfg = useQuery(api.abo.config.vaguesConfig);
+  const maintenantMs = useMaintenantMinute();
+  const cfg = useQuery(api.abo.config.vaguesConfig, { maintenantMs });
+  const liens = useQuery(api.abo.config.liensFinalisation);
   const suppressions = useQuery(api.abo.demandes.getMesSuppressions);
-  const creerDemande = useMutation(api.abo.demandes.creerDemande);
+  const creerDemande = useAction(api.abo.demandes.creerDemande);
 
   const [personnes, setPersonnes] = useState<Ligne[]>([
     { nom: "", prenom: "", licence: "" },
@@ -30,6 +34,7 @@ export default function Demande() {
   const [message, setMessage] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [redirectionN1, setRedirectionN1] = useState<string | null>(null);
 
   if (cfg === undefined) {
     return (
@@ -148,7 +153,9 @@ export default function Demande() {
       // Succès : getMonDossier (réactif) bascule l'espace vers le suivi.
     } catch (err) {
       setBusy(false);
-      setErreur(aboError(err).message);
+      const erreurAbo = aboError(err);
+      if (erreurAbo.code === "ABO_N1_REDIRECTION") setRedirectionN1(erreurAbo.message);
+      else setErreur(erreurAbo.message);
     }
   }
 
@@ -178,6 +185,13 @@ export default function Demande() {
         <p className="abo-msg abo-msg-error" role="alert">
           {erreur}
         </p>
+      )}
+      {redirectionN1 && (
+        <N1RedirectModal
+          message={redirectionN1}
+          inscriptionUrl={liens?.inscription}
+          onClose={() => setRedirectionN1(null)}
+        />
       )}
 
       <form onSubmit={soumettre} className="abo-form">

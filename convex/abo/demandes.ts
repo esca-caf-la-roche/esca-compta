@@ -12,14 +12,90 @@
 // (owner_id === userId) ou le rôle admin via les helpers de ./auth.
 
 import { v, ConvexError } from "convex/values";
-import { authenticatedQuery, authenticatedMutation } from "../customFunctions";
-import type { MutationCtx } from "../_generated/server";
+import { MINUTE, RateLimiter } from "@convex-dev/rate-limiter";
+import {
+  authenticatedAction,
+  authenticatedQuery,
+  authenticatedMutation,
+} from "../customFunctions";
+import { internalMutation } from "../_generated/server";
+import type { ActionCtx, MutationCtx } from "../_generated/server";
 import type { Doc, Id } from "../_generated/dataModel";
-import { internal } from "../_generated/api";
+import { components, internal } from "../_generated/api";
 import { requireAboIdentity, requireAboAdmin } from "./auth";
 import { canoniserLicence, normaliserNomPrenom } from "./lib";
 import { vagueCourante } from "./config";
-import { calculerCompteur, lirePlacesMax } from "./compteur";
+import { abonnementEstValide } from "./statutAbonnement";
+import {
+  calculerCompteur,
+  lirePlacesMax,
+  programmerRafraichissementCompteurPublic,
+} from "./compteur";
+
+const MAX_PERSONNES_PAR_DOSSIER = 10;
+const MAX_LONGUEUR_NOM = 100;
+const MAX_LONGUEUR_COMMENTAIRE = 2_000;
+
+const rateLimiter = new RateLimiter(components.rateLimiter, {
+  aboDemandWrite: {
+    kind: "fixed window",
+    rate: 20,
+    period: 10 * MINUTE,
+  },
+  // Une soumission peut contenir jusqu'à 10 personnes. Vingt vérifications
+  // laissent donc la place à un dossier familial puis à une correction, tout
+  // en empêchant les recherches répétées de noms dans l'archive N-1.
+  aboN1Lookup: {
+    kind: "fixed window",
+    rate: 20,
+    period: 10 * MINUTE,
+  },
+});
+
+async function limiterTentativesN1(
+  ctx: ActionCtx,
+  userId: Id<"users">,
+  nombrePersonnes: number,
+): Promise<void> {
+  const limite = await rateLimiter.limit(ctx, "aboN1Lookup", {
+    key: userId,
+    count: nombrePersonnes,
+  });
+  if (!limite.ok) {
+    throw new ConvexError({
+      code: "ABO_N1_RATE_LIMIT",
+      message:
+        "Trop de vérifications rapprochées. Patientez quelques minutes puis réessayez.",
+    });
+  }
+}
+
+async function limiterEcritureDemande(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+): Promise<void> {
+  const limite = await rateLimiter.limit(ctx, "aboDemandWrite", {
+    key: userId,
+  });
+  if (!limite.ok) {
+    throw new ConvexError({
+      code: "ABO_RATE_LIMIT",
+      message: "Trop de modifications rapprochées. Patientez quelques minutes puis réessayez.",
+    });
+  }
+}
+
+function verifierLongueursSaisie(saisie: {
+  nom?: string;
+  prenom?: string;
+}): void {
+  if ((saisie.nom ?? "").trim().length > MAX_LONGUEUR_NOM) {
+    throw new ConvexError({ code: "22023", message: "Le nom est limité à 100 caractères." });
+  }
+  if ((saisie.prenom ?? "").trim().length > MAX_LONGUEUR_NOM) {
+    throw new ConvexError({ code: "22023", message: "Le prénom est limité à 100 caractères." });
+  }
+}
 
 // Statut de dossier → email transactionnel à envoyer (null si aucun).
 type TypeEmailStatut = "validation" | "liste_attente" | "refus";
@@ -55,10 +131,70 @@ const decisionValidator = v.union(
   v.literal("refusee"),
 );
 
+const resultatDecisionPlafondValidator = v.object({
+  decisionAppliquee: v.union(
+    v.literal("validee"),
+    v.literal("liste_attente"),
+    v.literal("refusee"),
+  ),
+  plafond: v.number(),
+  occupeAvant: v.number(),
+  occupeApres: v.number(),
+  derogationUtilisee: v.boolean(),
+});
+
+const statutDossierValidator = v.union(
+  v.literal("nouvelle_demande"),
+  v.literal("validee"),
+  v.literal("liste_attente"),
+  v.literal("refusee"),
+  v.literal("complete"),
+);
+
+const personneVueValidator = v.object({
+  id: v.id("abo_personnes"),
+  nom: v.string(),
+  prenom: v.string(),
+  age: v.union(v.number(), v.null()),
+  nom_prenom_normalise: v.string(),
+  licence: v.union(v.string(), v.null()),
+  licence_statut: v.union(
+    v.literal("saisie"),
+    v.literal("annuaire_auto"),
+    v.literal("annuaire_valide"),
+    v.literal("inconnu"),
+  ),
+  etape_demande: v.boolean(),
+  etape_validation: v.union(
+    v.literal("en_attente"),
+    v.literal("validee"),
+    v.literal("liste_attente"),
+    v.literal("refusee"),
+  ),
+  etape_licence: v.boolean(),
+  etape_test_autonomie: v.union(
+    v.literal("non_requis"),
+    v.literal("requis"),
+    v.literal("valide"),
+    v.null(),
+  ),
+  etape_inscription_site: v.boolean(),
+  etape_photo: v.boolean(),
+  etape_paiement: v.boolean(),
+  etape_abonnement_valide: v.boolean(),
+  vague_depot: v.union(
+    v.literal("vague_2"),
+    v.literal("vague_3"),
+    v.literal("historique"),
+  ),
+  deposee_le: v.string(),
+});
+
 type DecisionValidation = Doc<"abo_personnes">["etape_validation"];
+type DecisionDemandee = "validee" | "liste_attente" | "refusee";
 
 interface ResultatDecisionPlafond {
-  decisionAppliquee: DecisionValidation;
+  decisionAppliquee: DecisionDemandee;
   plafond: number;
   occupeAvant: number;
   occupeApres: number;
@@ -71,12 +207,12 @@ interface ResultatDecisionPlafond {
 async function deciderAvecPlafond(
   ctx: MutationCtx,
   personnes: Doc<"abo_personnes">[],
-  decisionDemandee: DecisionValidation,
+  decisionDemandee: DecisionDemandee,
   autoriserDepassementPlafond: boolean | undefined,
   preserverValideesEnCasDePlafond = false,
 ): Promise<ResultatDecisionPlafond> {
   const [compteurAvant, plafond] = await Promise.all([
-    calculerCompteur(ctx),
+    calculerCompteur(ctx, undefined),
     lirePlacesMax(ctx),
   ]);
   const nouvellesValidations =
@@ -88,7 +224,7 @@ async function deciderAvecPlafond(
   const compteurProjete = await calculerCompteur(ctx, decisionsProjetees);
   const depassement = nouvellesValidations && compteurProjete.occupe > plafond;
   const derogationUtilisee = depassement && autoriserDepassementPlafond === true;
-  const decisionAppliquee: DecisionValidation =
+  const decisionAppliquee: DecisionDemandee =
     depassement && !derogationUtilisee ? "liste_attente" : decisionDemandee;
 
   if (decisionAppliquee === decisionDemandee) {
@@ -127,6 +263,77 @@ interface PersonneResolue {
   licence_statut: "saisie" | "inconnu";
 }
 
+type MetadonneesDepot = {
+  vague_depot: "vague_2" | "vague_3";
+  deposee_le: string;
+};
+
+function contexteDepot(vague: number): MetadonneesDepot {
+  return {
+    vague_depot: vague === 2 ? "vague_2" : "vague_3",
+    deposee_le: new Date().toISOString(),
+  };
+}
+
+// Un N-1 reconnu est une inscription validée de l'archive. La correspondance
+// nom/prénom n'est valable que lorsqu'elle est strictement unique.
+async function verifierN1(ctx: MutationCtx, p: PersonneResolue): Promise<void> {
+  const nom = `${p.prenom} ${p.nom}`.trim();
+  const matches = (await ctx.db
+    .query("abo_abonnes_archive")
+    .withIndex("by_nom_prenom_normalise", (q) =>
+      q.eq("nom_prenom_normalise", normaliserNomPrenom(p.nom, p.prenom)),
+    )
+    .take(100))
+    .filter((match) => abonnementEstValide(match.abonnement_valide));
+  if (matches.length > 1) {
+    throw new ConvexError({
+      code: "ABO_N1_AMBIGU",
+      message: `La correspondance N-1 de ${nom} est ambiguë. Contactez le staff avant de déposer une demande.`,
+    });
+  }
+  if (matches.length === 1) {
+    throw new ConvexError({
+      code: "ABO_N1_REDIRECTION",
+      message: `${nom} était déjà inscrit·e l'année dernière. Inscrivez-vous directement sur le site du club.`,
+    });
+  }
+}
+
+async function verifierSuppressionSite(ctx: MutationCtx, personne: Doc<"abo_personnes">) {
+  let matches = personne.licence
+    ? await ctx.db
+        .query("abo_abonnes_scrap")
+        .withIndex("by_licence", (q) => q.eq("licence", personne.licence!))
+        .take(2)
+    : await ctx.db
+        .query("abo_abonnes_scrap")
+        .withIndex("by_nom_prenom_normalise", (q) =>
+          q.eq("nom_prenom_normalise", personne.nom_prenom_normalise),
+        )
+        .take(2);
+  if (matches.length === 0 && personne.licence) {
+    matches = await ctx.db
+      .query("abo_abonnes_scrap")
+      .withIndex("by_nom_prenom_normalise", (q) =>
+        q.eq("nom_prenom_normalise", personne.nom_prenom_normalise),
+      )
+      .take(2);
+  }
+  if (matches.length === 1) {
+    throw new ConvexError({
+      code: "ABO_SUPPRESSION_INSCRIPTION_SITE",
+      message: "Cette personne est déjà liée à une inscription sur le site du club. Retirez d’abord cette inscription sur le site, puis synchronisez.",
+    });
+  }
+  if (matches.length > 1) {
+    throw new ConvexError({
+      code: "ABO_SUPPRESSION_MATCH_AMBIGU",
+      message: "La correspondance avec les inscriptions du site est ambiguë. Vérifiez le site puis synchronisez avant toute suppression.",
+    });
+  }
+}
+
 // Applique les règles de vague à une saisie { nom?, prenom?, licence? } et
 // renvoie l'identité résolue. Vague 2 : licence obligatoire, nom/prénom résolus
 // depuis abo_eleves_en_cours (jamais renvoyés au client). Vague ≥ 3 : nom/prénom
@@ -137,12 +344,18 @@ async function resoudrePersonne(
   saisie: { nom?: string; prenom?: string; licence?: string },
 ): Promise<PersonneResolue> {
   const raw = (saisie.licence ?? "").trim();
+  if (raw.length > 32) {
+    throw new ConvexError({
+      code: "P0011",
+      message: "Le numéro de licence est invalide : 12 chiffres attendus.",
+    });
+  }
   const licence = canoniserLicence(raw);
 
   if (raw !== "" && licence === null) {
     throw new ConvexError({
       code: "P0011",
-      message: `Le numéro de licence « ${raw} » est invalide : 12 chiffres attendus (commence en général par 7480).`,
+      message: "Le numéro de licence est invalide : 12 chiffres attendus (commence en général par 7480).",
     });
   }
 
@@ -230,6 +443,7 @@ async function insererPersonne(
   ctx: MutationCtx,
   dossierId: Id<"abo_dossiers">,
   p: PersonneResolue,
+  depot: MetadonneesDepot,
 ): Promise<Id<"abo_personnes">> {
   return await ctx.db.insert("abo_personnes", {
     dossier_id: dossierId,
@@ -245,32 +459,42 @@ async function insererPersonne(
     etape_photo: false,
     etape_paiement: false,
     etape_abonnement_valide: false,
+    ...depot,
   });
 }
 
-// ── creerDemande : dossier + personnes, atomique, gatée par vague ────
-export const creerDemande = authenticatedMutation({
-  args: {
-    commentaire: v.optional(v.string()),
-    personnes: v.array(
-      v.object({
-        nom: v.optional(v.string()),
-        prenom: v.optional(v.string()),
-        licence: v.optional(v.string()),
-      }),
-    ),
-  },
+const creerDemandeArgs = {
+  commentaire: v.optional(v.string()),
+  personnes: v.array(
+    v.object({
+      nom: v.optional(v.string()),
+      prenom: v.optional(v.string()),
+      licence: v.optional(v.string()),
+    }),
+  ),
+};
+
+// Transaction métier privée, appelée seulement après consommation durable de
+// la limite N-1 par l'action publique ci-dessous.
+export const creerDemandeInterne = internalMutation({
+  args: creerDemandeArgs,
+  returns: v.id("abo_dossiers"),
   handler: async (ctx, args) => {
     const identity = await requireAboIdentity(ctx);
+    await limiterEcritureDemande(ctx, identity.userId);
 
-    if (!Array.isArray(args.personnes) || args.personnes.length === 0) {
+    if (args.personnes.length === 0 || args.personnes.length > MAX_PERSONNES_PAR_DOSSIER) {
       throw new ConvexError({
         code: "22023",
-        message: "Au moins une personne est requise",
+        message: "Une demande doit contenir entre 1 et 10 personnes.",
       });
     }
+    if ((args.commentaire ?? "").trim().length > MAX_LONGUEUR_COMMENTAIRE) {
+      throw new ConvexError({ code: "22023", message: "Le commentaire est limité à 2 000 caractères." });
+    }
+    for (const saisie of args.personnes) verifierLongueursSaisie(saisie);
 
-    const vague = await vagueCourante(ctx);
+    const vague = await vagueCourante(ctx, Date.now());
     if (vague < 2) {
       throw new ConvexError({
         code: "P0010",
@@ -290,6 +514,25 @@ export const creerDemande = authenticatedMutation({
       });
     }
 
+    const depot = contexteDepot(vague);
+    const resolues: PersonneResolue[] = [];
+    for (const saisie of args.personnes) {
+      const p = await resoudrePersonne(ctx, vague, saisie);
+      await verifierN1(ctx, p);
+      await verifierAntiDoublon(ctx, p);
+      if (
+        resolues.some(
+          (deja) =>
+            (p.licence !== null && p.licence === deja.licence) ||
+            normaliserNomPrenom(p.nom, p.prenom) ===
+              normaliserNomPrenom(deja.nom, deja.prenom),
+        )
+      ) {
+        throw doublon(p);
+      }
+      resolues.push(p);
+    }
+
     const dossierId = await ctx.db.insert("abo_dossiers", {
       email: identity.email,
       owner_id: identity.userId,
@@ -300,10 +543,8 @@ export const creerDemande = authenticatedMutation({
 
     // Insertion en boucle : les itérations précédentes sont visibles pour
     // l'anti-doublon intra-demande (les writes sont vus dans la transaction).
-    for (const saisie of args.personnes) {
-      const p = await resoudrePersonne(ctx, vague, saisie);
-      await verifierAntiDoublon(ctx, p);
-      await insererPersonne(ctx, dossierId, p);
+    for (const p of resolues) {
+      await insererPersonne(ctx, dossierId, p, depot);
     }
 
     // Accusé de réception (boîte abo, anti-doublon abo_email_log).
@@ -312,19 +553,51 @@ export const creerDemande = authenticatedMutation({
       typeEmail: "accuse",
     });
 
+    await programmerRafraichissementCompteurPublic(ctx);
+
+    return dossierId;
+  },
+});
+
+// ── creerDemande : dossier + personnes, atomique, gatée par vague ────
+// L'action sépare volontairement la consommation du quota de la transaction
+// métier : une redirection N-1 fait échouer la seconde sans annuler le quota.
+export const creerDemande = authenticatedAction({
+  args: creerDemandeArgs,
+  returns: v.id("abo_dossiers"),
+  handler: async (ctx, args) => {
+    if (
+      args.personnes.length === 0 ||
+      args.personnes.length > MAX_PERSONNES_PAR_DOSSIER
+    ) {
+      throw new ConvexError({
+        code: "22023",
+        message: "Une demande doit contenir entre 1 et 10 personnes.",
+      });
+    }
+    await limiterTentativesN1(ctx, ctx.userId, args.personnes.length);
+    const dossierId: Id<"abo_dossiers"> = await ctx.runMutation(
+      internal.abo.demandes.creerDemandeInterne,
+      args,
+    );
     return dossierId;
   },
 });
 
 // ── ajouterPersonne : complète SON dossier depuis le suivi ───────────
-export const ajouterPersonne = authenticatedMutation({
-  args: {
-    nom: v.optional(v.string()),
-    prenom: v.optional(v.string()),
-    licence: v.optional(v.string()),
-  },
+const ajouterPersonneArgs = {
+  nom: v.optional(v.string()),
+  prenom: v.optional(v.string()),
+  licence: v.optional(v.string()),
+};
+
+export const ajouterPersonneInterne = internalMutation({
+  args: ajouterPersonneArgs,
+  returns: v.id("abo_personnes"),
   handler: async (ctx, args) => {
     const identity = await requireAboIdentity(ctx);
+    await limiterEcritureDemande(ctx, identity.userId);
+    verifierLongueursSaisie(args);
     const dossier = await ctx.db
       .query("abo_dossiers")
       .withIndex("by_owner", (q) => q.eq("owner_id", identity.userId))
@@ -333,7 +606,18 @@ export const ajouterPersonne = authenticatedMutation({
       throw new ConvexError({ code: "P0002", message: "Aucun dossier pour ce compte." });
     }
 
-    const vague = await vagueCourante(ctx);
+    const personnesExistantes = await ctx.db
+      .query("abo_personnes")
+      .withIndex("by_dossier", (q) => q.eq("dossier_id", dossier._id))
+      .take(MAX_PERSONNES_PAR_DOSSIER);
+    if (personnesExistantes.length >= MAX_PERSONNES_PAR_DOSSIER) {
+      throw new ConvexError({
+        code: "ABO_MAX_PERSONNES",
+        message: "Un dossier est limité à 10 personnes.",
+      });
+    }
+
+    const vague = await vagueCourante(ctx, Date.now());
     if (vague < 2) {
       throw new ConvexError({
         code: "P0010",
@@ -341,17 +625,36 @@ export const ajouterPersonne = authenticatedMutation({
       });
     }
 
+    const depot = contexteDepot(vague);
     const p = await resoudrePersonne(ctx, vague, args);
+    await verifierN1(ctx, p);
     await verifierAntiDoublon(ctx, p);
-    return await insererPersonne(ctx, dossier._id, p);
+    const personneId = await insererPersonne(ctx, dossier._id, p, depot);
+    await programmerRafraichissementCompteurPublic(ctx);
+    return personneId;
+  },
+});
+
+export const ajouterPersonne = authenticatedAction({
+  args: ajouterPersonneArgs,
+  returns: v.id("abo_personnes"),
+  handler: async (ctx, args) => {
+    await limiterTentativesN1(ctx, ctx.userId, 1);
+    const personneId: Id<"abo_personnes"> = await ctx.runMutation(
+      internal.abo.demandes.ajouterPersonneInterne,
+      args,
+    );
+    return personneId;
   },
 });
 
 // ── supprimerPersonne : retire UNE personne (archive + purge dossier vide) ──
 export const supprimerPersonne = authenticatedMutation({
   args: { personneId: v.id("abo_personnes") },
+  returns: v.boolean(),
   handler: async (ctx, args) => {
     const identity = await requireAboIdentity(ctx);
+    await limiterEcritureDemande(ctx, identity.userId);
     const personne = await ctx.db.get(args.personneId);
     if (!personne) {
       throw new ConvexError({
@@ -366,6 +669,8 @@ export const supprimerPersonne = authenticatedMutation({
         message: "Personne introuvable dans votre demande.",
       });
     }
+
+    await verifierSuppressionSite(ctx, personne);
 
     // Archive « Prénom Nom — supprimée le … ».
     await ctx.db.insert("abo_demandes_supprimees", {
@@ -386,8 +691,10 @@ export const supprimerPersonne = authenticatedMutation({
     if (!restantes) {
       // Dossier vide : cascade messages / email_log puis suppression. Email libéré.
       await purgerDossier(ctx, dossier._id);
+      await programmerRafraichissementCompteurPublic(ctx);
       return true;
     }
+    await programmerRafraichissementCompteurPublic(ctx);
     return false;
   },
 });
@@ -425,6 +732,16 @@ async function purgerDossier(
 // ── getMonDossier : dossier + personnes du caller (owner) ────────────
 export const getMonDossier = authenticatedQuery({
   args: {},
+  returns: v.union(
+    v.null(),
+    v.object({
+      id: v.id("abo_dossiers"),
+      statut_dossier: statutDossierValidator,
+      commentaire: v.union(v.string(), v.null()),
+      date_soumission: v.string(),
+      personnes: v.array(personneVueValidator),
+    }),
+  ),
   handler: async (ctx) => {
     const identity = await requireAboIdentity(ctx);
     const dossier = await ctx.db
@@ -464,6 +781,8 @@ function personneVue(p: Doc<"abo_personnes">) {
     etape_photo: p.etape_photo,
     etape_paiement: p.etape_paiement,
     etape_abonnement_valide: p.etape_abonnement_valide,
+    vague_depot: p.vague_depot ?? "historique",
+    deposee_le: p.deposee_le ?? new Date(p._creationTime).toISOString(),
   };
 }
 
@@ -490,6 +809,19 @@ export const getMesSuppressions = authenticatedQuery({
 // (indépendamment du batch de matching). Matching licence-first, repli nom/prénom.
 export const monSuivi = authenticatedQuery({
   args: {},
+  returns: v.array(v.object({
+    personne_id: v.id("abo_personnes"),
+    licence_ok: v.boolean(),
+    inscription_ok: v.boolean(),
+    paiement_ok: v.boolean(),
+    test_autonomie: v.union(
+      v.literal("valide"),
+      v.literal("non_requis"),
+      v.literal("requis"),
+      v.null(),
+    ),
+    age: v.union(v.number(), v.null()),
+  })),
   handler: async (ctx) => {
     const identity = await requireAboIdentity(ctx);
     const dossier = await ctx.db
@@ -536,7 +868,7 @@ export const monSuivi = authenticatedQuery({
         personne_id: p._id,
         licence_ok,
         inscription_ok: scrap !== null,
-        paiement_ok: scrap?.abonnement_valide ?? false,
+        paiement_ok: scrap ? abonnementEstValide(scrap.abonnement_valide) : false,
         test_autonomie: mapAutonomie(scrap?.autonomie),
         age: scrap?.age ?? p.age ?? null,
       });
@@ -563,6 +895,15 @@ function mapAutonomie(v?: string): "valide" | "non_requis" | "requis" | null {
 // ── getDossiersAdmin : tous les dossiers + personnes (admin) ─────────
 export const getDossiersAdmin = authenticatedQuery({
   args: {},
+  returns: v.array(v.object({
+    id: v.id("abo_dossiers"),
+    email: v.string(),
+    statut_dossier: statutDossierValidator,
+    date_soumission: v.string(),
+    date_validation: v.union(v.string(), v.null()),
+    commentaire: v.union(v.string(), v.null()),
+    personnes: v.array(personneVueValidator),
+  })),
   handler: async (ctx) => {
     await requireAboAdmin(ctx);
     const dossiers = await ctx.db.query("abo_dossiers").order("desc").take(500);
@@ -643,6 +984,7 @@ export const validerPersonne = authenticatedMutation({
     decision: decisionValidator,
     autoriserDepassementPlafond: v.optional(v.boolean()),
   },
+  returns: resultatDecisionPlafondValidator,
   handler: async (ctx, args) => {
     await requireAboAdmin(ctx);
     const personne = await ctx.db.get(args.personneId);
@@ -658,6 +1000,7 @@ export const validerPersonne = authenticatedMutation({
     await ctx.db.patch(personne._id, { etape_validation: resultat.decisionAppliquee });
     const dossier = await ctx.db.get(personne.dossier_id);
     if (dossier) await appliquerRollup(ctx, dossier);
+    await programmerRafraichissementCompteurPublic(ctx);
     return resultat;
   },
 });
@@ -669,6 +1012,7 @@ export const validerDossier = authenticatedMutation({
     decision: decisionValidator,
     autoriserDepassementPlafond: v.optional(v.boolean()),
   },
+  returns: resultatDecisionPlafondValidator,
   handler: async (ctx, args) => {
     await requireAboAdmin(ctx);
     const dossier = await ctx.db.get(args.dossierId);
@@ -700,6 +1044,7 @@ export const validerDossier = authenticatedMutation({
     // Le rollup reste la source de vérité du statut du dossier et de son email
     // transactionnel historique ; il ne prétend pas notifier chaque personne.
     await appliquerRollup(ctx, dossier);
+    await programmerRafraichissementCompteurPublic(ctx);
     return resultat;
   },
 });

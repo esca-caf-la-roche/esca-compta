@@ -16,6 +16,7 @@ import { internalMutation } from "../_generated/server";
 import { canoniserLicence, normaliserNomPrenom } from "./lib";
 import { trouverLienAbo, estRemboursement } from "./paiements";
 import { champsModifies } from "../dbUtils";
+import { abonnementEstValide } from "./statutAbonnement";
 
 // ── upsertAbonnesScrapBatch : miroir brut de la page club (par licence) ──
 // Comme le scrap Supabase, on n'écrit QUE les lignes ayant une licence (clé
@@ -35,10 +36,15 @@ export const upsertAbonnesScrapBatch = internalMutation({
         autonomie: v.optional(v.string()),
         photo: v.optional(v.string()),
         paiement: v.optional(v.string()),
-        abonnement_valide: v.boolean(),
+        abonnement_valide: v.union(
+          v.literal("oui"),
+          v.literal("non"),
+          v.literal("bloque"),
+        ),
       }),
     ),
   },
+  returns: v.object({ upsertees: v.number(), sansLicence: v.number() }),
   handler: async (ctx, args) => {
     const maintenant = new Date().toISOString();
     let upsertees = 0;
@@ -108,6 +114,7 @@ function testAutonomieDepuisScrap(
 // Un seul balayage borné. Renvoie le nombre de personnes mises à jour.
 export const matcherScrapPersonnes = internalMutation({
   args: {},
+  returns: v.number(),
   handler: async (ctx) => {
     const personnes = await ctx.db.query("abo_personnes").collect();
     const scrap = await ctx.db.query("abo_abonnes_scrap").collect();
@@ -181,7 +188,7 @@ export const matcherScrapPersonnes = internalMutation({
         etape_licence: s.adhesion === "OK",
         etape_inscription_site: true,
         etape_photo: s.photo === "OK",
-        etape_abonnement_valide: s.abonnement_valide,
+        etape_abonnement_valide: abonnementEstValide(s.abonnement_valide),
         etape_test_autonomie: testAutonomieDepuisScrap(s.autonomie),
         etape_paiement: etapePaiement,
       };

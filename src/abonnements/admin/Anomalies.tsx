@@ -1,77 +1,116 @@
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 
-// Vue admin « Anomalies » : lignes du scrap courant NON légitimes pour la vague
-// en cours (ni abonné·e N-1, ni élève en cours, ni demande validée). Inscriptions
-// directes sans autorisation, à REJETER sur le site club ; non comptées par le
-// compteur. Lecture seule (api.abo.compteur.vAnomalies, wave-aware). La liste
-// rétrécit automatiquement quand un canal s'ouvre. Portage de admin-anomalies.js.
-
-const VAGUES: Record<number, string> = {
-  0: "Avant vague 1 — seuls les abonné·es validé·es N-1 sont légitimes",
-  1: "Vague 1 — seuls les abonné·es validé·es N-1 sont légitimes",
-  2: "Vague 2 — N-1 + élèves en cours d'escalade légitimes",
-  3: "Vague 3 — ouvert à tous (N-1, élèves, demandes validées)",
-};
-
 export default function Anomalies() {
-  const anomalies = useQuery(api.abo.compteur.vAnomalies);
-  const compteur = useQuery(api.abo.compteur.vCompteur);
+  const anomalies = useQuery(api.abo.compteur.vAnomalies, {});
 
   if (anomalies === undefined) return <p>Chargement…</p>;
 
-  const vague = compteur?.vague ?? 0;
-
   return (
     <div className="abo-admin-section">
-      <p className="abo-admin-emphasis">
-        {VAGUES[vague] ?? `Vague ${vague}`}
-      </p>
       <p className="abo-admin-intro">
-        Lignes du <strong>scrap courant</strong> sans autorisation pour la vague en
-        cours : ni abonné·e validé·e N-1, ni élève en cours d'escalade, ni demande
-        validée chez nous. Ces inscriptions directes sont{" "}
-        <strong>à rejeter sur le site du club</strong> ; elles ne sont{" "}
-        <strong>pas comptées</strong> par le compteur. La liste se met à jour avec
-        le dernier scrap et rétrécit quand une nouvelle vague s'ouvre.
+        Sont listées uniquement les inscriptions du site du club dont
+        « Abonnement valide ? » vaut Oui, Non ou l'ancien statut Inconnu à
+        resynchroniser. Les inscriptions déjà marquées Bloqué sont exclues.
       </p>
+      <ul className="abo-admin-rules-list" aria-label="Comment lire les anomalies">
+        <li><strong>Règle 1 :</strong> la personne n'était pas abonnée l'année dernière et aucune demande n'a été déposée sur le portail.</li>
+        <li><strong>Règle 2 :</strong> la personne n'était pas abonnée l'année dernière et la demande portail n'est pas validée.</li>
+        <li>Une correspondance N-1 ambiguë doit être vérifiée manuellement : elle n'est jamais assimilée à « Non ».</li>
+        <li>Le portail est en lecture seule : toute correction de l'inscription se fait sur le site du club, puis une synchronisation actualise cette liste.</li>
+      </ul>
       <p className="abo-admin-count">
-        {anomalies.length} anomalie{anomalies.length > 1 ? "s" : ""}
+        {anomalies.length} anomalie{anomalies.length > 1 ? "s" : ""} à traiter
       </p>
 
       {anomalies.length === 0 ? (
-        <p className="abo-admin-empty">Aucune anomalie pour la vague courante.</p>
+        <p className="abo-admin-empty">
+          Aucune anomalie : les inscriptions du site respectent les règles.
+        </p>
       ) : (
         <ul className="abo-admin-list">
-          {anomalies.map((r, i) => {
+          {anomalies.map((r) => {
             const nom =
-              `${(r.prenom ?? "").trim()} ${(r.nom ?? "").trim()}`.trim() ||
+              ((r.prenom ?? "").trim() + " " + (r.nom ?? "").trim()).trim() ||
               r.nom_prenom_normalise ||
               "—";
             return (
-              <li
-                key={i}
-                className="abo-admin-card abo-admin-card--attention abo-admin-anomaly"
-              >
+              <li key={r.id} className="abo-admin-card abo-admin-card--attention abo-admin-anomaly">
                 <div className="abo-admin-card-copy">
                   <strong>{nom}</strong>
-                  <span className="abo-admin-meta">
-                    Licence : {r.licence || "—"}
-                  </span>
-                  <span className="abo-admin-reason">{r.raison}</span>
+                  <span className="abo-admin-meta">Licence : {r.licence || "—"}</span>
+                  <p className="abo-admin-reason">{r.raison}</p>
+                  <dl className="abo-admin-anomaly-checks">
+                    <StatutInscriptionSite valeur={r.abonnement_valide} />
+                    <ControleAbonnementN1
+                      abonne={r.controles.abonneN1}
+                      ambigu={r.controles.abonneN1Ambigu}
+                    />
+                    <ControleTexte label="Statut du dossier portail" valeur={r.controles.statutDossier} />
+                  </dl>
                 </div>
-                {r.abonnement_valide && (
-                  <span
-                    className="abo-admin-badge abo-admin-badge--success"
-                  >
-                    Abonné·e validé·e
-                  </span>
-                )}
               </li>
             );
           })}
         </ul>
       )}
+    </div>
+  );
+}
+
+function ControleAbonnementN1({
+  abonne,
+  ambigu,
+}: {
+  abonne: boolean;
+  ambigu: boolean;
+}) {
+  const texte = ambigu ? "Ambigu / à vérifier" : abonne ? "Oui" : "Non";
+  return <div><dt>Abonné N-1</dt><dd>{texte}</dd></div>;
+}
+
+function ControleTexte({ label, valeur }: { label: string; valeur: string }) {
+  const texte = valeur === "nouvelle_demande"
+    ? "Nouvelle demande"
+    : valeur === "liste_attente"
+      ? "Liste d'attente"
+      : valeur === "refusee"
+        ? "Refusée"
+        : valeur === "validee"
+          ? "Validée"
+          : valeur === "complete"
+            ? "Complète"
+            : "Inconnu";
+  return <div><dt>{label}</dt><dd>{texte}</dd></div>;
+}
+
+function StatutInscriptionSite({
+  valeur,
+}: {
+  valeur: boolean | "oui" | "non" | "bloque" | "inconnu";
+}) {
+  const statut = valeur === true ? "oui" : valeur === false ? "inconnu" : valeur;
+  const texte =
+    statut === "oui"
+      ? "Oui"
+      : statut === "non"
+        ? "Non"
+        : statut === "bloque"
+          ? "Bloqué"
+          : "À resynchroniser";
+  const explication =
+    statut === "oui"
+      ? "Le site du club considère l'abonnement comme valide."
+      : statut === "non"
+        ? "Le site du club ne considère pas encore l'abonnement comme valide."
+        : statut === "bloque"
+          ? "Le site du club a bloqué l'inscription ; elle ne doit plus apparaître dans les anomalies après synchronisation."
+          : "Cette ancienne valeur ne distingue pas Non de Bloqué. Une synchronisation du site est nécessaire.";
+
+  return (
+    <div className={`abo-admin-site-status abo-admin-site-status--${statut}`}>
+      <dt>Inscription sur le site du club</dt>
+      <dd><strong>Abonnement valide ? {texte}</strong><span>{explication}</span></dd>
     </div>
   );
 }

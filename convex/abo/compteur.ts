@@ -11,6 +11,7 @@
 
 import { v, ConvexError } from "convex/values";
 import { query, internalMutation } from "../_generated/server";
+import { internal } from "../_generated/api";
 import type { QueryCtx, MutationCtx } from "../_generated/server";
 import type { Doc, Id } from "../_generated/dataModel";
 import { authenticatedQuery, authenticatedMutation } from "../customFunctions";
@@ -18,23 +19,47 @@ import { requireAboAdmin } from "./auth";
 import { vagueCourante, getConfigValeur } from "./config";
 import { canoniserLicence, normaliserNomPrenom } from "./lib";
 import { champsModifies } from "../dbUtils";
+import {
+  abonnementEstValide,
+  normaliserStatutAbonnement,
+  statutAbonnementNormaliseValidator,
+} from "./statutAbonnement";
 
 const PLACES_MAX_DEFAUT = 350;
 const MAX_ELEVES_SNAPSHOT = 1_000;
+const MAX_LIGNES_COMPTEUR = 2_000;
 
 // ── Cœur du compteur : ensembles legit / validées / anomalies ────────
 // Un seul balayage borné des tables, réutilisé par vCompteur, vAnomalies et
 // compteurPublic. Fidèle à l'algèbre d'ensembles des vues SQL wave-aware.
 interface CompteurData {
-  vague: number;
   abonnes_scrap: number;
+  abonnements_site_valides: number;
+  abonnements_site_non_valides_a_suivre: number;
   legit_scrap: number;
   demandes_validees: number;
+  demandes_liste_attente: number;
+  demandes_refusees: number;
+  demandes_a_traiter: number;
   validees_hors_legit: number;
+  bloquees: number;
   anomalies: number;
+  total_affiche: number;
+  // Occupation transactionnelle pour le plafond de validation : les anomalies
+  // ne l'occupent pas automatiquement.
   occupe: number;
-  // Détail pour vAnomalies (ids du scrap légitime).
-  legitIds: Set<string>;
+  elevesLic: Set<string>;
+  classifications: Array<{
+    scrap: Doc<"abo_abonnes_scrap">;
+    categorie: "validee" | "non_validee" | "bloquee" | "inconnue";
+    statutSite: "oui" | "non" | "bloque" | "inconnu";
+    n1: "oui" | "non" | "ambigu";
+    demande: "absente" | "ambigu" | "en_attente" | "validee" | "liste_attente" | "refusee";
+    statutDossier: Doc<"abo_dossiers">["statut_dossier"] | "inconnu";
+    rapprochement: "licence" | "nom_prenom_unique" | "aucun" | "ambigu";
+    personneId: Id<"abo_personnes"> | null;
+    dossierId: Id<"abo_dossiers"> | null;
+  }>;
 }
 
 // Les mutations de validation peuvent fournir une décision projetée pour une ou
@@ -42,77 +67,174 @@ interface CompteurData {
 // algèbre (scrap légitime + dédoublonnage) que le compteur affiché.
 export async function calculerCompteur(
   ctx: QueryCtx | MutationCtx,
-  decisionsProjetees?: ReadonlyMap<
+  decisionsProjetees: ReadonlyMap<
     Id<"abo_personnes">,
     Doc<"abo_personnes">["etape_validation"]
-  >,
+  > | undefined,
+  inclureStatutsDossier = false,
 ): Promise<CompteurData> {
-  const vague = await vagueCourante(ctx);
-
-  const scrap = await ctx.db.query("abo_abonnes_scrap").collect();
-  const archive = await ctx.db.query("abo_abonnes_archive").collect();
-  const eleves = await ctx.db.query("abo_eleves_en_cours").collect();
-  const personnes = await ctx.db.query("abo_personnes").collect();
+  const [scrap, archive, eleves, personnes] = await Promise.all([
+    ctx.db.query("abo_abonnes_scrap").take(MAX_LIGNES_COMPTEUR + 1),
+    ctx.db.query("abo_abonnes_archive").take(MAX_LIGNES_COMPTEUR + 1),
+    ctx.db.query("abo_eleves_en_cours").take(MAX_LIGNES_COMPTEUR + 1),
+    ctx.db.query("abo_personnes").take(MAX_LIGNES_COMPTEUR + 1),
+  ]);
+  if ([scrap, archive, eleves, personnes].some((lignes) => lignes.length > MAX_LIGNES_COMPTEUR)) {
+    throw new ConvexError({
+      code: "ABO_COMPTEUR_VOLUME",
+      message: `Le compteur dépasse sa limite de sécurité de ${MAX_LIGNES_COMPTEUR} lignes par source.`,
+    });
+  }
 
   // A1 : abonnés validés N-1 (droit acquis, toutes vagues) — par licence.
-  const archiveValidLic = new Set<string>();
+  const archiveNomOccurrences = new Map<string, number>();
   for (const a of archive) {
-    if (a.abonnement_valide && a.licence) archiveValidLic.add(a.licence);
+    if (!abonnementEstValide(a.abonnement_valide)) continue;
+    archiveNomOccurrences.set(
+      a.nom_prenom_normalise,
+      (archiveNomOccurrences.get(a.nom_prenom_normalise) ?? 0) + 1,
+    );
   }
   // A2 : élèves en cours d'escalade (vague ≥ 2) — par licence.
   const elevesLic = new Set<string>();
   for (const e of eleves) if (e.licence) elevesLic.add(e.licence);
 
   // A3 : demandes validées chez nous (vague ≥ 2) — licence sinon nom+prénom.
-  const valides = personnes.filter(
-    (p) => (decisionsProjetees?.get(p._id) ?? p.etape_validation) === "validee",
-  );
-  const validesLic = new Set<string>();
-  const validesNoms = new Set<string>();
-  for (const p of valides) {
-    if (p.licence) validesLic.add(p.licence);
-    validesNoms.add(p.nom_prenom_normalise);
-  }
-
-  // Légitimité d'une ligne du scrap pour la vague courante (A1 ∨ A2 ∨ A3).
-  const estLegit = (s: (typeof scrap)[number]): boolean => {
-    if (s.licence && archiveValidLic.has(s.licence)) return true; // A1
-    if (vague >= 2) {
-      if (s.licence && elevesLic.has(s.licence)) return true; // A2
-      if (s.licence && validesLic.has(s.licence)) return true; // A3 (licence)
-      if (validesNoms.has(s.nom_prenom_normalise)) return true; // A3 (nom+prénom)
+  const decisionDe = (p: (typeof personnes)[number]) =>
+    decisionsProjetees?.get(p._id) ?? p.etape_validation;
+  const valides = personnes.filter((p) => decisionDe(p) === "validee");
+  const personnesParLicence = new Map<string, (typeof personnes)[number][]>();
+  const personnesParNom = new Map<string, (typeof personnes)[number][]>();
+  const scrapParNom = new Map<string, number>();
+  for (const personne of personnes) {
+    if (personne.licence) {
+      const liste = personnesParLicence.get(personne.licence) ?? [];
+      liste.push(personne);
+      personnesParLicence.set(personne.licence, liste);
     }
-    return false;
-  };
-
-  const legit = scrap.filter(estLegit);
-  const legitIds = new Set(legit.map((s) => s._id as string));
-
-  // Dédoublonnage validée ↔ scrap : une demande validée déjà présente dans le
-  // scrap légitime n'est pas recomptée (piège §8 cas 2).
-  const legitLic = new Set<string>();
-  const legitNoms = new Set<string>();
-  for (const s of legit) {
-    if (s.licence) legitLic.add(s.licence);
-    legitNoms.add(s.nom_prenom_normalise);
+    const liste = personnesParNom.get(personne.nom_prenom_normalise) ?? [];
+    liste.push(personne);
+    personnesParNom.set(personne.nom_prenom_normalise, liste);
   }
-  const validees_hors_legit = valides.filter((p) => {
-    const dansScrap =
-      (p.licence != null && legitLic.has(p.licence)) ||
-      legitNoms.has(p.nom_prenom_normalise);
-    return !dansScrap;
-  }).length;
+  for (const ligne of scrap) {
+    scrapParNom.set(
+      ligne.nom_prenom_normalise,
+      (scrapParNom.get(ligne.nom_prenom_normalise) ?? 0) + 1,
+    );
+  }
+  const classifications = [] as CompteurData["classifications"];
+  for (const ligne of scrap) {
+    // Les anciennes lignes « false » ne permettent pas de savoir si le site
+    // disait Non ou Bloqué. Elles sont donc exclues jusqu'à une synchronisation
+    // complète plutôt que comptées à tort.
+    const statutSite = normaliserStatutAbonnement(ligne.abonnement_valide);
+    const occurrencesN1 = archiveNomOccurrences.get(ligne.nom_prenom_normalise) ?? 0;
+    const n1: "oui" | "non" | "ambigu" = occurrencesN1 > 1
+      ? "ambigu"
+      : occurrencesN1 === 1
+        ? "oui"
+        : "non";
+    let candidats = ligne.licence ? personnesParLicence.get(ligne.licence) ?? [] : [];
+    let rapprochement: "licence" | "nom_prenom_unique" | "aucun" | "ambigu" = candidats.length === 1 ? "licence" : candidats.length > 1 ? "ambigu" : "aucun";
+    if (candidats.length === 0) {
+      const parNom = personnesParNom.get(ligne.nom_prenom_normalise) ?? [];
+      if (parNom.length === 1 && (scrapParNom.get(ligne.nom_prenom_normalise) ?? 0) === 1) {
+        candidats = parNom;
+        rapprochement = "nom_prenom_unique";
+      } else if (parNom.length > 0) rapprochement = "ambigu";
+    }
+    const personne = candidats.length === 1 ? candidats[0] : null;
+    const demande: CompteurData["classifications"][number]["demande"] = !personne
+      ? rapprochement === "ambigu" ? "ambigu" : "absente"
+      : decisionDe(personne);
+    const categorie: CompteurData["classifications"][number]["categorie"] =
+      statutSite === "inconnu"
+        ? "inconnue"
+        : statutSite === "bloque"
+          ? "bloquee"
+          : n1 === "oui" || demande === "validee"
+            ? "validee"
+            : "non_validee";
+    classifications.push({
+      scrap: ligne,
+      categorie,
+      statutSite,
+      n1,
+      demande,
+      statutDossier: "inconnu",
+      rapprochement,
+      personneId: personne?._id ?? null,
+      dossierId: personne?.dossier_id ?? null,
+    });
+  }
 
-  const legit_scrap = legit.length;
+  if (inclureStatutsDossier) {
+    const dossierIds = [
+      ...new Set(
+        classifications
+          .filter(
+            (ligne) =>
+              (ligne.categorie === "non_validee" || ligne.categorie === "inconnue") &&
+              ligne.dossierId !== null,
+          )
+          .map((ligne) => ligne.dossierId as Id<"abo_dossiers">),
+      ),
+    ];
+    // Au plus une lecture par dossier anormal, en parallèle. La cardinalité est
+    // bornée par MAX_LIGNES_COMPTEUR, déjà contrôlée sur abo_personnes.
+    const dossiers = await Promise.all(dossierIds.map((id) => ctx.db.get(id)));
+    const statutsDossiers = new Map(
+      dossierIds.map((id, index) => [
+        id,
+        dossiers[index]?.statut_dossier ?? "inconnu",
+      ] as const),
+    );
+    for (const ligne of classifications) {
+      if (ligne.dossierId) {
+        ligne.statutDossier = statutsDossiers.get(ligne.dossierId) ?? "inconnu";
+      }
+    }
+  }
+  // Une demande validée est dédoublonnée dès qu'elle est déjà reliée de façon
+  // certaine à une inscription du site. Le compteur public inclut en effet les
+  // inscriptions validées et non validées, à l'exception des bloquées.
+  const personnesRelieesAuScrap = new Set(
+    classifications
+      .filter((ligne) => ligne.personneId !== null)
+      .map((ligne) => ligne.personneId as Id<"abo_personnes">),
+  );
+  const validees_hors_legit = valides.filter(
+    (p) => !personnesRelieesAuScrap.has(p._id),
+  ).length;
+
+  // Le total du site est la lecture brute de son champ : Oui + Non.
+  // Les règles métier ne modifient pas ce décompte.
+  const siteCompte = classifications.filter(
+    (ligne) => ligne.statutSite === "oui" || ligne.statutSite === "non",
+  );
+  const legit_scrap = classifications.filter((ligne) => ligne.categorie === "validee").length;
+  const bloqueesSite = classifications.filter((ligne) => ligne.statutSite === "bloque").length;
+  const nonValideesSite = siteCompte.filter((ligne) => ligne.statutSite === "non").length;
+  const valideesSite = siteCompte.filter((ligne) => ligne.statutSite === "oui").length;
   return {
-    vague,
     abonnes_scrap: scrap.length,
+    abonnements_site_valides: valideesSite,
+    abonnements_site_non_valides_a_suivre: nonValideesSite,
     legit_scrap,
     demandes_validees: valides.length,
+    demandes_liste_attente: personnes.filter((p) => decisionDe(p) === "liste_attente").length,
+    demandes_refusees: personnes.filter((p) => decisionDe(p) === "refusee").length,
+    demandes_a_traiter: personnes.filter((p) => decisionDe(p) === "en_attente").length,
     validees_hors_legit,
-    anomalies: scrap.length - legit_scrap,
+    // « Bloquées » correspond exclusivement à la valeur Bloqué du site.
+    bloquees: bloqueesSite,
+    anomalies: classifications.filter(
+      (ligne) => ligne.categorie === "non_validee" || ligne.categorie === "inconnue",
+    ).length,
+    total_affiche: siteCompte.length + validees_hors_legit,
     occupe: legit_scrap + validees_hors_legit,
-    legitIds,
+    elevesLic,
+    classifications,
   };
 }
 
@@ -123,20 +245,51 @@ export async function lirePlacesMax(ctx: QueryCtx | MutationCtx): Promise<number
   return Number.isFinite(n) && n > 0 ? n : PLACES_MAX_DEFAUT;
 }
 
+const compteurDetailValidator = v.object({
+  abonnes_scrap: v.number(),
+  abonnements_site_valides: v.number(),
+  abonnements_site_non_valides_a_suivre: v.number(),
+  legit_scrap: v.number(),
+  demandes_validees: v.number(),
+  demandes_liste_attente: v.number(),
+  demandes_refusees: v.number(),
+  demandes_a_traiter: v.number(),
+  validees_hors_legit: v.number(),
+  bloquees: v.number(),
+  anomalies: v.number(),
+  total_affiche: v.number(),
+  occupe: v.number(),
+  places_max: v.number(),
+});
+
+const compteurPublicValidator = v.object({
+  occupe: v.number(),
+  places_max: v.number(),
+  places_restantes: v.number(),
+  vague: v.number(),
+});
+
 // ── vCompteur : compteur détaillé (admin) ────────────────────────────
 export const vCompteur = authenticatedQuery({
   args: {},
+  returns: compteurDetailValidator,
   handler: async (ctx) => {
     await requireAboAdmin(ctx);
-    const c = await calculerCompteur(ctx);
+    const c = await calculerCompteur(ctx, undefined);
     const places_max = await lirePlacesMax(ctx);
     return {
-      vague: c.vague,
       abonnes_scrap: c.abonnes_scrap,
+      abonnements_site_valides: c.abonnements_site_valides,
+      abonnements_site_non_valides_a_suivre: c.abonnements_site_non_valides_a_suivre,
       legit_scrap: c.legit_scrap,
       demandes_validees: c.demandes_validees,
+      demandes_liste_attente: c.demandes_liste_attente,
+      demandes_refusees: c.demandes_refusees,
+      demandes_a_traiter: c.demandes_a_traiter,
       validees_hors_legit: c.validees_hors_legit,
+      bloquees: c.bloquees,
       anomalies: c.anomalies,
+      total_affiche: c.total_affiche,
       occupe: c.occupe,
       places_max,
     };
@@ -146,30 +299,68 @@ export const vCompteur = authenticatedQuery({
 // ── vAnomalies : lignes du scrap non légitimes + motif (admin) ───────
 export const vAnomalies = authenticatedQuery({
   args: {},
+  returns: v.array(v.object({
+    id: v.id("abo_abonnes_scrap"),
+    licence: v.union(v.string(), v.null()),
+    nom: v.union(v.string(), v.null()),
+    prenom: v.union(v.string(), v.null()),
+    nom_prenom_normalise: v.string(),
+    abonnement_valide: statutAbonnementNormaliseValidator,
+    type: v.union(v.literal("non_validee"), v.literal("inconnue")),
+    controles: v.object({
+      abonneN1: v.boolean(),
+      abonneN1Ambigu: v.boolean(),
+      eleveEnCours: v.boolean(),
+      demandeValidee: v.boolean(),
+      statutDossier: v.union(
+        v.literal("nouvelle_demande"),
+        v.literal("complete"),
+        v.literal("validee"),
+        v.literal("liste_attente"),
+        v.literal("refusee"),
+        v.literal("inconnu"),
+      ),
+      rapprochement: v.union(
+        v.literal("licence"),
+        v.literal("nom_prenom_unique"),
+        v.literal("aucun"),
+        v.literal("ambigu"),
+      ),
+    }),
+    raison: v.string(),
+  })),
   handler: async (ctx) => {
     await requireAboAdmin(ctx);
-    const c = await calculerCompteur(ctx);
-    const scrap = await ctx.db.query("abo_abonnes_scrap").collect();
-
-    const motifBase =
-      c.vague <= 1
-        ? "Pas abonné·e validé·e N-1 (réinscription anticipée)"
-        : "Ni abonné·e N-1, ni élève en cours, ni demande validée";
-
-    const out = scrap
-      .filter((s) => !c.legitIds.has(s._id as string))
-      .map((s) => ({
-        licence: s.licence ?? null,
-        nom: s.nom ?? null,
-        prenom: s.prenom ?? null,
-        nom_prenom_normalise: s.nom_prenom_normalise,
-        abonnement_valide: s.abonnement_valide,
-        raison: motifBase + (s.licence ? "" : " — sans n° de licence"),
-      }));
-    out.sort((a, b) =>
-      a.nom_prenom_normalise.localeCompare(b.nom_prenom_normalise, "fr"),
-    );
-    return out;
+    const c = await calculerCompteur(ctx, undefined, true);
+    return c.classifications
+      .filter(({ categorie }) => categorie === "non_validee" || categorie === "inconnue")
+      .map(({ scrap, categorie, statutSite, n1, demande, statutDossier, rapprochement }) => ({
+        id: scrap._id,
+        licence: scrap.licence ?? null,
+        nom: scrap.nom ?? null,
+        prenom: scrap.prenom ?? null,
+        nom_prenom_normalise: scrap.nom_prenom_normalise,
+        // Valeur brute du champ du site : l'interface doit pouvoir afficher
+        // distinctement Oui, Non et Bloqué, sans en déduire un booléen.
+        abonnement_valide: statutSite,
+        type: categorie === "inconnue" ? "inconnue" as const : "non_validee" as const,
+        controles: {
+          abonneN1: n1 === "oui",
+          abonneN1Ambigu: n1 === "ambigu",
+          eleveEnCours: scrap.licence ? c.elevesLic.has(scrap.licence) : false,
+          demandeValidee: demande === "validee",
+          statutDossier,
+          rapprochement,
+        },
+        raison: categorie === "inconnue"
+          ? "Statut du site inconnu : cette ancienne valeur ne permet pas de distinguer Non de Bloqué. Synchronisez à nouveau le site."
+          : n1 === "ambigu"
+            ? "Correspondance N-1 ambiguë : plusieurs archives validées portent ce nom et prénom. Vérifiez manuellement avant décision."
+          : demande === "absente"
+            ? "Règle 1 non respectée : la personne n'était pas abonnée l'année dernière et aucune demande n'a été déposée sur le portail."
+            : "Règle 2 non respectée : la personne n'était pas abonnée l'année dernière et la demande portail n'est pas validée.",
+      }))
+      .sort((a, b) => a.nom_prenom_normalise.localeCompare(b.nom_prenom_normalise, "fr"));
   },
 });
 
@@ -180,23 +371,75 @@ export const vAnomalies = authenticatedQuery({
 // (occupe / plafond / restantes), aucune donnée nominative n'est exposée.
 // PUBLIC: endpoint anonyme assumé (iframe du site club).
 export const compteurPublic = query({
-  args: {},
-  handler: async (ctx) => {
-    const c = await calculerCompteur(ctx);
+  args: { maintenantMs: v.number() },
+  returns: compteurPublicValidator,
+  handler: async (ctx, args) => {
+    const cache = await ctx.db
+      .query("abo_compteur_public_cache")
+      .withIndex("by_cle", (q) => q.eq("cle", "courant"))
+      .first();
+    const vague = await vagueCourante(ctx, args.maintenantMs);
+    if (cache) {
+      return {
+        occupe: cache.occupe,
+        places_max: cache.places_max,
+        places_restantes: cache.places_restantes,
+        vague,
+      };
+    }
+    const c = await calculerCompteur(ctx, undefined);
     const places_max = await lirePlacesMax(ctx);
     return {
-      occupe: c.occupe,
+      occupe: c.total_affiche,
       places_max,
-      places_restantes: places_max - c.occupe,
+      places_restantes: places_max - c.total_affiche,
+      vague,
     };
   },
 });
+
+export const rafraichirCompteurPublic = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const c = await calculerCompteur(ctx, undefined);
+    const places_max = await lirePlacesMax(ctx);
+    const doc = {
+      cle: "courant" as const,
+      occupe: c.total_affiche,
+      places_max,
+      places_restantes: places_max - c.total_affiche,
+      calcule_le: new Date().toISOString(),
+    };
+    const cache = await ctx.db
+      .query("abo_compteur_public_cache")
+      .withIndex("by_cle", (q) => q.eq("cle", "courant"))
+      .first();
+    if (cache) {
+      if (champsModifies(cache, doc, ["calcule_le"])) await ctx.db.patch(cache._id, doc);
+    } else {
+      await ctx.db.insert("abo_compteur_public_cache", doc);
+    }
+    return null;
+  },
+});
+
+export async function programmerRafraichissementCompteurPublic(
+  ctx: MutationCtx,
+): Promise<void> {
+  await ctx.scheduler.runAfter(0, internal.abo.compteur.rafraichirCompteurPublic, {});
+}
 
 // ── getElevesEnCours : élèves en cours (admin) pour les badges ───────
 // Renvoie une liste plate (licence / nom_prenom_normalise / horaire) ; le front
 // construit les tables de matching (par licence, repli nom+prénom).
 export const getElevesEnCours = authenticatedQuery({
   args: {},
+  returns: v.array(v.object({
+    licence: v.union(v.string(), v.null()),
+    nom_prenom_normalise: v.string(),
+    horaire: v.union(v.string(), v.null()),
+  })),
   handler: async (ctx) => {
     await requireAboAdmin(ctx);
     const eleves = await ctx.db.query("abo_eleves_en_cours").collect();
@@ -211,11 +454,12 @@ export const getElevesEnCours = authenticatedQuery({
 // ── setPlacesMax : plafond de places (admin) ─────────────────────────
 export const setPlacesMax = authenticatedMutation({
   args: { places_max: v.number() },
+  returns: v.null(),
   handler: async (ctx, args) => {
     await requireAboAdmin(ctx);
     const n = Math.round(args.places_max);
     if (!Number.isFinite(n) || n <= 0) {
-      throw new Error("Nombre de places invalide.");
+      throw new ConvexError({ code: "22023", message: "Nombre de places invalide." });
     }
     const row = await ctx.db
       .query("abo_app_config")
@@ -227,6 +471,7 @@ export const setPlacesMax = authenticatedMutation({
     } else {
       await ctx.db.insert("abo_app_config", { cle: "places_max", ...patch });
     }
+    await programmerRafraichissementCompteurPublic(ctx);
     return null;
   },
 });
@@ -263,6 +508,10 @@ export const remplacerElevesEnCours = internalMutation({
       }),
     ),
   },
+  returns: v.object({
+    avecLicence: v.number(),
+    sansLicence: v.number(),
+  }),
   handler: async (ctx, args) => {
     if (args.lignes.length > MAX_ELEVES_SNAPSHOT) {
       throw new ConvexError({
@@ -362,6 +611,7 @@ export const remplacerElevesEnCours = internalMutation({
       for (const e of restants) await ctx.db.delete(e._id);
     }
 
+    await programmerRafraichissementCompteurPublic(ctx);
     return { avecLicence, sansLicence };
   },
 });

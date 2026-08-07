@@ -9,7 +9,7 @@
 // on l'interprète comme une heure d'Europe/Paris (gère l'heure d'été/hiver) pour
 // la comparer à « maintenant », exactement comme le faisait Postgres.
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { authenticatedQuery, authenticatedMutation } from "../customFunctions";
 import { internalMutation } from "../_generated/server";
 import type { QueryCtx, MutationCtx } from "../_generated/server";
@@ -84,15 +84,44 @@ async function vagueDateIso(
   return utc == null ? null : new Date(utc).toISOString();
 }
 
+function urlHttps(valeur: string): URL | null {
+  try {
+    const url = new URL(valeur.trim());
+    return url.protocol === "https:" && url.hostname ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+function estDomaineInscriptionOfficiel(hostname: string): boolean {
+  const domaine = hostname.toLowerCase();
+  return (
+    domaine === "caflarochebonneville.fr" ||
+    domaine.endsWith(".caflarochebonneville.fr")
+  );
+}
+
+function lienInscriptionPublic(valeur: string | null): string | null {
+  if (!valeur) return null;
+  const url = urlHttps(valeur);
+  return url && estDomaineInscriptionOfficiel(url.hostname)
+    ? valeur.trim()
+    : null;
+}
+
+// Instant limite figÃ© pour une personne dÃ©posÃ©e pendant la vague 2. Ne pas
+// relire cette configuration lors d'une dÃ©cision : la personne garde sa copie.
 // ── vague_courante() : numéro de vague (0/1/2/3) selon l'instant présent ──
-export async function vagueCourante(ctx: QueryCtx | MutationCtx): Promise<number> {
-  const now = Date.now();
+export async function vagueCourante(
+  ctx: QueryCtx | MutationCtx,
+  maintenantMs: number,
+): Promise<number> {
   const v1 = parisWallToUtcMs(await getConfigValeur(ctx, "vague1_debut"));
   const v2 = parisWallToUtcMs(await getConfigValeur(ctx, "vague2_debut"));
   const v3 = parisWallToUtcMs(await getConfigValeur(ctx, "vague3_debut"));
-  if (v3 != null && now >= v3) return 3;
-  if (v2 != null && now >= v2) return 2;
-  if (v1 != null && now >= v1) return 1;
+  if (v3 != null && maintenantMs >= v3) return 3;
+  if (v2 != null && maintenantMs >= v2) return 2;
+  if (v1 != null && maintenantMs >= v1) return 1;
   return 0;
 }
 
@@ -100,10 +129,16 @@ export async function vagueCourante(ctx: QueryCtx | MutationCtx): Promise<number
 // Non nominatif. Réservé aux comptes connectés (l'espace abo exige une connexion
 // OTP) — satisfait la règle de sécurité authenticatedQuery.
 export const vaguesConfig = authenticatedQuery({
-  args: {},
-  handler: async (ctx) => {
+  args: { maintenantMs: v.number() },
+  returns: v.object({
+    vague: v.number(),
+    vague1_debut: v.union(v.string(), v.null()),
+    vague2_debut: v.union(v.string(), v.null()),
+    vague3_debut: v.union(v.string(), v.null()),
+  }),
+  handler: async (ctx, args) => {
     return {
-      vague: await vagueCourante(ctx),
+      vague: await vagueCourante(ctx, args.maintenantMs),
       vague1_debut: await vagueDateIso(ctx, "vague1_debut"),
       vague2_debut: await vagueDateIso(ctx, "vague2_debut"),
       vague3_debut: await vagueDateIso(ctx, "vague3_debut"),
@@ -132,12 +167,21 @@ export const licenceEstEleve = authenticatedQuery({
 // par l'admin ; ici on n'expose QUE les liens.
 export const liensFinalisation = authenticatedQuery({
   args: {},
+  returns: v.object({
+    licence_nouvelle: v.union(v.string(), v.null()),
+    licence_renouvellement: v.union(v.string(), v.null()),
+    compte_activation: v.union(v.string(), v.null()),
+    inscription: v.union(v.string(), v.null()),
+    helloasso: v.union(v.string(), v.null()),
+    test_autonomie: v.union(v.string(), v.null()),
+  }),
   handler: async (ctx) => {
+    const inscription = await getConfigValeur(ctx, "inscription_lien");
     return {
       licence_nouvelle: await getConfigValeur(ctx, "licence_lien_nouvelle"),
       licence_renouvellement: await getConfigValeur(ctx, "licence_lien_renouvellement"),
       compte_activation: await getConfigValeur(ctx, "compte_activation_lien"),
-      inscription: await getConfigValeur(ctx, "inscription_lien"),
+      inscription: lienInscriptionPublic(inscription),
       helloasso: await getConfigValeur(ctx, "helloasso_lien"),
       test_autonomie: await getConfigValeur(ctx, "test_autonomie_lien"),
     };
@@ -220,6 +264,7 @@ export const setLiens = authenticatedMutation({
     inscription: v.optional(v.string()),
     test_autonomie: v.optional(v.string()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     await requireAboAdmin(ctx);
     const map: Record<string, string | undefined> = {
@@ -232,7 +277,26 @@ export const setLiens = authenticatedMutation({
     // On ne touche QUE les clés fournies (undefined = laisser inchangé).
     for (const [cle, val] of Object.entries(map)) {
       if (val === undefined) continue;
-      await setConfigValeur(ctx, cle, val.trim() || null);
+      const lien = val.trim();
+      if (lien) {
+        const url = urlHttps(lien);
+        if (!url) {
+          throw new ConvexError({
+            code: "ABO_LIEN_INVALIDE",
+            message: "Chaque lien doit être une URL HTTPS absolue.",
+          });
+        }
+        if (
+          cle === "inscription_lien" &&
+          !estDomaineInscriptionOfficiel(url.hostname)
+        ) {
+          throw new ConvexError({
+            code: "ABO_LIEN_INSCRIPTION_DOMAINE",
+            message: "Le lien d'inscription doit utiliser le domaine caflarochebonneville.fr.",
+          });
+        }
+      }
+      await setConfigValeur(ctx, cle, lien || null);
     }
     return null;
   },
@@ -245,6 +309,7 @@ export const setLiens = authenticatedMutation({
 // (+ cascade) par lots — les comptes staff/admin sont CONSERVÉS. 🔒
 export const resetSaison = authenticatedMutation({
   args: { saisonArchivee: v.string(), nouveauLien: v.string() },
+  returns: v.number(),
   handler: async (ctx, args) => {
     await requireAboSeasonReset(ctx);
     const saison = args.saisonArchivee.trim();
@@ -326,6 +391,7 @@ export const resetSaison = authenticatedMutation({
 
     // 5) Purge des comptes publics (+ cascade) en tâche de fond, par lots bornés.
     await ctx.scheduler.runAfter(0, internal.abo.config.purgerComptesPublics, {});
+    await ctx.scheduler.runAfter(0, internal.abo.compteur.rafraichirCompteurPublic, {});
 
     return nbArchive;
   },
@@ -339,9 +405,14 @@ export const resetSaison = authenticatedMutation({
 // qu'il reste des profils à purger. Réservé aux appels internes (resetSaison). 🔒
 const LOT_PURGE = 25;
 export const purgerComptesPublics = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const profils = await ctx.db.query("abo_profiles").take(LOT_PURGE);
+  args: { cursor: v.optional(v.string()) },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const page = await ctx.db.query("abo_profiles").paginate({
+      numItems: LOT_PURGE,
+      cursor: args.cursor ?? null,
+    });
+    const profils = page.page;
     let traites = 0;
     for (const prof of profils) {
       if (prof.role === "admin") continue; // filet : ne jamais supprimer un admin
@@ -416,9 +487,15 @@ export const purgerComptesPublics = internalMutation({
       await ctx.db.delete(userId);
     }
 
-    // Tant qu'on a effectivement purgé un lot plein, on reprogramme la suite.
-    if (traites > 0 && profils.length === LOT_PURGE) {
-      await ctx.scheduler.runAfter(0, internal.abo.config.purgerComptesPublics, {});
+    // La progression dépend du curseur, jamais du nombre de suppressions : une
+    // page composée uniquement de profils admin doit tout de même avancer.
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(0, internal.abo.config.purgerComptesPublics, {
+        cursor: page.continueCursor,
+      });
+    }
+    if (traites > 0) {
+      await ctx.scheduler.runAfter(0, internal.abo.compteur.rafraichirCompteurPublic, {});
     }
     return traites;
   },

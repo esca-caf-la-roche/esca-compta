@@ -1,14 +1,12 @@
 import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { aboError } from "../lib/errors";
+import { useMaintenantMinute } from "../lib/useMaintenantMinute";
 import { cleJour, formatJour, formatTranche } from "../lib/tests";
-import {
-  creerFormulaireTestAutonomie,
-  telechargerPdf,
-} from "../lib/testAutonomiePdf";
 import FilDiscussion from "../FilDiscussion";
+import N1RedirectModal from "../N1RedirectModal";
 
 // Tableau de suivi (abonné, lecture seule pour l'essentiel).
 // Le rendu d'une personne dépend de sa décision admin (etape_validation) :
@@ -51,11 +49,12 @@ const STATUT_DOSSIER: Record<string, string> = {
 const formatOk = (l: string) => [12, 14].includes(l.replace(/\D/g, "").length);
 
 export default function Suivi({ dossier }: { dossier: DossierVue }) {
-  const cfg = useQuery(api.abo.config.vaguesConfig);
+  const maintenantMs = useMaintenantMinute();
+  const cfg = useQuery(api.abo.config.vaguesConfig, { maintenantMs });
   const liens = useQuery(api.abo.config.liensFinalisation);
   const checks = useQuery(api.abo.demandes.monSuivi);
   const reservations = useQuery(api.abo.tests.getMesReservationsParPersonne);
-  const ajouterPersonne = useMutation(api.abo.demandes.ajouterPersonne);
+  const ajouterPersonne = useAction(api.abo.demandes.ajouterPersonne);
   const supprimerPersonne = useMutation(api.abo.demandes.supprimerPersonne);
 
   const vague = cfg?.vague ?? 0;
@@ -111,7 +110,11 @@ export default function Suivi({ dossier }: { dossier: DossierVue }) {
       {aDesEtapes && <DisclaimerBenevoles />}
 
       {vague >= 2 && (
-        <AjoutPersonne vague2={vague2} onAjouter={ajouterPersonne} />
+        <AjoutPersonne
+          vague2={vague2}
+          inscriptionUrl={liens?.inscription}
+          onAjouter={ajouterPersonne}
+        />
       )}
 
       <section className="abo-messagerie" style={{ marginTop: "2rem" }}>
@@ -374,6 +377,9 @@ function TelechargerFormulaireTest({ personne }: { personne: PersonneVue }) {
     setEnCours(true);
     setErreur(null);
     try {
+      const { creerFormulaireTestAutonomie, telechargerPdf } = await import(
+        "../lib/testAutonomiePdf"
+      );
       const pdf = await creerFormulaireTestAutonomie({
         nom: personne.nom,
         prenom: personne.prenom,
@@ -591,16 +597,19 @@ function DisclaimerBenevoles() {
 // ── Ajout d'une personne au dossier ──────────────────────────────────
 function AjoutPersonne({
   vague2,
+  inscriptionUrl,
   onAjouter,
 }: {
   vague2: boolean;
-  onAjouter: ReturnType<typeof useMutation<typeof api.abo.demandes.ajouterPersonne>>;
+  inscriptionUrl?: string | null;
+  onAjouter: ReturnType<typeof useAction<typeof api.abo.demandes.ajouterPersonne>>;
 }) {
   const [nom, setNom] = useState("");
   const [prenom, setPrenom] = useState("");
   const [licence, setLicence] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [redirectionN1, setRedirectionN1] = useState<string | null>(null);
 
   async function soumettre(e: React.FormEvent) {
     e.preventDefault();
@@ -631,7 +640,9 @@ function AjoutPersonne({
       setLicence("");
       setMsg(null);
     } catch (err) {
-      setMsg(aboError(err).message);
+      const erreur = aboError(err);
+      if (erreur.code === "ABO_N1_REDIRECTION") setRedirectionN1(erreur.message);
+      else setMsg(erreur.message);
     } finally {
       setBusy(false);
     }
@@ -685,6 +696,13 @@ function AjoutPersonne({
         <p className="abo-msg abo-msg-error" role="status">
           {msg}
         </p>
+      )}
+      {redirectionN1 && (
+        <N1RedirectModal
+          message={redirectionN1}
+          inscriptionUrl={inscriptionUrl}
+          onClose={() => setRedirectionN1(null)}
+        />
       )}
     </section>
   );

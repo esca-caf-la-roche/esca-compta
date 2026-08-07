@@ -1,35 +1,27 @@
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import "./abo.css";
+import { useMaintenantMinute } from "./lib/useMaintenantMinute";
 
 // Compteur public embarquable (iframe du site club). Lit l'agrégat ANONYME
 // api.abo.compteur.compteurPublic (aucune donnée nominative). Réactif Convex :
 // se met à jour tout seul quand le scrap / les validations changent — pas de
-// polling. Styles inline, fond transparent : s'adapte à la page hôte.
+// polling. Fond transparent : s'adapte à la page hôte.
 // Portage de compteur.html + src/embed/compteur.js.
 
-const INK = "#111111";
-const PAPER = "#f5f3ea";
-const DANGER = "#e5484d";
-
 export default function Compteur() {
-  const data = useQuery(api.abo.compteur.compteurPublic);
-
-  const wrap: React.CSSProperties = {
-    padding: 4,
-    fontFamily: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif',
-    color: INK,
-    background: "transparent",
-  };
+  const maintenantMs = useMaintenantMinute();
+  const data = useQuery(api.abo.compteur.compteurPublic, { maintenantMs });
 
   if (data === undefined) {
     return (
-      <div style={wrap}>
-        <p style={{ fontSize: "0.85rem", color: "#5a574d", margin: 0 }}>Chargement…</p>
+      <div className="abo-compteur-embed">
+        <p className="abo-compteur-loading">Chargement…</p>
       </div>
     );
   }
 
-  const { places_max, places_restantes } = data;
+  const { places_max, places_restantes, vague } = data;
   const restantes = Math.max(0, places_restantes);
   const complet = places_restantes <= 0;
   const pct =
@@ -38,59 +30,28 @@ export default function Compteur() {
       : 0;
 
   return (
-    <div style={wrap}>
-      <div
-        style={{
-          background: "#fff",
-          border: `2px solid ${INK}`,
-          boxShadow: `4px 4px 0 ${INK}`,
-          padding: "0.8rem 1rem",
-        }}
-      >
-        <div
-          style={{
-            fontSize: "0.8rem",
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "0.03em",
-            marginBottom: "0.3rem",
-          }}
-        >
+    <div className="abo-compteur-embed">
+      <div className="abo-compteur-card">
+        <div className="abo-compteur-title">
           Places escalade autonomie
         </div>
-        <div
-          style={{
-            fontSize: "2.4rem",
-            fontWeight: 800,
-            lineHeight: 1,
-            color: complet ? DANGER : INK,
-          }}
-        >
-          {restantes}
-          <span style={{ fontSize: "1.1rem", fontWeight: 700, color: "#5a574d" }}>
-            {" "}
-            / {places_max}
-          </span>
+        <div className={`abo-compteur-value${complet ? " is-complet" : ""}`}>
+          {complet ? "Complet" : `${restantes} place${restantes > 1 ? "s" : ""} restante${restantes > 1 ? "s" : ""}`}
         </div>
-        <div style={{ fontSize: "0.85rem", fontWeight: 700, marginTop: "0.15rem" }}>
-          {complet ? "Complet" : "places disponibles"}
+        <div className="abo-compteur-total">
+          {places_max} places au total
         </div>
-        <div
-          style={{
-            marginTop: "0.5rem",
-            height: "0.7rem",
-            border: `2px solid ${INK}`,
-            background: PAPER,
-            overflow: "hidden",
-          }}
-        >
+        <div className="abo-compteur-vague">
+          {vague <= 0 ? "Avant la vague 1" : `Vague ${vague}`}
+        </div>
+        <p className="abo-compteur-note">
+          La disponibilité est indicative : les dossiers sont validés manuellement par des bénévoles.
+          Une place affichée peut donc ne plus être disponible au moment du traitement de votre demande.
+        </p>
+        <div className="abo-compteur-track">
           <span
-            style={{
-              display: "block",
-              height: "100%",
-              width: `${pct}%`,
-              background: complet ? DANGER : INK,
-            }}
+            className={`abo-compteur-fill${complet ? " is-complet" : ""}`}
+            style={{ width: `${pct}%` }}
           />
         </div>
       </div>

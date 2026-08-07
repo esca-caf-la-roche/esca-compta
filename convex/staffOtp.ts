@@ -1,7 +1,9 @@
 import { RateLimiter, MINUTE } from "@convex-dev/rate-limiter";
 import { components, internal } from "./_generated/api";
 import { internalAction, internalMutation } from "./_generated/server";
-import { v } from "convex/values";
+import type { MutationCtx } from "./_generated/server";
+import { ConvexError, v } from "convex/values";
+import { canoniserEmailUnique } from "./emailValidation";
 
 const rateLimiter = new RateLimiter(components.rateLimiter, {
   staffOtpRequest: {
@@ -11,16 +13,37 @@ const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
 });
 
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
-
 async function rateLimitKey(email: string) {
-  const bytes = new TextEncoder().encode(normalizeEmail(email));
+  const bytes = new TextEncoder().encode(email);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("");
+}
+
+export async function consommerDemandeOtpStaff(
+  ctx: MutationCtx,
+  emailBrut: string,
+  autorisationConnue?: boolean,
+): Promise<{ email: string; autorise: boolean }> {
+  const email = canoniserEmailUnique(emailBrut);
+  const status = await rateLimiter.limit(ctx, "staffOtpRequest", {
+    key: await rateLimitKey(email),
+  });
+  if (!status.ok) {
+    throw new ConvexError({
+      code: "STAFF_OTP_RATE_LIMIT",
+      message: "Veuillez patienter avant de demander un nouveau code.",
+    });
+  }
+  if (autorisationConnue !== undefined) {
+    return { email, autorise: autorisationConnue };
+  }
+  const user = await ctx.db
+    .query("users")
+    .withIndex("email", (q) => q.eq("email", email))
+    .first();
+  return { email, autorise: user !== null };
 }
 
 // Server-only: consume a request before checking whether it belongs to staff.
@@ -29,18 +52,7 @@ export const consumeRequest = internalMutation({
   args: { email: v.string() },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    const status = await rateLimiter.limit(ctx, "staffOtpRequest", {
-      key: await rateLimitKey(args.email),
-    });
-    if (!status.ok) {
-      throw new Error("Veuillez patienter avant de demander un nouveau code.");
-    }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("email", (q) => q.eq("email", normalizeEmail(args.email)))
-      .first();
-    return user !== null;
+    return (await consommerDemandeOtpStaff(ctx, args.email)).autorise;
   },
 });
 
@@ -55,8 +67,9 @@ export const dispatchEmail = internalAction({
   returns: v.null(),
   handler: async (ctx, args) => {
     if (args.shouldSend) {
+      const email = canoniserEmailUnique(args.email);
       await ctx.runAction(internal.email.sendOTP, {
-        email: args.email,
+        email,
         code: args.code,
       });
     }
