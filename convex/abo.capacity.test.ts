@@ -26,10 +26,11 @@ async function insererDossierAvecPersonnes(
   decisions: Array<"en_attente" | "validee" | "liste_attente" | "refusee">,
 ) {
   return await t.run(async (ctx) => {
-    const placesMax = await ctx.db
-      .query("abo_app_config")
-      .withIndex("by_cle", (q) => q.eq("cle", "places_max"))
-      .first();
+    // Le helper est appelé plusieurs fois dans un même scénario. Dans cette
+    // fixture dédiée, `places_max` est l'unique ligne de configuration : un
+    // simple premier document évite de dépendre du type de contexte générique
+    // fourni par convex-test pour les index applicatifs.
+    const placesMax = await ctx.db.query("abo_app_config").first();
     if (!placesMax) {
       await ctx.db.insert("abo_app_config", { cle: "places_max", valeur: "2" });
     }
