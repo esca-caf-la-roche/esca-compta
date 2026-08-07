@@ -205,6 +205,18 @@ export const reserverTest = authenticatedMutation({
         message: "La réservation du test est réservée aux demandes validées.",
       });
     }
+    if (personne.etape_test_autonomie !== "requis") {
+      throw new ConvexError({
+        code: "P0014",
+        message: "Cette personne n'a pas de test d'autonomie à réserver.",
+      });
+    }
+    if (personne.age == null || personne.age < 16) {
+      throw new ConvexError({
+        code: "P0015",
+        message: "Le test d'autonomie est réservé aux personnes de 16 ans et plus.",
+      });
+    }
     if (await reservationActive(ctx, args.personneId)) {
       throw new ConvexError({
         code: "P0011",
@@ -218,6 +230,12 @@ export const reserverTest = authenticatedMutation({
       throw new ConvexError({
         code: "P0012",
         message: "Ce créneau n'existe pas (ou plus).",
+      });
+    }
+    if (new Date(cible.tranche_debut).getTime() <= Date.now()) {
+      throw new ConvexError({
+        code: "P0016",
+        message: "Ce créneau est passé, choisissez-en un autre.",
       });
     }
     const reserves = await reservationsActivesParTranche(ctx);

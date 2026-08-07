@@ -177,9 +177,10 @@ reste « À faire » dans le portail.
 
 1. S'être connecté au portail Abonnements avec son code OTP public.
 2. Avoir un dossier dont la personne a été **validée** par un admin.
-3. Ouvrir le suivi, l'étape *Test d'autonomie* et cliquer sur **Réserver un
+3. Avoir un test d'autonomie **requis**, avoir un âge renseigné d'au moins
+   **16 ans**, puis ouvrir le suivi et cliquer sur **Réserver un
    créneau de test**.
-4. Choisir une tranche encore disponible.
+4. Choisir une tranche future encore disponible.
 
 Une personne ne peut avoir qu'une réservation active. Elle peut l'annuler pour
 en choisir une autre. Les tentatives simultanées sont protégées par la
@@ -316,7 +317,7 @@ Elle effectue ensuite, dans cet ordre :
 |---|---|---|
 | Haute | Aucun écran ni endpoint ne permet à un encadrant de marquer directement un test comme réussi ou échoué. L'étape est lue depuis la colonne `autonomie` du site club après synchronisation. | Définir qui saisit le résultat, dans quel outil et avec quel délai. Si le site club est la source officielle, rédiger la procédure du jour J et vérifier que la synchronisation la remonte bien. |
 | Corrigé | Un même e-mail peut servir au staff et à une demande publique personnelle. | Lors du reset, la purge efface les données de campagne et `abo_profiles`, tout en conservant `users`, `userSettings`, sessions et comptes d'authentification dès qu'un accès staff existe. |
-| Haute | L'API de réservation vérifie que la demande est validée, mais ne vérifie pas que le test est requis, que le candidat a 16 ans ou que la tranche est encore future. L'interface masque bien le bouton, mais un appel direct peut contourner cette règle d'affichage. | Ajouter les prérequis métier côté serveur avant ouverture au public. |
+| Corrigé | L'API de réservation vérifie que la demande est validée, que le test est requis, que l'âge est renseigné et d'au moins 16 ans, et que la tranche est future. Ces prérequis sont contrôlés côté serveur, donc un appel direct ne contourne pas la règle d'affichage. | Couvert par `convex/abo.tests.test.ts`. |
 | Haute | La remise à zéro supprime les comptes publics et leurs dossiers ; l'archive conservée ne contient que le snapshot minimal des abonnés du site. | Valider conservation légale/métier, export préalable et autorisation de déclenchement. |
 | Haute | L'ajout d'un staff donne actuellement Comptabilité, Paiements et Budget par défaut avant correction manuelle. | La procédure doit imposer le retrait immédiat de ces tuiles pour un simple encadrant de test ; idéalement le comportement devra être revu avant généralisation. |
 | Haute | Le plafond configuré (par exemple 350 places) est indicatif : aucune validation automatique ne bloque ou ne bascule une demande en liste d'attente quand il est atteint. | Établir une procédure manuelle de comptage/validation, ou implémenter le verrou avant ouverture. |
