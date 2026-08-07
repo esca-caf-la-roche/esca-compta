@@ -2,27 +2,45 @@
 
 ## État actuel
 
-Le dépôt ne contient actuellement :
+Le dépôt contient des tests Vitest, notamment les tests Convex
+`convex/**/*.test.ts`, exécutés dans l'environnement `edge-runtime` avec
+`convex-test`. Il n'y a pas encore de suite e2e navigateur.
 
-- ni fichier `*.test.*` ou `*.spec.*` ;
-- ni configuration Vitest, Jest ou Playwright ;
-- ni commande `npm test` ;
-- ni contrôle automatisé autre que TypeScript, ESLint et le build.
-
-Il ne faut donc pas présenter le projet comme couvert par des tests
-automatisés. La checklist du module Abonnements dans
-[5-module-abonnements.md](5-module-abonnements.md) est une validation manuelle,
-pas une suite exécutable.
+Les tests automatisés ne remplacent pas les validations manuelles métier. La
+checklist du module Abonnements dans
+[5-module-abonnements.md](5-module-abonnements.md) reste une validation
+manuelle complémentaire.
 
 ## Contrôles disponibles
 
 ```bash
+npm test
+npm run check:convex
 npm run lint
 npm run build
+
+# Enchaîne les quatre contrôles ci-dessus.
+npm run validate
 ```
 
-`npm run build` exécute `tsc -b` puis `vite build`. Ces commandes détectent des
-problèmes statiques et de compilation, mais pas les régressions métier.
+| Commande | Ce qu'elle vérifie | Déploiement Convex |
+| --- | --- | --- |
+| `npm test` | Les tests Vitest exécutables, dont `convex/**/*.test.ts`. | Non |
+| `npm run check:convex` | Le TypeScript du dossier `convex/`, y compris les tests Convex, via `convex typecheck` et `convex/tsconfig.json`. Cela détecte par exemple un nom d'index invalide dans un callback `withIndex` de `convex-test`. | Non |
+| `npm run lint` | Les règles ESLint du dépôt. | Non |
+| `npm run build` | Le typecheck frontend (`tsc -b`) puis le build Vite. Le `tsconfig.app.json` couvre `src/`; il ne remplace pas le typecheck Convex. | Non |
+| `npm run validate` | La séquence locale complète : typecheck Convex, tests Vitest, lint, puis typecheck/build frontend. | Non |
+
+`convex typecheck` est la commande fournie par la CLI Convex installée. Elle
+exécute le même contrôle TypeScript des fonctions Convex (`tsc --noEmit`) que
+le flux de déploiement, mais sans générer ni envoyer quoi que ce soit vers une
+instance Convex. Son projet est `convex/tsconfig.json`, qui inclut
+`./**/*` et exclut seulement `convex/_generated/` : les fichiers
+`convex/**/*.test.ts` font donc partie du contrôle.
+
+Un déploiement Convex n'est effectué que par une commande explicite telle que
+`npx convex deploy` ou par la CI après un push ; aucune des commandes ci-dessus
+ne déploie vers DEV ou PROD.
 
 ## Validation manuelle minimale
 
