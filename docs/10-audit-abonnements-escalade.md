@@ -91,10 +91,10 @@ sequenceDiagram
 L'e-mail doit exister avant même l'envoi du code : une adresse inconnue ne peut
 pas créer un compte staff toute seule.
 
-> **Consigne provisoire de sécurité :** ne pas réutiliser l'adresse e-mail
-> staff dans le portail public. Le code actuel ne l'empêche pas de façon sûre
-> (voir le constat critique du § 8) ; utiliser une seconde adresse dédiée pour
-> une demande personnelle, jusqu'à correction.
+> **Compte staff demandeur :** une même adresse peut servir au parcours staff et
+> au parcours public. Au reset annuel, les données de la demande et le profil
+> public sont supprimés, mais le compte staff, ses accès et ses sessions sont
+> conservés.
 
 ## 4. Parcours complet d'un administrateur qui propose des tests
 
@@ -315,7 +315,7 @@ Elle effectue ensuite, dans cet ordre :
 | Priorité | Constat observé | Risque / décision attendue |
 |---|---|---|
 | Haute | Aucun écran ni endpoint ne permet à un encadrant de marquer directement un test comme réussi ou échoué. L'étape est lue depuis la colonne `autonomie` du site club après synchronisation. | Définir qui saisit le résultat, dans quel outil et avec quel délai. Si le site club est la source officielle, rédiger la procédure du jour J et vérifier que la synchronisation la remonte bien. |
-| Critique | Un même e-mail peut techniquement devenir à la fois staff et profil public. Lors du reset, la purge vise les profils publics et peut alors supprimer le compte staff partagé, ses sessions et son accès. | Bloquer les connexions `abo-otp` utilisant un compte staff, ou séparer réellement les identités avant une campagne. En attendant : seconde adresse obligatoire pour toute demande personnelle d'un bénévole. |
+| Corrigé | Un même e-mail peut servir au staff et à une demande publique personnelle. | Lors du reset, la purge efface les données de campagne et `abo_profiles`, tout en conservant `users`, `userSettings`, sessions et comptes d'authentification dès qu'un accès staff existe. |
 | Haute | L'API de réservation vérifie que la demande est validée, mais ne vérifie pas que le test est requis, que le candidat a 16 ans ou que la tranche est encore future. L'interface masque bien le bouton, mais un appel direct peut contourner cette règle d'affichage. | Ajouter les prérequis métier côté serveur avant ouverture au public. |
 | Haute | La remise à zéro supprime les comptes publics et leurs dossiers ; l'archive conservée ne contient que le snapshot minimal des abonnés du site. | Valider conservation légale/métier, export préalable et autorisation de déclenchement. |
 | Haute | L'ajout d'un staff donne actuellement Comptabilité, Paiements et Budget par défaut avant correction manuelle. | La procédure doit imposer le retrait immédiat de ces tuiles pour un simple encadrant de test ; idéalement le comportement devra être revu avant généralisation. |

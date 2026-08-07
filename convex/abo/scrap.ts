@@ -16,9 +16,13 @@
 // actions (les mutations/queries appelées vivent dans matching.ts / compteur.ts).
 
 import readXlsxFile from "read-excel-file/node";
+import { v } from "convex/values";
 import { internalAction } from "../_generated/server";
 import { authenticatedAction } from "../customFunctions";
 import { internal, api } from "../_generated/api";
+
+const MANUAL_SYNC_TTL_MS = 5 * 60_000;
+const MANUAL_SYNC_KEY = "last_manual_sync_club";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
@@ -479,9 +483,17 @@ export const importerElevesEnCours = internalAction({
 // Enchaîne : scrap abonnés (+ matching) puis import des élèves en cours.
 export const synchroniserClub = authenticatedAction({
   args: {},
+  returns: v.object({
+    statut: v.union(v.literal("done"), v.literal("skipped")),
+    retryAt: v.union(v.string(), v.null()),
+    abonnes: v.object({ upsertees: v.number(), sansLicence: v.number(), maj: v.number() }),
+    eleves: v.object({ avecLicence: v.number(), sansLicence: v.number(), enAttente: v.number() }),
+  }),
   handler: async (
     ctx,
   ): Promise<{
+    statut: "done" | "skipped";
+    retryAt: string | null;
     abonnes: { upsertees: number; sansLicence: number; maj: number };
     eleves: { avecLicence: number; sansLicence: number; enAttente: number };
   }> => {
@@ -489,8 +501,31 @@ export const synchroniserClub = authenticatedAction({
     if (!me || me.aboRole !== "admin") {
       throw new Error("Réservé aux administrateurs.");
     }
-    const abonnes = await ctx.runAction(internal.abo.scrap.scraperAbonnes, {});
-    const eleves = await ctx.runAction(internal.abo.scrap.importerElevesEnCours, {});
-    return { abonnes, eleves };
+    const reservation: { proceed: boolean; precedent: string | undefined } = await ctx.runMutation(
+      internal.abo.sync.reserverSync,
+      { cle: MANUAL_SYNC_KEY, ttlMs: MANUAL_SYNC_TTL_MS },
+    );
+    if (!reservation.proceed) {
+      const lastMs = reservation.precedent ? Date.parse(reservation.precedent) : NaN;
+      return {
+        statut: "skipped",
+        retryAt: Number.isFinite(lastMs)
+          ? new Date(lastMs + MANUAL_SYNC_TTL_MS).toISOString()
+          : null,
+        abonnes: { upsertees: 0, sansLicence: 0, maj: 0 },
+        eleves: { avecLicence: 0, sansLicence: 0, enAttente: 0 },
+      };
+    }
+    try {
+      const abonnes = await ctx.runAction(internal.abo.scrap.scraperAbonnes, {});
+      const eleves = await ctx.runAction(internal.abo.scrap.importerElevesEnCours, {});
+      return { statut: "done", retryAt: null, abonnes, eleves };
+    } catch (error) {
+      await ctx.runMutation(internal.abo.sync.restaurerMarqueur, {
+        cle: MANUAL_SYNC_KEY,
+        valeur: reservation.precedent,
+      });
+      throw error;
+    }
   },
 });

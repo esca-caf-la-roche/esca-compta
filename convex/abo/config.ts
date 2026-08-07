@@ -331,11 +331,12 @@ export const resetSaison = authenticatedMutation({
   },
 });
 
-// purgerComptesPublics() : supprime par lots les comptes abonnés publics (ceux
-// qui ont un abo_profiles) et TOUT ce qui en dépend (dossiers → personnes /
-// messages / email_log / réservations, suppressions, sessions/comptes auth, user).
-// Les comptes staff/admin (sans abo_profiles) sont ignorés. Reprogrammé tant
-// qu'il reste des comptes à purger. Réservé aux appels internes (resetSaison). 🔒
+// purgerComptesPublics() : supprime par lots les données et profils publics
+// (dossiers → personnes / messages / email_log / réservations, suppressions).
+// Un compte pouvant être à la fois demandeur et staff, la présence d'un
+// userSettings conserve alors son user, ses sessions et ses comptes auth.
+// Les comptes publics purs sont eux supprimés entièrement. Reprogrammé tant
+// qu'il reste des profils à purger. Réservé aux appels internes (resetSaison). 🔒
 const LOT_PURGE = 25;
 export const purgerComptesPublics = internalMutation({
   args: {},
@@ -345,6 +346,10 @@ export const purgerComptesPublics = internalMutation({
     for (const prof of profils) {
       if (prof.role === "admin") continue; // filet : ne jamais supprimer un admin
       const userId = prof.userId;
+      const settings = await ctx.db
+        .query("userSettings")
+        .withIndex("by_userId", (q) => q.eq("userId", userId))
+        .first();
 
       const dossiers = await ctx.db
         .query("abo_dossiers")
@@ -382,7 +387,14 @@ export const purgerComptesPublics = internalMutation({
         .collect();
       for (const sup of suppressions) await ctx.db.delete(sup._id);
 
-      // Auth : sessions (+ refresh tokens) → comptes → user.
+      await ctx.db.delete(prof._id);
+      traites++;
+
+      // Un staff peut aussi déposer une demande avec le même compte. Le reset
+      // purgera sa campagne publique, sans déconnecter ni effacer son accès staff.
+      if (settings) continue;
+
+      // Compte public pur : sessions (+ refresh tokens) → comptes → user.
       const sessions = await ctx.db
         .query("authSessions")
         .withIndex("userId", (q) => q.eq("userId", userId))
@@ -401,9 +413,7 @@ export const purgerComptesPublics = internalMutation({
         .collect();
       for (const acc of comptes) await ctx.db.delete(acc._id);
 
-      await ctx.db.delete(prof._id);
       await ctx.db.delete(userId);
-      traites++;
     }
 
     // Tant qu'on a effectivement purgé un lot plein, on reprogramme la suite.

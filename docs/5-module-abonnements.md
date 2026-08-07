@@ -11,12 +11,14 @@ paiements HelloAsso, scraping du site club, emails transactionnels, messagerie.
 | Population | Auth | Accès | Identifiant technique |
 |---|---|---|---|
 | **Staff / bénévoles** | provider `google-otp` (email pré-créé par un admin) | Espace admin `/#/gestion-abonnements` (tuile du tableau de bord) **si** la tuile `abonnements` est cochée dans *Configurations > Utilisateurs* | `userSettings.allowedTiles` inclut `"abonnements"` |
-| **Abonnés publics** | provider `abo-otp` (auto-inscription OTP, boîte mail dédiée) | Espace isolé `/#/abonnements` uniquement (aucune mention compta) | ligne `abo_profiles` (role `utilisateur`), **jamais** de `userSettings` |
+| **Abonnés publics** | provider `abo-otp` (auto-inscription OTP, boîte mail dédiée) | Espace isolé `/#/abonnements` uniquement (aucune mention compta) | ligne `abo_profiles` (role `utilisateur`) ; peut coexister avec un `userSettings` pour la demande personnelle d'un staff |
 
 🔒 **Cloisonnement** : `getAboIdentity` (`convex/abo/auth.ts`) dérive le rôle admin
 **exclusivement** de `userSettings.allowedTiles` — le rôle `"admin"` compta ne
-donne aucun passe-droit. Un abonné public n'a pas de `userSettings`, donc aucun
-accès aux tuiles compta ; le `Layout` le redirige vers `/abonnements`.
+donne aucun passe-droit. Un abonné public sans `userSettings` n'a aucun accès aux
+tuiles compta ; le `Layout` le redirige vers `/abonnements`. Un staff qui dépose
+une demande conserve ses droits staff ; au reset, seules ses données publiques
+de campagne et son profil public sont purgés.
 
 ## Variables d'environnement (dashboard Convex → *Settings > Environment Variables*)
 
@@ -84,8 +86,11 @@ L'ordre des sources est intentionnel : les données HelloAsso doivent être
 disponibles avant le matching des personnes.
 
 Le bouton admin « Synchroniser le site club » appelle toujours
-`api.abo.scrap.synchroniserClub` avec une garde `aboRole === "admin"` et force un
-rafraîchissement immédiat.
+`api.abo.scrap.synchroniserClub` avec une garde `aboRole === "admin"`. Chacun des
+deux boutons manuels (site club et paiements Abonnements) a son verrou serveur
+de cinq minutes, partagé entre tous les administrateurs et leurs onglets. En cas
+d'échec, le verrou concerné est restauré pour autoriser une nouvelle tentative
+immédiate.
 
 ⚠️ Le compteur public ne se rafraîchit que lorsqu'un administrateur ouvre
 l'application. Si une fraîcheur indépendante de toute présence devient

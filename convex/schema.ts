@@ -432,8 +432,9 @@ export default defineSchema({
 
   // Profil applicatif d'un abonné public (role toujours "utilisateur").
   // Les admins abo sont des comptes staff avec la tuile "abonnements" cochée
-  // (userSettings.allowedTiles) et n'ont pas d'abo_profiles — getAboIdentity()
-  // dérive leur rôle côté serveur. Le rôle admin ne donne pas ce droit.
+  // (userSettings.allowedTiles) : getAboIdentity() dérive leur rôle côté serveur.
+  // Un staff peut aussi avoir un abo_profiles pour déposer sa demande personnelle.
+  // Le rôle admin ne donne pas ce droit.
   abo_profiles: defineTable({
     userId: v.id("users"),
     email: v.string(),

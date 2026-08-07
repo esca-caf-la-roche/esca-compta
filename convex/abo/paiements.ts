@@ -19,6 +19,9 @@ import { internalQuery } from "../_generated/server";
 import { requireAboAdmin } from "./auth";
 import { getConfigValeur } from "./config";
 
+const MANUAL_SYNC_TTL_MS = 5 * 60_000;
+const MANUAL_SYNC_KEY = "last_manual_sync_paiements_abo";
+
 // Vocabulaire du suivi interne Abonnements, stocké dans abo_paiements_suivi.
 const STATUTS = ["a_traiter", "traite", "rembourse", "en_attente"] as const;
 type StatutLocal = (typeof STATUTS)[number];
@@ -294,7 +297,15 @@ export const enregistrerLienAbo = authenticatedMutation({
 // ni comptés ni importés par cette action.
 export const synchroniserPaiementsAbo = authenticatedAction({
   args: {},
-  handler: async (ctx): Promise<{ synced_count: number; errors: string[] }> => {
+  returns: v.object({
+    statut: v.union(v.literal("done"), v.literal("skipped")),
+    retryAt: v.union(v.string(), v.null()),
+    synced_count: v.number(),
+    errors: v.array(v.string()),
+  }),
+  handler: async (
+    ctx,
+  ): Promise<{ statut: "done" | "skipped"; retryAt: string | null; synced_count: number; errors: string[] }> => {
     const me = await ctx.runQuery(api.abo.identity.me, {});
     if (!me || me.aboRole !== "admin") {
       throw new Error("Réservé aux administrateurs.");
@@ -302,12 +313,39 @@ export const synchroniserPaiementsAbo = authenticatedAction({
     const linkId = await ctx.runQuery(internal.abo.paiements.getLienAboInterne, {});
     if (!linkId) {
       return {
+        statut: "done",
+        retryAt: null,
         synced_count: 0,
         errors: ["Le lien HelloAsso Abonnements configuré est introuvable dans le cache."],
       };
     }
-    return await ctx.runAction(internal.helloasso.syncHelloAssoLinksInternal, {
-      linkIds: [linkId],
-    });
+    const reservation: { proceed: boolean; precedent: string | undefined } = await ctx.runMutation(
+      internal.abo.sync.reserverSync,
+      { cle: MANUAL_SYNC_KEY, ttlMs: MANUAL_SYNC_TTL_MS },
+    );
+    if (!reservation.proceed) {
+      const lastMs = reservation.precedent ? Date.parse(reservation.precedent) : NaN;
+      return {
+        statut: "skipped",
+        retryAt: Number.isFinite(lastMs)
+          ? new Date(lastMs + MANUAL_SYNC_TTL_MS).toISOString()
+          : null,
+        synced_count: 0,
+        errors: [],
+      };
+    }
+    try {
+      const resultat: { synced_count: number; errors: string[] } = await ctx.runAction(
+        internal.helloasso.syncHelloAssoLinksInternal,
+        { linkIds: [linkId] },
+      );
+      return { statut: "done", retryAt: null, ...resultat };
+    } catch (error) {
+      await ctx.runMutation(internal.abo.sync.restaurerMarqueur, {
+        cle: MANUAL_SYNC_KEY,
+        valeur: reservation.precedent,
+      });
+      throw error;
+    }
   },
 });

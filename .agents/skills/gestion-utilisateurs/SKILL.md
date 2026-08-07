@@ -12,22 +12,25 @@ respecter.
 
 ## 1. Deux populations, deux connexions distinctes
 
-La table `users` (Convex Auth) est partagée par deux populations qui ne
-doivent JAMAIS être mélangées :
+La table `users` (Convex Auth) est partagée par deux parcours distincts. Un
+compte staff peut aussi porter un profil public lorsqu'un bénévole dépose une
+demande personnelle avec la même adresse ; ce cas doit conserver les accès staff
+lors du reset annuel.
 
 | | Staff compta | Abonnés publics (demandeurs) |
 |---|---|---|
 | Provider OTP | `google-otp` (convex/auth.ts) | `abo-otp` (convex/auth.ts) |
 | Inscription | interdite — l'email doit être pré-créé par un admin (page Configurations) | auto-inscription libre (find-or-create) |
 | Boîte d'envoi OTP | boîte compta (`internal.email.sendOTP`) | boîte abonnements du club (`internal.email.sendAboEmail`) |
-| Marqueur en base | possède un `userSettings` | possède un `abo_profiles` (role "utilisateur"), JAMAIS de `userSettings` |
+| Marqueur en base | possède un `userSettings` | possède un `abo_profiles` (role "utilisateur") ; peut aussi avoir un `userSettings` pour la demande personnelle d'un staff |
 | Espace | `/` (Layout compta) | `/abonnements` (AboApp, hors Layout) |
 
 - `Layout.tsx` redirige tout connecté sans `userSettings` (non-staff) vers
   `/abonnements` : un abonné public ne doit jamais voir le portail compta.
-- Un membre du staff qui veut faire une demande d'abonnement personnelle
-  utilise une AUTRE connexion (compte abonné via `abo-otp`), pas son compte
-  staff.
+- Un membre du staff peut faire une demande d'abonnement personnelle avec son
+  compte existant. La purge annuelle doit alors supprimer seulement ses données
+  de campagne et son `abo_profiles`, jamais son `users`, son `userSettings`, ses
+  sessions ou ses comptes d'authentification.
 - Ne jamais créer de `userSettings` pour un abonné public, ni d'`abo_profiles`
   "admin" (les admins abo sont dérivés côté serveur, voir §3).
 

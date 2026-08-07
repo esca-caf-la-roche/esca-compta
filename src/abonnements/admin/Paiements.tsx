@@ -4,6 +4,11 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { aboError } from "../lib/errors";
 
+function formatRetryAt(value: string | null): string {
+  if (!value) return "dans quelques minutes";
+  return new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+}
+
 // Vue admin « Paiements » : cache HelloAsso du formulaire abonnements. Cards avec
 // statut interne (boutons), commentaire (Remboursé / En attente), timeline des
 // remboursements et détection d'un problème de remboursement (divergence statut
@@ -71,7 +76,9 @@ export default function Paiements() {
     try {
       const r = await synchroniser({});
       setSync(
-        r.errors.length
+        r.statut === "skipped"
+          ? `Synchronisation déjà lancée récemment. Réessayez à partir de ${formatRetryAt(r.retryAt)}.`
+          : r.errors.length
           ? `Terminé avec ${r.errors.length} erreur(s) : ${r.errors[0]}`
           : `✓ ${r.synced_count} transaction(s) Abonnements synchronisée(s).`,
       );
