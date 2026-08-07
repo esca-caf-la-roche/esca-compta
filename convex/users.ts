@@ -125,7 +125,11 @@ export const listUsers = authenticatedQuery({
     const userSettings = await ctx.db.query("userSettings").collect();
     
     return users.map(user => {
-      const settings = userSettings.find(s => s.userId === user._id) || { allowedTiles: [] as string[], role: "user" };
+      const settings = userSettings.find(s => s.userId === user._id) || {
+        allowedTiles: [] as string[],
+        role: "user",
+        canResetAboSeason: false,
+      };
       return {
         ...user,
         settings
@@ -141,7 +145,11 @@ export const getCurrentUserSettings = authenticatedQuery({
       .query("userSettings")
       .withIndex("by_userId", (q) => q.eq("userId", ctx.userId))
       .first();
-    return settings || { allowedTiles: [] as string[], role: "user" };
+    return settings || {
+      allowedTiles: [] as string[],
+      role: "user",
+      canResetAboSeason: false,
+    };
   },
 });
 
@@ -172,7 +180,8 @@ export const addUser = authenticatedMutation({
     await ctx.db.insert("userSettings", {
       userId: newUserId,
       allowedTiles: ensureBudgetIncludesCompta(["compta", "paiements", "budget"]),
-      role: "user"
+      role: "user",
+      canResetAboSeason: false,
     });
     
     return newUserId;
@@ -257,7 +266,8 @@ export const updateUserSettings = authenticatedMutation({
     userId: v.id("users"),
     allowedTiles: v.array(v.string()),
     role: v.string(),
-    name: v.string()
+    name: v.string(),
+    canResetAboSeason: v.boolean(),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx, ctx.userId);
@@ -268,24 +278,45 @@ export const updateUserSettings = authenticatedMutation({
     }
 
     const allowedTiles = ensureBudgetIncludesCompta(args.allowedTiles);
-
-    await ctx.db.patch(args.userId, { name });
+    // Une permission de destruction ne peut jamais survivre à la perte du
+    // rôle admin ou de la tuile Abonnements, même via un appel direct à l'API.
+    const canResetAboSeason =
+      args.canResetAboSeason &&
+      args.role === "admin" &&
+      allowedTiles.includes("abonnements");
 
     const settings = await ctx.db
       .query("userSettings")
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
       .first();
+
+    // Le droit de reset est une délégation exceptionnelle : un administrateur
+    // ne peut pas se l'accorder à lui-même via l'interface ou l'API directe.
+    // Un autre administrateur général doit désigner le responsable de campagne.
+    if (
+      args.userId === ctx.userId &&
+      canResetAboSeason &&
+      settings?.canResetAboSeason !== true
+    ) {
+      throw new ConvexError(
+        "Un autre administrateur doit autoriser votre réinitialisation de campagne.",
+      );
+    }
+
+    await ctx.db.patch(args.userId, { name });
       
     if (settings) {
       await ctx.db.patch(settings._id, {
         allowedTiles,
-        role: args.role
+        role: args.role,
+        canResetAboSeason,
       });
     } else {
       await ctx.db.insert("userSettings", {
         userId: args.userId,
         allowedTiles,
-        role: args.role
+        role: args.role,
+        canResetAboSeason,
       });
     }
   },

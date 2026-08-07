@@ -14,7 +14,7 @@ import { authenticatedQuery, authenticatedMutation } from "../customFunctions";
 import { internalMutation } from "../_generated/server";
 import type { QueryCtx, MutationCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
-import { requireAboAdmin } from "./auth";
+import { requireAboAdmin, requireAboSeasonReset } from "./auth";
 import { parseHa, poserLienAbo, trouverLienAbo } from "./paiements";
 
 // ── Lecture d'une clé de config ──────────────────────────────────────
@@ -246,7 +246,7 @@ export const setLiens = authenticatedMutation({
 export const resetSaison = authenticatedMutation({
   args: { saisonArchivee: v.string(), nouveauLien: v.string() },
   handler: async (ctx, args) => {
-    await requireAboAdmin(ctx);
+    await requireAboSeasonReset(ctx);
     const saison = args.saisonArchivee.trim();
     const lien = args.nouveauLien.trim();
     if (!saison) throw new Error("Libellé de la saison à archiver requis.");

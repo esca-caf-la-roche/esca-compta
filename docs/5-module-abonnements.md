@@ -20,6 +20,14 @@ tuiles compta ; le `Layout` le redirige vers `/abonnements`. Un staff qui dépos
 une demande conserve ses droits staff ; au reset, seules ses données publiques
 de campagne et son profil public sont purgés.
 
+La **réinitialisation annuelle** est plus restrictive que la gestion courante :
+elle exige la tuile `abonnements`, le rôle d'administrateur général et
+l'autorisation nominative `canResetAboSeason`, accordée dans
+*Configurations > Utilisateurs et Accès*. Cette dernière est désactivée par
+défaut, y compris pour les comptes existants. Un administrateur ne peut pas se
+l'attribuer seul : un second administrateur doit désigner le responsable de
+campagne.
+
 ## Variables d'environnement (dashboard Convex → *Settings > Environment Variables*)
 
 > ⚠️ Ces variables se posent **côté Convex** (pas dans `.env.local`, qui ne sert

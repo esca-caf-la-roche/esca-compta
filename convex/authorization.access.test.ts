@@ -144,4 +144,56 @@ describe("saisons et administration globale", () => {
     await expect(admin.query(api.users.listUsers, {})).resolves.toBeDefined();
     await expect(admin.query(api.transactions.getStats, { saison: "2026-27" })).rejects.toThrow("Accès refusé");
   });
+
+  test("normalise le droit de reset Abonnements selon le rôle et la tuile", async () => {
+    const t = convexTest(schema, modules);
+    const targetId = await createUser(t, { tiles: ["abonnements"], role: "admin" });
+    const admin = t.withIdentity({
+      subject: await createUser(t, { tiles: [], role: "admin" }),
+    });
+
+    await admin.mutation(api.users.updateUserSettings, {
+      userId: targetId,
+      name: "Responsable campagne",
+      role: "admin",
+      allowedTiles: ["abonnements"],
+      canResetAboSeason: true,
+    });
+    await expect(admin.query(api.users.listUsers, {})).resolves.toContainEqual(
+      expect.objectContaining({
+        _id: targetId,
+        settings: expect.objectContaining({ canResetAboSeason: true }),
+      }),
+    );
+
+    await admin.mutation(api.users.updateUserSettings, {
+      userId: targetId,
+      name: "Responsable campagne",
+      role: "user",
+      allowedTiles: ["abonnements"],
+      canResetAboSeason: true,
+    });
+    await expect(admin.query(api.users.listUsers, {})).resolves.toContainEqual(
+      expect.objectContaining({
+        _id: targetId,
+        settings: expect.objectContaining({ canResetAboSeason: false }),
+      }),
+    );
+  });
+
+  test("empêche un administrateur de s'attribuer le droit de reset", async () => {
+    const t = convexTest(schema, modules);
+    const adminId = await createUser(t, { tiles: ["abonnements"], role: "admin" });
+    const admin = t.withIdentity({ subject: adminId });
+
+    await expect(
+      admin.mutation(api.users.updateUserSettings, {
+        userId: adminId,
+        name: "Administrateur",
+        role: "admin",
+        allowedTiles: ["abonnements"],
+        canResetAboSeason: true,
+      }),
+    ).rejects.toThrow("Un autre administrateur doit autoriser");
+  });
 });

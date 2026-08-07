@@ -37,13 +37,18 @@ export const bootstrapAdmins = internalMutation({
 
       const allowedTiles = ["compta", "paiements", "budget"];
       if (settings) {
-        await ctx.db.patch(settings._id, { role: "admin", allowedTiles });
+        await ctx.db.patch(settings._id, {
+          role: "admin",
+          allowedTiles,
+          canResetAboSeason: false,
+        });
         results.push(`Droits admin mis à jour : ${email}`);
       } else {
         await ctx.db.insert("userSettings", {
           userId: user._id,
           role: "admin",
           allowedTiles,
+          canResetAboSeason: false,
         });
         results.push(`Droits admin créés : ${email}`);
       }

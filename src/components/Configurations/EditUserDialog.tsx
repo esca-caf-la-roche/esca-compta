@@ -13,6 +13,7 @@ interface EditUserDialogProps {
     name: string;
     role: string;
     allowedTiles: string[];
+    canResetAboSeason: boolean;
   }) => Promise<void>;
   onDismiss: () => void;
 }
@@ -36,6 +37,7 @@ export default function EditUserDialog({
   const [name, setName] = useState("");
   const [role, setRole] = useState("user");
   const [allowedTiles, setAllowedTiles] = useState<string[]>([]);
+  const [canResetAboSeason, setCanResetAboSeason] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
   const [accessNotice, setAccessNotice] = useState("");
@@ -52,6 +54,7 @@ export default function EditUserDialog({
         ? [...initialTiles, "compta"]
         : initialTiles,
     );
+    setCanResetAboSeason(user.settings?.canResetAboSeason === true);
     setError("");
     setAccessNotice("");
     setIsSaving(false);
@@ -59,6 +62,8 @@ export default function EditUserDialog({
   }, [user]);
 
   const unknownTiles = unknownTileIds(allowedTiles);
+  const canGrantSeasonReset =
+    role === "admin" && allowedTiles.includes("abonnements");
 
   const toggleTile = (tileId: string) => {
     setAccessNotice("");
@@ -76,6 +81,10 @@ export default function EditUserDialog({
       return;
     }
 
+    if (tileId === "abonnements" && isEnabled) {
+      setCanResetAboSeason(false);
+    }
+
     setAllowedTiles(
       isEnabled
         ? allowedTiles.filter((id) => id !== tileId)
@@ -85,6 +94,7 @@ export default function EditUserDialog({
 
   const setKnownTiles = (enabled: boolean) => {
     setAccessNotice("");
+    if (!enabled) setCanResetAboSeason(false);
     setAllowedTiles([
       ...unknownTiles,
       ...(enabled ? TILE_OPTIONS.map(({ id }) => id) : []),
@@ -109,6 +119,7 @@ export default function EditUserDialog({
         name: trimmedName,
         role,
         allowedTiles,
+        canResetAboSeason: canGrantSeasonReset && canResetAboSeason,
       });
       dialogRef.current?.close();
     } catch (saveError) {
@@ -185,7 +196,11 @@ export default function EditUserDialog({
                 className="input-field"
                 value={role}
                 disabled={isSaving}
-                onChange={(event) => setRole(event.target.value)}
+                onChange={(event) => {
+                  const nextRole = event.target.value;
+                  setRole(nextRole);
+                  if (nextRole !== "admin") setCanResetAboSeason(false);
+                }}
               >
                 <option value="user">Utilisateur</option>
                 <option value="admin">Administrateur</option>
@@ -244,6 +259,33 @@ export default function EditUserDialog({
                 );
               })}
             </div>
+          </fieldset>
+
+          <fieldset
+            className="user-permissions-fieldset"
+            disabled={isSaving || !canGrantSeasonReset}
+          >
+            <legend>Opération sensible</legend>
+            <label className="user-reset-permission">
+              <input
+                type="checkbox"
+                checked={canResetAboSeason}
+                onChange={(event) => setCanResetAboSeason(event.target.checked)}
+              />
+              <span>
+                <strong>Autoriser la réinitialisation annuelle des Abonnements</strong>
+                <small>
+                  Efface les données publiques de campagne. Réservé à un
+                  administrateur général disposant de la tuile Abonnements.
+                </small>
+              </span>
+            </label>
+            {!canGrantSeasonReset && (
+              <p className="user-reset-permission-note">
+                Accordez d&apos;abord le rôle Administrateur et la tuile
+                Abonnements pour pouvoir attribuer ce droit.
+              </p>
+            )}
           </fieldset>
 
           {accessNotice && (

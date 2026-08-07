@@ -292,7 +292,12 @@ HelloAsso. Elle :
 - conserve les comptes staff en théorie ;
 - enregistre le nouveau lien HelloAsso et efface les dates de vagues.
 
-> **Avertissement de sécurité actuel :** ne lancer le reset que lorsque les
+> **Autorisation requise :** ne lancer le reset que lorsque les
+> responsabilités de fin de campagne ont été validées. Le bouton n'est
+> accessible qu'à l'administrateur général disposant à la fois de la tuile
+> Abonnements et de l'autorisation nominative de reset, réglée dans
+> **Configurations > Utilisateurs et Accès** par un autre administrateur. Il
+> faut aussi s'assurer que les
 > comptes publics et staff sont strictement séparés par e-mail. Un défaut connu
 > peut sinon exposer un compte staff ayant aussi été utilisé dans le portail
 > public à la purge. Voir [l'audit complet](10-audit-abonnements-escalade.md).

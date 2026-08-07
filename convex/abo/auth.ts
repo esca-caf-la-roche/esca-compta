@@ -77,6 +77,27 @@ export async function requireAboAdmin(
   return id;
 }
 
+// Garde dédiée à l'opération destructive de changement de campagne. Elle ne
+// confond pas la gestion quotidienne du module avec le droit de reset : il faut
+// la tuile Abonnements, le rôle d'administrateur général et l'autorisation
+// nominative accordée dans Configurations > Utilisateurs et Accès.
+export async function requireAboSeasonReset(
+  ctx: QueryCtx | MutationCtx,
+): Promise<AboIdentity> {
+  const id = await requireAboAdmin(ctx);
+  const settings = await ctx.db
+    .query("userSettings")
+    .withIndex("by_userId", (q) => q.eq("userId", id.userId))
+    .first();
+
+  if (settings?.role !== "admin" || settings.canResetAboSeason !== true) {
+    throw new Error(
+      "Réinitialisation réservée à l'administrateur explicitement autorisé.",
+    );
+  }
+  return id;
+}
+
 // Charge un dossier en vérifiant qu'il appartient à l'appelant (ou admin).
 // Lève si absent ou non autorisé.
 export async function requireOwnedDossier(

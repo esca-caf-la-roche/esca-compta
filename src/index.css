@@ -3028,6 +3028,38 @@ a.btn-primary {
   accent-color: var(--foreground);
 }
 
+.user-reset-permission {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.8rem;
+  border: 2px solid var(--border-color);
+  background: var(--background);
+  cursor: pointer;
+}
+
+.user-reset-permission input {
+  width: 20px;
+  height: 20px;
+  margin-top: 0.15rem;
+}
+
+.user-reset-permission span {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.user-reset-permission small,
+.user-reset-permission-note {
+  color: #555;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.user-reset-permission-note {
+  margin: 0.75rem 0 0;
+}
+
 .user-unknown-tiles p {
   margin: 0.25rem 0;
 }

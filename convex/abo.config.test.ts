@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
 import { describe, expect, test } from "vitest";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -70,5 +70,58 @@ describe("purge annuelle des comptes Abonnements", () => {
       role: "admin",
     });
     expect(state.staffProfile).toBeNull();
+  });
+});
+
+describe("autorisation du reset annuel Abonnements", () => {
+  test("exige la tuile, le rôle admin général et l'autorisation nominative", async () => {
+    const t = convexTest(schema, modules);
+    const [staffSansDroit, adminSansTuile, adminAutorise] = await t.run(
+      async (ctx) => {
+        const create = async (settings: {
+          allowedTiles: string[];
+          role: string;
+          canResetAboSeason: boolean;
+        }) => {
+          const userId = await ctx.db.insert("users", {
+            email: `${crypto.randomUUID()}@example.test`,
+          });
+          await ctx.db.insert("userSettings", { userId, ...settings });
+          return userId;
+        };
+        return await Promise.all([
+          create({
+            allowedTiles: ["abonnements"],
+            role: "user",
+            canResetAboSeason: false,
+          }),
+          create({
+            allowedTiles: [],
+            role: "admin",
+            canResetAboSeason: true,
+          }),
+          create({
+            allowedTiles: ["abonnements"],
+            role: "admin",
+            canResetAboSeason: true,
+          }),
+        ]);
+      },
+    );
+    const args = {
+      saisonArchivee: "2025-26",
+      nouveauLien:
+        "https://www.helloasso.com/associations/club-escalade/adhesions/abonnements-2026",
+    };
+
+    await expect(
+      t.withIdentity({ subject: staffSansDroit }).mutation(api.abo.config.resetSaison, args),
+    ).rejects.toThrow("Réinitialisation réservée");
+    await expect(
+      t.withIdentity({ subject: adminSansTuile }).mutation(api.abo.config.resetSaison, args),
+    ).rejects.toThrow("Réservé aux administrateurs");
+    await expect(
+      t.withIdentity({ subject: adminAutorise }).mutation(api.abo.config.resetSaison, args),
+    ).resolves.toBe(0);
   });
 });
