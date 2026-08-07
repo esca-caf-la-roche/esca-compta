@@ -209,12 +209,39 @@ flowchart TD
   B --> C{Vague ouverte et priorité respectée ?}
   C -- Non --> D[Attente / message métier]
   C -- Oui --> E[Admin examine chaque personne]
-  E -->|Validée| F[Suivi : licence, site club, paiement, test si requis]
-  E -->|Liste d'attente ou refus| G[Statut et email]
+  E --> K{Occupation déjà au plafond ?}
+  K -- Non -->|Validation normale| F[Suivi : licence, site club, paiement, test si requis]
+  K -- Oui -->|Validation| G[Liste d'attente : statut individuel]
+  E -->|Liste d'attente ou refus manuel| G
+  E -->|Valider malgré le plafond| F
   F --> H[Site du club et HelloAsso]
   H --> I[Scraping / synchronisation]
   I --> J[Étapes affichées à jour]
 ```
+
+### Plafond d'admissions : règle appliquée par le serveur
+
+Une validation normale est possible tant que son effet ne fait pas dépasser le
+plafond : l'occupation peut donc atteindre exactement le plafond. Dès que
+l'occupation est déjà au plafond, le serveur transforme automatiquement toute
+tentative de validation en **liste d'attente**, avec le statut individuel
+correspondant. L'e-mail de statut est toutefois piloté au niveau du
+dossier : il n'est planifié que lorsque son statut global bascule. Dans un dossier
+multi-personnes déjà validé, une autre personne mise automatiquement en liste
+d'attente garde donc le nouveau statut individuel sans envoi d'e-mail garanti.
+Cette décision est effectuée dans la transaction qui enregistre
+la décision ; deux administrateurs ne peuvent pas prendre la même dernière place
+par des validations concurrentes.
+
+L'admin Abonnements peut faire une exception uniquement en choisissant
+explicitement **« Valider malgré le plafond »** dans l'interface. Il conserve
+aussi les choix manuels **Liste d'attente** et **Refuser**, même si une place est
+encore disponible.
+
+Le compteur de la garde représente le snapshot synchronisé du site du club, pas
+une lecture directe de ce site. Un changement externe intervenu depuis la
+dernière synchronisation peut donc ne pas être pris en compte. Avant une
+décision sensible, synchroniser le site club et vérifier le résultat.
 
 Après validation, la personne reçoit les liens configurés et suit les étapes :
 
@@ -320,7 +347,7 @@ Elle effectue ensuite, dans cet ordre :
 | Corrigé | L'API de réservation vérifie que la demande est validée, que le test est requis, que l'âge est renseigné et d'au moins 16 ans, et que la tranche est future. Ces prérequis sont contrôlés côté serveur, donc un appel direct ne contourne pas la règle d'affichage. | Couvert par `convex/abo.tests.test.ts`. |
 | Corrigé | La remise à zéro supprime les comptes publics et leurs dossiers ; l'archive conservée ne contient que le snapshot minimal des abonnés du site. | La conservation et l'absence d'export préalable ont été validées par le club. Le déclenchement exige désormais la tuile Abonnements, le rôle admin général et une autorisation nominative de reset. |
 | Haute | L'ajout d'un staff donne actuellement Comptabilité, Paiements et Budget par défaut avant correction manuelle. | La procédure doit imposer le retrait immédiat de ces tuiles pour un simple encadrant de test ; idéalement le comportement devra être revu avant généralisation. |
-| Haute | Le plafond configuré (par exemple 350 places) est indicatif : aucune validation automatique ne bloque ou ne bascule une demande en liste d'attente quand il est atteint. | Établir une procédure manuelle de comptage/validation, ou implémenter le verrou avant ouverture. |
+| Corrigé | Le plafond configuré est désormais contrôlé par la transaction de décision : la validation qui porterait l'occupation au-delà du plafond devient une liste d'attente, sauf action explicite « Valider malgré le plafond ». | La décision reste fondée sur le snapshot synchronisé du site club ; une synchronisation récente demeure nécessaire lorsque des changements externes sont possibles. |
 | Moyenne | La suppression d'un créneau annule les derniers inscrits. | Définir une règle d'information / re-priorisation manuelle si les rendez-vous sont proches. |
 | Moyenne | Un demandeur peut retirer une personne, y compris après validation ; s'il retire la dernière, le dossier, les messages, le journal et les réservations sont supprimés. | Décider des états à verrouiller et de la trace d'audit à conserver. |
 | Moyenne | Le code OTP public ne présente pas de limitation applicative visible par adresse ou origine. | Protéger contre l'envoi abusif de codes avec un rate limit, une temporisation de renvoi et une trace minimale des abus. |
@@ -361,10 +388,15 @@ Elle effectue ensuite, dans cet ordre :
    `/gestion-abonnements` pour un compte sans tuile.
 3. Créer au moins deux disponibilités qui se chevauchent, avec deux comptes
    encadrants distincts ; vérifier la capacité cumulée.
-4. Créer un compte public de test, soumettre une personne, la valider dans
-   Dossiers et réserver le test.
-5. Tenter une deuxième réservation pour la même personne, puis remplir une
-   tranche jusqu'à capacité : les deux refus doivent être explicites.
+4. Créer un compte public de test, soumettre des personnes et valider jusqu'au
+   plafond. Une tentative supplémentaire doit être basculée en liste d'attente,
+   avec son statut individuel. Vérifier l'e-mail seulement quand le statut global
+   du dossier bascule, en couvrant le cas d'un dossier multi-personnes déjà
+   validé ; vérifier séparément l'action explicite « Valider malgré le plafond »
+   ainsi que les choix manuels liste d'attente et refus.
+5. Réserver un test pour une personne validée. Tenter une deuxième réservation
+   pour elle, puis remplir une tranche jusqu'à capacité : les deux refus doivent
+   être explicites.
 6. Supprimer une disponibilité et contrôler l'ordre d'annulation, le bandeau
    candidat et l'email prévu.
 7. Faire le parcours externe réel : licence, activation site, inscription,

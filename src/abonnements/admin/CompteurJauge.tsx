@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 
-// Jauge « occupé / plafond » + places restantes (aide à la décision, pas de
-// blocage). Wave-aware via api.abo.compteur.vCompteur. Bouton de copie du code
+// Jauge « occupé / plafond » + places restantes. La validation demande une
+// confirmation et propose la liste d'attente lorsque le plafond est atteint.
+// Wave-aware via api.abo.compteur.vCompteur. Bouton de copie du code
 // d'intégration de l'iframe publique (compteur.html → route /#/compteur ici).
 // Portage de compteurHtml() (src/pages/admin.js).
 

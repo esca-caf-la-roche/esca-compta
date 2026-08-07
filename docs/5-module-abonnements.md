@@ -100,6 +100,31 @@ de cinq minutes, partagé entre tous les administrateurs et leurs onglets. En ca
 d'échec, le verrou concerné est restauré pour autoriser une nouvelle tentative
 immédiate.
 
+## Plafond d'admissions et décisions de dossier
+
+Le plafond de la campagne est une garde appliquée **dans la transaction serveur**
+qui traite la décision. Une validation normale reste possible tant que son effet
+ne fait pas dépasser le plafond : la dernière place peut donc porter l'occupation
+exactement au plafond. Lorsque l'occupation est déjà au plafond, une tentative
+de validation est automatiquement transformée en **liste d'attente**. Cette
+vérification transactionnelle empêche que deux administrateurs, ou deux onglets,
+valident simultanément une même dernière place.
+
+Un admin Abonnements peut toutefois choisir explicitement **« Valider malgré le
+plafond »** dans l'interface. La **liste d'attente** et le **refus** restent aussi
+des décisions manuelles possibles, y compris lorsqu'une place est disponible.
+Chaque décision met à jour le statut individuel de la personne. L'e-mail de
+statut est piloté au niveau du dossier : il n'est planifié que lorsque le statut
+global du dossier bascule. Ainsi, dans un dossier multi-personnes déjà validé,
+la mise automatique d'une autre personne en liste d'attente met bien à jour son
+statut individuel sans garantir l'envoi d'un e-mail de liste d'attente.
+
+L'occupation utilisée par cette garde est calculée à partir du snapshot
+synchronisé du site du club. Elle ne reflète donc pas nécessairement une
+inscription, une annulation ou un autre changement externe qui n'a pas encore
+été synchronisé. Avant une décision sensible, actualiser ce snapshot et vérifier
+que la synchronisation a abouti.
+
 ⚠️ Le compteur public ne se rafraîchit que lorsqu'un administrateur ouvre
 l'application. Si une fraîcheur indépendante de toute présence devient
 nécessaire, un cron lâche pourra être réintroduit dans `convex/crons.ts`, précédé
@@ -116,6 +141,13 @@ déploiement `npx convex dev` actif.
 - [ ] **Parcours vagues** : configurer `vague2_debut`/`vague3_debut` + peupler
   `abo_eleves_en_cours` → demande selon la vague → visible admin → validation →
   le suivi bascule sur les étapes de finalisation.
+- [ ] **Plafond d'admissions** : régler un plafond, valider jusqu'à l'atteindre,
+  puis tenter une validation avec deux sessions admin : la tentative au plafond
+  bascule en liste d'attente avec son statut individuel. Vérifier l'e-mail
+  uniquement lorsqu'il y a changement du statut global du dossier, notamment
+  dans le cas d'un dossier multi-personnes ; vérifier aussi que « Valider malgré
+  le plafond » reste une action explicite et que liste d'attente et refus peuvent
+  toujours être choisis manuellement.
 - [ ] **Licences** : importer un annuaire de test → personne sans licence obtient
   des candidats ; résolution auto (match exact) + validation manuelle la retirent
   de la file.

@@ -743,6 +743,9 @@ textarea.abo-input {
 .abo-admin-step-title { flex: 1; font-weight: 700; }
 .abo-admin-step-state { color: #555; font-size: 0.75rem; font-weight: 600; }
 .abo-admin-modal-subtitle { margin: 1rem 0 0.4rem; }
+.abo-admin-capacity-modal { display: grid; gap: 1rem; }
+.abo-admin-capacity-actions { display: flex; flex-wrap: wrap; gap: 0.65rem; }
+.abo-admin-capacity-actions .abo-admin-button { flex: 1 1 14rem; }
 
 @media (max-width: 640px) {
   .abo-admin-payment-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }

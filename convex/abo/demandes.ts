@@ -19,6 +19,7 @@ import { internal } from "../_generated/api";
 import { requireAboIdentity, requireAboAdmin } from "./auth";
 import { canoniserLicence, normaliserNomPrenom } from "./lib";
 import { vagueCourante } from "./config";
+import { calculerCompteur, lirePlacesMax } from "./compteur";
 
 // Statut de dossier → email transactionnel à envoyer (null si aucun).
 type TypeEmailStatut = "validation" | "liste_attente" | "refus";
@@ -53,6 +54,70 @@ const decisionValidator = v.union(
   v.literal("liste_attente"),
   v.literal("refusee"),
 );
+
+type DecisionValidation = Doc<"abo_personnes">["etape_validation"];
+
+interface ResultatDecisionPlafond {
+  decisionAppliquee: DecisionValidation;
+  plafond: number;
+  occupeAvant: number;
+  occupeApres: number;
+  derogationUtilisee: boolean;
+}
+
+// Évalue la capacité avec l'algorithme exact du compteur. Une dérogation est
+// seulement considérée comme utilisée lorsqu'elle permet une nouvelle
+// validation au-delà du plafond ; demander « validée » à 349/350 reste normal.
+async function deciderAvecPlafond(
+  ctx: MutationCtx,
+  personnes: Doc<"abo_personnes">[],
+  decisionDemandee: DecisionValidation,
+  autoriserDepassementPlafond: boolean | undefined,
+  preserverValideesEnCasDePlafond = false,
+): Promise<ResultatDecisionPlafond> {
+  const [compteurAvant, plafond] = await Promise.all([
+    calculerCompteur(ctx),
+    lirePlacesMax(ctx),
+  ]);
+  const nouvellesValidations =
+    decisionDemandee === "validee" &&
+    personnes.some((personne) => personne.etape_validation !== "validee");
+  const decisionsProjetees = new Map<Id<"abo_personnes">, DecisionValidation>(
+    personnes.map((personne) => [personne._id, decisionDemandee]),
+  );
+  const compteurProjete = await calculerCompteur(ctx, decisionsProjetees);
+  const depassement = nouvellesValidations && compteurProjete.occupe > plafond;
+  const derogationUtilisee = depassement && autoriserDepassementPlafond === true;
+  const decisionAppliquee: DecisionValidation =
+    depassement && !derogationUtilisee ? "liste_attente" : decisionDemandee;
+
+  if (decisionAppliquee === decisionDemandee) {
+    return {
+      decisionAppliquee,
+      plafond,
+      occupeAvant: compteurAvant.occupe,
+      occupeApres: compteurProjete.occupe,
+      derogationUtilisee,
+    };
+  }
+
+  const decisionsAppliquees = new Map<Id<"abo_personnes">, DecisionValidation>(
+    personnes.map((personne) => [
+      personne._id,
+      preserverValideesEnCasDePlafond && personne.etape_validation === "validee"
+        ? "validee"
+        : decisionAppliquee,
+    ]),
+  );
+  const compteurApplique = await calculerCompteur(ctx, decisionsAppliquees);
+  return {
+    decisionAppliquee,
+    plafond,
+    occupeAvant: compteurAvant.occupe,
+    occupeApres: compteurApplique.occupe,
+    derogationUtilisee,
+  };
+}
 
 // Personne prête à insérer (identité + licence résolues selon la vague).
 interface PersonneResolue {
@@ -573,45 +638,69 @@ async function appliquerRollup(
 
 // ── validerPersonne : décision admin PAR PERSONNE + rollup ──────────
 export const validerPersonne = authenticatedMutation({
-  args: { personneId: v.id("abo_personnes"), decision: decisionValidator },
+  args: {
+    personneId: v.id("abo_personnes"),
+    decision: decisionValidator,
+    autoriserDepassementPlafond: v.optional(v.boolean()),
+  },
   handler: async (ctx, args) => {
     await requireAboAdmin(ctx);
     const personne = await ctx.db.get(args.personneId);
     if (!personne) {
       throw new ConvexError({ code: "P0002", message: "Personne introuvable" });
     }
-    await ctx.db.patch(personne._id, { etape_validation: args.decision });
+    const resultat = await deciderAvecPlafond(
+      ctx,
+      [personne],
+      args.decision,
+      args.autoriserDepassementPlafond,
+    );
+    await ctx.db.patch(personne._id, { etape_validation: resultat.decisionAppliquee });
     const dossier = await ctx.db.get(personne.dossier_id);
     if (dossier) await appliquerRollup(ctx, dossier);
-    return null;
+    return resultat;
   },
 });
 
 // ── validerDossier : décision admin globale (compat) ────────────────
 export const validerDossier = authenticatedMutation({
-  args: { dossierId: v.id("abo_dossiers"), decision: decisionValidator },
+  args: {
+    dossierId: v.id("abo_dossiers"),
+    decision: decisionValidator,
+    autoriserDepassementPlafond: v.optional(v.boolean()),
+  },
   handler: async (ctx, args) => {
     await requireAboAdmin(ctx);
     const dossier = await ctx.db.get(args.dossierId);
     if (!dossier) {
       throw new ConvexError({ code: "P0002", message: "Dossier introuvable" });
     }
-    await ctx.db.patch(dossier._id, {
-      statut_dossier: args.decision,
-      date_validation:
-        args.decision === "validee"
-          ? new Date().toISOString()
-          : dossier.date_validation,
-    });
     const personnes = await ctx.db
       .query("abo_personnes")
       .withIndex("by_dossier", (q) => q.eq("dossier_id", dossier._id))
       .collect();
+    const resultat = await deciderAvecPlafond(
+      ctx,
+      personnes,
+      args.decision,
+      args.autoriserDepassementPlafond,
+      true,
+    );
     for (const p of personnes) {
-      await ctx.db.patch(p._id, { etape_validation: args.decision });
+      // Au dépassement, une validation déjà acquise ne peut pas être retirée
+      // par la décision globale : seules les nouvelles validations attendent.
+      const decisionPersonne =
+        resultat.decisionAppliquee === "liste_attente" &&
+        args.decision === "validee" &&
+        p.etape_validation === "validee"
+          ? "validee"
+          : resultat.decisionAppliquee;
+      await ctx.db.patch(p._id, { etape_validation: decisionPersonne });
     }
-    await planifierEmailStatut(ctx, dossier._id, dossier.statut_dossier, args.decision);
-    return null;
+    // Le rollup reste la source de vérité du statut du dossier et de son email
+    // transactionnel historique ; il ne prétend pas notifier chaque personne.
+    await appliquerRollup(ctx, dossier);
+    return resultat;
   },
 });
 

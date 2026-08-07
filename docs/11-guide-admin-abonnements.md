@@ -42,8 +42,8 @@ dossier entier.
 
 En haut de l'écran se trouvent :
 
-- une jauge du nombre de places ; elle est informative, elle ne bloque pas
-  automatiquement les validations ;
+- une jauge du nombre de places, fondée sur le dernier snapshot synchronisé du
+  site club ;
 - le bouton **Synchroniser le site club**, qui importe l'état actuel des
   abonnés et des élèves en cours ;
 - un filtre par statut et une recherche par nom ou e-mail.
@@ -65,14 +65,24 @@ Pour chaque personne, utiliser l'un des boutons :
 
 | Décision | Effet |
 |---|---|
-| **Valider** | La personne peut accéder à son parcours de finalisation et, si nécessaire, réserver un test. Un e-mail de statut est planifié. |
-| **Liste d'attente** | La personne reste en attente ; elle n'accède pas à la finalisation comme une personne validée. |
-| **Refuser** | La demande de cette personne est refusée ; un e-mail de statut est planifié. |
+| **Valider** | Tant que l'occupation est sous le plafond, la personne accède à son parcours de finalisation et, si nécessaire, réserve un test. Si l'occupation est déjà au plafond, cette tentative devient automatiquement une **liste d'attente**. |
+| **Valider malgré le plafond** | Exception volontaire réservée à l'admin Abonnements : valide la personne même si l'occupation est déjà au plafond. |
+| **Liste d'attente** | Choix manuel toujours disponible : la personne reste en attente et n'accède pas à la finalisation comme une personne validée. |
+| **Refuser** | La demande de cette personne est refusée. |
 
 Le statut du dossier est calculé à partir de ses personnes. Un même dossier
-peut donc contenir des situations différentes. Avant de valider, vérifier
-manuellement le plafond de places et les informations de licence : ils ne sont
-pas imposés automatiquement par l'application.
+peut donc contenir des situations différentes. Le plafond est contrôlé dans la
+transaction serveur qui enregistre la décision : une validation normale peut
+amener l'occupation exactement au plafond, mais jamais le dépasser. Deux actions
+concurrentes ne peuvent donc pas attribuer la même dernière place. Les
+informations de licence restent à vérifier avant de décider.
+
+Les décisions portent d'abord sur la personne concernée. L'e-mail de statut est
+ensuite piloté par le **statut global du dossier** : il est planifié seulement si
+ce statut bascule. Par exemple, si un dossier multi-personnes est déjà globalement
+validé, mettre automatiquement une autre personne en liste d'attente actualise
+son statut individuel, mais ne garantit pas l'envoi d'un e-mail de liste
+d'attente.
 
 ### Demandes supprimées
 
@@ -252,9 +262,22 @@ tous les admins et demandeurs concernés.
 
 ### Plafond de places
 
-Le plafond alimente la jauge « X / plafond ». Il est modifiable à tout moment,
-mais **il ne bloque aucune validation automatiquement**. Le responsable doit
-donc contrôler l'occupation avant d'accepter un nouveau dossier.
+Le plafond alimente la jauge « X / plafond » et sécurise les décisions de
+validation. Une validation normale reste possible jusqu'au plafond inclus : elle
+peut prendre la dernière place. Si l'occupation est déjà au plafond, cliquer
+**Valider** transforme automatiquement la décision en **liste d'attente**.
+
+Pour admettre exceptionnellement une personne au-delà du plafond, l'admin
+Abonnements doit choisir **Valider malgré le plafond**. Ce choix n'est jamais
+implicite. Les décisions manuelles **Liste d'attente** et **Refuser** restent
+possibles quel que soit le niveau d'occupation. Elles actualisent le statut
+individuel ; l'e-mail de statut n'est planifié que si le statut global du dossier
+change.
+
+L'occupation est calculée depuis le snapshot synchronisé du site club. Elle peut
+donc être périmée si une inscription ou une annulation externe n'a pas encore
+été synchronisée. Avant une décision sensible, utiliser **Synchroniser le site
+club** et vérifier que l'actualisation a réussi.
 
 ### Liens des étapes d'inscription
 
@@ -310,8 +333,10 @@ synchronisations nécessaires avant de rouvrir la campagne.
 1. Synchroniser le site du club, puis lire Dossiers et Anomalies.
 2. Répondre aux messages non lus.
 3. Résoudre les licences ambiguës avant validation.
-4. Valider, mettre en attente ou refuser chaque personne selon la capacité
-   réellement disponible.
+4. Décider pour chaque personne : valider jusqu'au plafond, utiliser la liste
+   d'attente ou le refus lorsque c'est le choix métier, et réserver « Valider
+   malgré le plafond » aux exceptions assumées. En cas de changement externe
+   récent, synchroniser avant la décision.
 5. Synchroniser et suivre les paiements séparément.
 6. Vérifier que les créneaux de test couvrent les besoins et éviter leur
    suppression tardive.

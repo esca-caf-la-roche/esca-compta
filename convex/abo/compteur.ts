@@ -12,6 +12,7 @@
 import { v, ConvexError } from "convex/values";
 import { query, internalMutation } from "../_generated/server";
 import type { QueryCtx, MutationCtx } from "../_generated/server";
+import type { Doc, Id } from "../_generated/dataModel";
 import { authenticatedQuery, authenticatedMutation } from "../customFunctions";
 import { requireAboAdmin } from "./auth";
 import { vagueCourante, getConfigValeur } from "./config";
@@ -36,7 +37,16 @@ interface CompteurData {
   legitIds: Set<string>;
 }
 
-async function calculerCompteur(ctx: QueryCtx | MutationCtx): Promise<CompteurData> {
+// Les mutations de validation peuvent fournir une décision projetée pour une ou
+// plusieurs personnes. La projection conserve ainsi exactement la même
+// algèbre (scrap légitime + dédoublonnage) que le compteur affiché.
+export async function calculerCompteur(
+  ctx: QueryCtx | MutationCtx,
+  decisionsProjetees?: ReadonlyMap<
+    Id<"abo_personnes">,
+    Doc<"abo_personnes">["etape_validation"]
+  >,
+): Promise<CompteurData> {
   const vague = await vagueCourante(ctx);
 
   const scrap = await ctx.db.query("abo_abonnes_scrap").collect();
@@ -54,7 +64,9 @@ async function calculerCompteur(ctx: QueryCtx | MutationCtx): Promise<CompteurDa
   for (const e of eleves) if (e.licence) elevesLic.add(e.licence);
 
   // A3 : demandes validées chez nous (vague ≥ 2) — licence sinon nom+prénom.
-  const valides = personnes.filter((p) => p.etape_validation === "validee");
+  const valides = personnes.filter(
+    (p) => (decisionsProjetees?.get(p._id) ?? p.etape_validation) === "validee",
+  );
   const validesLic = new Set<string>();
   const validesNoms = new Set<string>();
   for (const p of valides) {
@@ -105,7 +117,7 @@ async function calculerCompteur(ctx: QueryCtx | MutationCtx): Promise<CompteurDa
 }
 
 // Plafond de places (abo_app_config.places_max), défaut 350.
-async function lirePlacesMax(ctx: QueryCtx | MutationCtx): Promise<number> {
+export async function lirePlacesMax(ctx: QueryCtx | MutationCtx): Promise<number> {
   const brut = await getConfigValeur(ctx, "places_max");
   const n = brut != null ? parseInt(brut, 10) : NaN;
   return Number.isFinite(n) && n > 0 ? n : PLACES_MAX_DEFAUT;

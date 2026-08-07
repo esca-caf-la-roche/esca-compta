@@ -166,7 +166,8 @@ export default function Configuration() {
       <h3>Plafond de places</h3>
       <p className="abo-admin-intro">
         Nombre maximum de places affiché par le compteur (jauge « X / plafond »).
-        Indicatif : aucun blocage automatique. Modifiable à tout moment.
+        Lorsqu’il est atteint, la validation propose par défaut la liste d’attente ; une
+        dérogation explicite reste possible. Modifiable à tout moment.
       </p>
       <label className="abo-admin-label" htmlFor="places-max">Plafond</label>
       <input

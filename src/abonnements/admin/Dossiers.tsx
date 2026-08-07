@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -36,6 +36,7 @@ export default function Dossiers() {
   const dossiers = useQuery(api.abo.demandes.getDossiersAdmin);
   const suppressions = useQuery(api.abo.demandes.getSuppressions);
   const eleves = useQuery(api.abo.compteur.getElevesEnCours);
+  const compteur = useQuery(api.abo.compteur.vCompteur);
   const nonLus = useQuery(api.abo.messages.messagesNonLusAdmin);
   const validerPersonne = useMutation(api.abo.demandes.validerPersonne);
 
@@ -71,6 +72,9 @@ export default function Dossiers() {
     null,
   );
   const [erreurs, setErreurs] = useState<Record<string, string>>({});
+  const [confirmationPlafond, setConfirmationPlafond] = useState<Personne | null>(null);
+  const [personneEnCours, setPersonneEnCours] = useState<string | null>(null);
+  const [retours, setRetours] = useState<Record<string, string>>({});
 
   const filtres = useMemo(() => {
     const texte = q.trim().toLowerCase();
@@ -84,21 +88,50 @@ export default function Dossiers() {
     });
   }, [dossiers, statut, q]);
 
-  async function decider(personne: Personne, decision: string) {
+  async function decider(
+    personne: Personne,
+    decision: "validee" | "liste_attente" | "refusee",
+    autoriserDepassementPlafond = false,
+  ) {
     if (decision === personne.etape_validation) return;
+    setPersonneEnCours(personne.id);
     try {
-      await validerPersonne({
+      const resultat = await validerPersonne({
         personneId: personne.id as Id<"abo_personnes">,
-        decision: decision as "validee" | "liste_attente" | "refusee",
+        decision,
+        ...(autoriserDepassementPlafond ? { autoriserDepassementPlafond: true } : {}),
       });
       setErreurs((prev) => {
         const next = { ...prev };
         delete next[personne.id];
         return next;
       });
+      setRetours((prev) => {
+        const next = { ...prev };
+        if (decision === "validee" && resultat.decisionAppliquee === "liste_attente") {
+          next[personne.id] =
+            "Le plafond a été atteint entre-temps : cette personne a été placée en liste d’attente.";
+        } else {
+          delete next[personne.id];
+        }
+        return next;
+      });
+      setConfirmationPlafond(null);
     } catch (err) {
       setErreurs((prev) => ({ ...prev, [personne.id]: aboError(err).message }));
+    } finally {
+      setPersonneEnCours(null);
     }
+  }
+
+  function demanderValidation(personne: Personne) {
+    const plafondAtteint =
+      compteur !== undefined && compteur.places_max > 0 && compteur.occupe >= compteur.places_max;
+    if (plafondAtteint) {
+      setConfirmationPlafond(personne);
+      return;
+    }
+    void decider(personne, "validee");
   }
 
   if (dossiers === undefined) {
@@ -200,8 +233,13 @@ export default function Dossiers() {
                       {DECISIONS.map((dec) => (
                         <button
                           key={dec.valeur}
-                          onClick={() => decider(p, dec.valeur)}
+                          type="button"
+                          onClick={() => {
+                            if (dec.valeur === "validee") demanderValidation(p);
+                            else void decider(p, dec.valeur);
+                          }}
                           className={`abo-admin-decision${p.etape_validation === dec.valeur ? " is-active" : ""}`}
+                          disabled={personneEnCours !== null}
                         >
                           {dec.label}
                         </button>
@@ -210,6 +248,11 @@ export default function Dossiers() {
                     {erreurs[p.id] && (
                       <p className="abo-admin-status abo-admin-status--error">
                         Échec : {erreurs[p.id]}
+                      </p>
+                    )}
+                    {retours[p.id] && (
+                      <p className="abo-admin-status abo-admin-status--warning" role="status">
+                        {retours[p.id]}
                       </p>
                     )}
                   </li>
@@ -250,6 +293,82 @@ export default function Dossiers() {
           onClose={() => setDetail(null)}
         />
       )}
+      {confirmationPlafond && (
+        <ConfirmationPlafondModal
+          personne={confirmationPlafond}
+          enCours={personneEnCours !== null}
+          onAnnuler={() => setConfirmationPlafond(null)}
+          onListeAttente={() => void decider(confirmationPlafond, "liste_attente")}
+          onDerogation={() => void decider(confirmationPlafond, "validee", true)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ConfirmationPlafondModal({
+  personne,
+  enCours,
+  onAnnuler,
+  onListeAttente,
+  onDerogation,
+}: {
+  personne: Personne;
+  enCours: boolean;
+  onAnnuler: () => void;
+  onListeAttente: () => void;
+  onDerogation: () => void;
+}) {
+  const boutonPrincipal = useRef<HTMLButtonElement>(null);
+  const nom = `${personne.prenom} ${personne.nom}`.trim() || "cette personne";
+
+  useEffect(() => {
+    boutonPrincipal.current?.focus();
+    function fermerAvecEchap(e: KeyboardEvent) {
+      if (e.key === "Escape" && !enCours) onAnnuler();
+    }
+    window.addEventListener("keydown", fermerAvecEchap);
+    return () => window.removeEventListener("keydown", fermerAvecEchap);
+  }, [enCours, onAnnuler]);
+
+  return (
+    <div className="abo-admin-modal-backdrop" role="presentation">
+      <section
+        className="abo-admin-modal abo-admin-capacity-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirmation-plafond-titre"
+        aria-describedby="confirmation-plafond-description"
+      >
+        <div className="abo-admin-modal-header">
+          <h3 id="confirmation-plafond-titre">Plafond atteint</h3>
+        </div>
+        <p id="confirmation-plafond-description" className="abo-admin-modal-copy">
+          La jauge est complète. Voulez-vous placer <strong>{nom}</strong> en liste d’attente ?
+        </p>
+        <div className="abo-admin-capacity-actions">
+          <button
+            ref={boutonPrincipal}
+            type="button"
+            className="abo-admin-button abo-admin-button--primary"
+            disabled={enCours}
+            onClick={onListeAttente}
+          >
+            Mettre en liste d’attente
+          </button>
+          <button
+            type="button"
+            className="abo-admin-button abo-admin-button--secondary"
+            disabled={enCours}
+            onClick={onDerogation}
+          >
+            Valider malgré le plafond
+          </button>
+          <button type="button" className="abo-admin-button" disabled={enCours} onClick={onAnnuler}>
+            Annuler
+          </button>
+        </div>
+      </section>
     </div>
   );
 }
