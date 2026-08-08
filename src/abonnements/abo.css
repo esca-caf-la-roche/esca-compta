@@ -275,8 +275,7 @@
   font-style: italic;
 }
 
-.abo-form,
-.abo-ajout-form {
+.abo-form {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
@@ -299,9 +298,11 @@
 .abo-personne-ligne,
 .abo-ajout-form {
   display: flex;
+  flex-direction: row;
   gap: 0.5rem;
   flex-wrap: wrap;
   align-items: center;
+  margin-top: 1rem;
 }
 
 .abo-input {

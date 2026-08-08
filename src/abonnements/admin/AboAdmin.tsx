@@ -20,7 +20,7 @@ const TABS: { id: Vue; label: string }[] = [
   { id: "paiements", label: "Paiements" },
   { id: "anomalies", label: "Anomalies" },
   { id: "licences", label: "Licences" },
-  { id: "tests", label: "Tests" },
+  { id: "tests", label: "Test Autonomie" },
   { id: "config", label: "Configuration" },
 ];
 
