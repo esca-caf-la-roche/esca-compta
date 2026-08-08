@@ -6,6 +6,7 @@ import { aboError } from "../lib/errors";
 import CompteurJauge from "./CompteurJauge";
 import SyncClub from "./SyncClub";
 import FilDiscussion from "../FilDiscussion";
+import { useMaintenantMinute } from "../lib/useMaintenantMinute";
 
 // Vue admin « Dossiers » : jauge compteur en tête, cartes filtrées (défaut
 // « nouvelles demandes »), validation PAR PERSONNE (boutons de statut) et détail
@@ -54,10 +55,11 @@ function personnesParPriorite(personnes: Personne[]) {
 }
 
 export default function Dossiers({ onVoirTests }: { onVoirTests: (licence: string) => void }) {
+  const maintenantMs = useMaintenantMinute();
   const dossiers = useQuery(api.abo.demandes.getDossiersAdmin);
   const suppressions = useQuery(api.abo.demandes.getSuppressions);
   const eleves = useQuery(api.abo.compteur.getElevesEnCours);
-  const compteur = useQuery(api.abo.compteur.vCompteur, {});
+  const compteur = useQuery(api.abo.compteur.compteurPublic, { maintenantMs });
   const nonLus = useQuery(api.abo.messages.messagesNonLusAdmin);
   const validerPersonne = useMutation(api.abo.demandes.validerPersonne);
 

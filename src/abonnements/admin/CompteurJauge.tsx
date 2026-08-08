@@ -19,17 +19,21 @@ const VAGUES: Record<number, string> = {
 
 export default function CompteurJauge() {
   const maintenantMs = useMaintenantMinute();
-  const c = useQuery(api.abo.compteur.vCompteur, {});
-  const cfg = useQuery(api.abo.config.vaguesConfig, { maintenantMs });
+  const c = useQuery(api.abo.compteur.compteurPublic, { maintenantMs });
   const [copie, setCopie] = useState(false);
+  const [afficherDetails, setAfficherDetails] = useState(false);
+  const details = useQuery(
+    api.abo.compteur.vCompteur,
+    afficherDetails ? {} : "skip",
+  );
 
-  if (c === undefined || cfg === undefined) {
+  if (c === undefined) {
     return <p className="abo-admin-empty">Chargement du compteur…</p>;
   }
 
   const max = c.places_max;
-  const restantes = max - c.total_affiche;
-  const pct = max > 0 ? Math.min(100, Math.round((c.total_affiche / max) * 100)) : 0;
+  const restantes = c.places_restantes;
+  const pct = max > 0 ? Math.min(100, Math.round((c.occupe / max) * 100)) : 0;
   const seuilProche = Math.max(5, Math.round(max * 0.05));
   const etat = restantes < 0 ? "depassement" : restantes <= seuilProche ? "proche" : "ok";
   const alerte =
@@ -55,14 +59,14 @@ export default function CompteurJauge() {
     <section className={`abo-admin-jauge abo-admin-jauge--${etat}`}>
       <div className="abo-admin-jauge-header">
         <span className="abo-admin-jauge-total">
-          {c.total_affiche} / {max}
+          {c.occupe} / {max}
         </span>
         <span className="abo-admin-jauge-alert">{alerte}</span>
       </div>
       <div className="abo-admin-jauge-track">
         <span className="abo-admin-jauge-fill" style={{ width: `${pct}%` }} />
       </div>
-      <p className="abo-admin-jauge-detail">{VAGUES[cfg.vague] ?? `Vague ${cfg.vague}`}</p>
+      <p className="abo-admin-jauge-detail">{VAGUES[c.vague] ?? `Vague ${c.vague}`}</p>
       <section className="abo-admin-counter-explanation" aria-label="Règle de calcul du compteur">
         <h3>Ce qui est compté</h3>
         <p>
@@ -73,27 +77,40 @@ export default function CompteurJauge() {
           les anciens statuts « Non » et « Bloqué ».
         </p>
       </section>
-      <section className="abo-admin-counter-details" aria-label="Détail des inscriptions et demandes">
-        <div className="abo-admin-counter-group">
-          <h3>Site du club</h3>
-          <dl className="abo-admin-counter-grid">
-            <CompteurDetail label="Total inscrit" valeur={c.abonnements_site_valides + c.abonnements_site_non_valides_a_suivre} />
-            <CompteurDetail label="Oui" valeur={c.abonnements_site_valides} />
-            <CompteurDetail label="Non" valeur={c.abonnements_site_non_valides_a_suivre} />
-            <CompteurDetail label="Bloquées" valeur={c.bloquees} attention />
-            <CompteurDetail label="Anomalies" valeur={c.anomalies} attention />
-          </dl>
-        </div>
-        <div className="abo-admin-counter-group">
-          <h3>Demandes du portail</h3>
-          <dl className="abo-admin-counter-grid">
-            <CompteurDetail label="Validées" valeur={c.demandes_validees} />
-            <CompteurDetail label="Liste d’attente" valeur={c.demandes_liste_attente} />
-            <CompteurDetail label="Refusées" valeur={c.demandes_refusees} />
-            <CompteurDetail label="À traiter" valeur={c.demandes_a_traiter} attention />
-          </dl>
-        </div>
-      </section>
+      <button
+        type="button"
+        className="abo-admin-link-button"
+        onClick={() => setAfficherDetails((visible) => !visible)}
+        aria-expanded={afficherDetails}
+      >
+        {afficherDetails ? "Masquer le détail du calcul" : "Afficher le détail du calcul"}
+      </button>
+      {afficherDetails && details === undefined && (
+        <p className="abo-admin-empty">Chargement du détail…</p>
+      )}
+      {afficherDetails && details !== undefined && (
+        <section className="abo-admin-counter-details" aria-label="Détail des inscriptions et demandes">
+          <div className="abo-admin-counter-group">
+            <h3>Site du club</h3>
+            <dl className="abo-admin-counter-grid">
+              <CompteurDetail label="Total inscrit" valeur={details.abonnements_site_valides + details.abonnements_site_non_valides_a_suivre} />
+              <CompteurDetail label="Oui" valeur={details.abonnements_site_valides} />
+              <CompteurDetail label="Non" valeur={details.abonnements_site_non_valides_a_suivre} />
+              <CompteurDetail label="Bloquées" valeur={details.bloquees} attention />
+              <CompteurDetail label="Anomalies" valeur={details.anomalies} attention />
+            </dl>
+          </div>
+          <div className="abo-admin-counter-group">
+            <h3>Demandes du portail</h3>
+            <dl className="abo-admin-counter-grid">
+              <CompteurDetail label="Validées" valeur={details.demandes_validees} />
+              <CompteurDetail label="Liste d’attente" valeur={details.demandes_liste_attente} />
+              <CompteurDetail label="Refusées" valeur={details.demandes_refusees} />
+              <CompteurDetail label="À traiter" valeur={details.demandes_a_traiter} attention />
+            </dl>
+          </div>
+        </section>
+      )}
       <div className="abo-admin-jauge-actions">
         <button
           type="button"

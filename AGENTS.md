@@ -45,6 +45,9 @@ Avant toute modification dans `convex/`, lire intégralement
 `convex/_generated/ai/guidelines.md`. Ces règles correspondent à la version
 Convex utilisée par le projet et priment sur les connaissances générales.
 
+Pour toute analyse de quota, de Database I/O, de volume d'appels ou de coût,
+utiliser la skill `.agents/skills/convex-free-budget/SKILL.md`.
+
 ### Sécurité des endpoints
 
 Tout nouvel endpoint applicatif doit utiliser :
@@ -112,6 +115,19 @@ Le budget Database I/O Convex est contraint.
    cadence mesurée et porter `// CRON-OK: <raison>`.
 4. Utiliser les index, borner les lectures et traiter les volumes importants par
    pagination ou lots.
+5. Mesurer DEV et PROD séparément avec `npm run audit:convex-io` avant de
+   conclure qu'une hausse vient du trafic public. Le quota gratuit de 1 Go/mois
+   est agrégé au niveau de l'équipe, tous projets et déploiements confondus.
+6. Pour une validation automatisée, utiliser `npm run check:convex`, les tests,
+   le lint et le build. Ne jamais lancer `convex dev --once` sur le DEV cloud
+   comme simple typecheck ; un serveur de développement agentique utilise
+   `convex dev --local` par défaut. Toute exception cloud doit être justifiée.
+7. Une query React ne reçoit jamais `Date.now()` ou une valeur recréée à chaque
+   rendu. Utiliser un argument stable, arrondi à la minute au maximum, et
+   `"skip"` tant que les arguments utiles ne sont pas prêts.
+8. Tout nouveau parcours complet de table porte `// IO-BOUNDED: <raison et
+   volume maximal>` lorsqu'un index ou une pagination ne peut pas répondre au
+   besoin. Le commentaire n'autorise pas un volume non borné.
 
 ## Rôles et skills Codex
 

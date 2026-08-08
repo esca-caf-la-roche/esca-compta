@@ -101,6 +101,17 @@ Le projet fonctionne avec un budget Convex contraint.
   au cron périodique.
 - N'ajouter un cron que pour une fraîcheur indépendante de tout utilisateur,
   avec une cadence mesurée et `// CRON-OK: <raison>`.
+- Mesurer les deux déploiements avec `npm run audit:convex-io` : le tableau
+  d'équipe additionne DEV, previews, PROD et les autres projets. Un pic global
+  ne prouve donc pas une hausse du trafic public.
+- Utiliser `convex dev --local` pour les serveurs lancés par un agent. Pour une
+  validation non interactive, utiliser `npm run check:convex` ; ne pas pousser
+  le code vers le DEV cloud avec `convex dev --once` comme simple typecheck.
+- Une query React ne reçoit pas de `Date.now()` recalculé à chaque rendu. Passer
+  un argument stable et grossier uniquement si le temps fait partie du résultat.
+- Justifier un nouveau parcours complet par `// IO-BOUNDED: <raison et volume
+  maximal>`. Une petite table peut rester scannée si le gain d'un index ou d'une
+  migration serait inférieur à leur complexité, mais la borne doit être explicite.
 
 ## Erreurs
 

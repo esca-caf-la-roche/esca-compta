@@ -13,6 +13,11 @@
             "type": "command",
             "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/check-branch-intent.mjs\"",
             "statusMessage": "Vérification de la branche Git"
+          },
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/check-convex-cloud-dev.mjs\"",
+            "statusMessage": "Protection du quota Convex DEV"
           }
         ]
       }
@@ -35,6 +40,11 @@
             "type": "command",
             "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/check-cron-justification.mjs\"",
             "statusMessage": "Vérification des crons Convex"
+          },
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/check-convex-io.mjs\"",
+            "statusMessage": "Vérification du budget Database I/O"
           },
           {
             "type": "command",

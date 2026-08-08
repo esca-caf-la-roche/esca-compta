@@ -1,0 +1,4 @@
+interface:
+  display_name: "Budget Convex gratuit"
+  short_description: "Mesurer et protéger le quota Database I/O"
+  default_prompt: "Use $convex-free-budget to diagnose Convex usage and keep this project within the free monthly quota."

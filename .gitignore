@@ -36,11 +36,12 @@ docs/private/
 
 # Agents & Skills
 # Les skills Convex générées restent ignorées et peuvent être réinstallées avec
-# `npx convex ai-files install`. Les trois skills métier du projet sont suivies.
+# `npx convex ai-files install`. Les skills métier du projet sont suivies.
 .agents/*
 !.agents/skills/
 .agents/skills/*
 !.agents/skills/equipe/
+!.agents/skills/convex-free-budget/
 !.agents/skills/gestion-utilisateurs/
 !.agents/skills/tuile-saison/
 skills-lock.json

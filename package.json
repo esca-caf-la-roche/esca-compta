@@ -9,6 +9,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "check:convex": "convex typecheck",
+    "audit:convex-io": "node .agents/skills/convex-free-budget/scripts/report-usage.mjs",
+    "check:convex-io-budget": "node .agents/skills/convex-free-budget/scripts/report-usage.mjs --check",
     "validate": "npm run check:convex && npm test && npm run lint && npm run build",
     "preview": "vite preview"
   },

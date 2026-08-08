@@ -10,7 +10,9 @@ Pour un audit Convex approfondi, appuie-toi sur le skill
 ## Côté Convex (le plus impactant ici)
 
 - **Index d'abord** : toute lecture chaude passe par `withIndex` — un
-  `.filter()` ou un `.collect()` sur table entière est un finding.
+  `.filter()` ou un `.collect()` sur table entière est un finding seulement si
+  les octets, la fréquence ou la croissance le rendent matériel. Une petite
+  table bornée peut rester simple.
 - **Read amplification** : une query qui `collect()` puis boucle avec des
   `ctx.db.get` par ligne ; préférer les index composés ou dénormaliser.
 - **Réactivité** : chaque `useQuery` est une souscription — une query trop
@@ -46,10 +48,13 @@ Pour un audit Convex approfondi, appuie-toi sur le skill
 
 ## Méthode
 
-1. Mesurer avant de proposer (tailles de build, comptage de documents lus,
+1. Pour Convex, commencer par `npm run audit:convex-io`, puis attribuer les
+   octets avec les journaux d'exécution (`databaseIoReadBytes` et
+   `databaseIoWriteBytes`). Toujours séparer DEV de PROD et le jour du mois.
+2. Mesurer avant de proposer (tailles de build, comptage de documents lus,
    nombre de souscriptions par page).
-2. Classer les findings par gain estimé / effort.
-3. Ne proposer `useMemo`/`React.memo`/cache que sur un point chaud identifié —
+3. Classer les findings par gain estimé / effort.
+4. Ne proposer `useMemo`/`React.memo`/cache que sur un point chaud identifié —
    pas d'optimisation spéculative.
 
 ## Format du rapport
