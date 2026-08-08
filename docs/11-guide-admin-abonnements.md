@@ -342,7 +342,7 @@ HelloAsso. Elle :
 > responsabilités de fin de campagne ont été validées. Le bouton n'est
 > accessible qu'à l'administrateur général disposant à la fois de la tuile
 > Abonnements et de l'autorisation nominative de reset, réglée dans
-> **Configurations > Utilisateurs et Accès** par un autre administrateur. Il
+> **Configurations > Utilisateurs et Accès**.
 > Avant le premier reset réel, répéter néanmoins l'opération sur une copie de
 > données représentative et vérifier les deux cas : compte public pur et compte
 > staff ayant aussi déposé une demande. Voir

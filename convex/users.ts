@@ -317,19 +317,6 @@ export const updateUserSettings = authenticatedMutation({
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
       .first();
 
-    // Le droit de reset est une délégation exceptionnelle : un administrateur
-    // ne peut pas se l'accorder à lui-même via l'interface ou l'API directe.
-    // Un autre administrateur général doit désigner le responsable de campagne.
-    if (
-      args.userId === ctx.userId &&
-      canResetAboSeason &&
-      settings?.canResetAboSeason !== true
-    ) {
-      throw new ConvexError(
-        "Un autre administrateur doit autoriser votre réinitialisation de campagne.",
-      );
-    }
-
     await ctx.db.patch(args.userId, { name });
       
     if (settings) {

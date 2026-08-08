@@ -82,9 +82,8 @@ La **réinitialisation annuelle** est plus restrictive que la gestion courante :
 elle exige la tuile `abonnements`, le rôle d'administrateur général et
 l'autorisation nominative `canResetAboSeason`, accordée dans
 *Configurations > Utilisateurs et Accès*. Cette dernière est désactivée par
-défaut, y compris pour les comptes existants. Un administrateur ne peut pas se
-l'attribuer seul : un second administrateur doit désigner le responsable de
-campagne.
+défaut, y compris pour les comptes existants. Un administrateur général peut
+l'activer pour son propre compte ou pour un autre administrateur éligible.
 
 ## Variables d'environnement (dashboard Convex → *Settings > Environment Variables*)
 

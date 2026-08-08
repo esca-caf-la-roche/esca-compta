@@ -206,7 +206,7 @@ describe("saisons et administration globale", () => {
     );
   });
 
-  test("empêche un administrateur de s'attribuer le droit de reset", async () => {
+  test("autorise un administrateur à s'attribuer le droit de reset", async () => {
     const t = convexTest(schema, modules);
     const adminId = await createUser(t, { tiles: ["abonnements"], role: "admin" });
     const admin = t.withIdentity({ subject: adminId });
@@ -219,6 +219,12 @@ describe("saisons et administration globale", () => {
         allowedTiles: ["abonnements"],
         canResetAboSeason: true,
       }),
-    ).rejects.toThrow("Un autre administrateur doit autoriser");
+    ).resolves.toBeNull();
+    await expect(admin.query(api.users.listUsers, {})).resolves.toContainEqual(
+      expect.objectContaining({
+        _id: adminId,
+        settings: expect.objectContaining({ canResetAboSeason: true }),
+      }),
+    );
   });
 });
