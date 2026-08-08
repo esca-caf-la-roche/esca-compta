@@ -630,6 +630,10 @@ export const ajouterPersonneInterne = internalMutation({
     await verifierN1(ctx, p);
     await verifierAntiDoublon(ctx, p);
     const personneId = await insererPersonne(ctx, dossier._id, p, depot);
+    // Une personne ajoutée commence toujours « en attente » : le dossier doit
+    // donc redevenir visible dans la file des nouvelles demandes, même si les
+    // personnes déjà présentes ont toutes reçu une décision.
+    await appliquerRollup(ctx, dossier);
     await programmerRafraichissementCompteurPublic(ctx);
     return personneId;
   },
@@ -694,6 +698,7 @@ export const supprimerPersonne = authenticatedMutation({
       await programmerRafraichissementCompteurPublic(ctx);
       return true;
     }
+    await appliquerRollup(ctx, dossier);
     await programmerRafraichissementCompteurPublic(ctx);
     return false;
   },
@@ -967,13 +972,19 @@ async function appliquerRollup(
     .withIndex("by_dossier", (q) => q.eq("dossier_id", dossier._id))
     .collect();
   const statut = rollupStatut(personnes);
-  await ctx.db.patch(dossier._id, {
-    statut_dossier: statut,
-    date_validation:
-      statut === "validee" && !dossier.date_validation
-        ? new Date().toISOString()
-        : dossier.date_validation,
-  });
+  const dateValidation =
+    statut === "validee" && !dossier.date_validation
+      ? new Date().toISOString()
+      : dossier.date_validation;
+  if (
+    dossier.statut_dossier !== statut ||
+    dossier.date_validation !== dateValidation
+  ) {
+    await ctx.db.patch(dossier._id, {
+      statut_dossier: statut,
+      date_validation: dateValidation,
+    });
+  }
   await planifierEmailStatut(ctx, dossier._id, dossier.statut_dossier, statut);
 }
 

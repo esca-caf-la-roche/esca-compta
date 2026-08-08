@@ -19,6 +19,7 @@ type Dossier = NonNullable<
 type Personne = Dossier["personnes"][number];
 
 const STATUTS: Record<string, string> = {
+  en_attente: "En attente de traitement",
   nouvelle_demande: "Nouvelle demande",
   validee: "Validée",
   liste_attente: "Liste d'attente",
@@ -31,6 +32,26 @@ const DECISIONS = [
   { valeur: "liste_attente", label: "Liste d'attente" },
   { valeur: "refusee", label: "Refuser" },
 ] as const;
+
+function dateDemande(personne: Personne) {
+  return new Date(personne.deposee_le).getTime();
+}
+
+function formatDateDemande(personne: Personne) {
+  return new Date(personne.deposee_le).toLocaleString("fr-FR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+function personnesParPriorite(personnes: Personne[]) {
+  return [...personnes].sort((a, b) => {
+    const attenteA = a.etape_validation === "en_attente";
+    const attenteB = b.etape_validation === "en_attente";
+    if (attenteA !== attenteB) return attenteA ? -1 : 1;
+    return dateDemande(a) - dateDemande(b);
+  });
+}
 
 export default function Dossiers({ onVoirTests }: { onVoirTests: (licence: string) => void }) {
   const dossiers = useQuery(api.abo.demandes.getDossiersAdmin);
@@ -78,7 +99,7 @@ export default function Dossiers({ onVoirTests }: { onVoirTests: (licence: strin
 
   const filtres = useMemo(() => {
     const texte = q.trim().toLowerCase();
-    return (dossiers ?? []).filter((d) => {
+    const dossiersFiltres = (dossiers ?? []).filter((d) => {
       if (statut !== "tous" && d.statut_dossier !== statut) return false;
       if (!texte) return true;
       const foin = [d.email, ...d.personnes.flatMap((p) => [p.nom, p.prenom])]
@@ -86,6 +107,16 @@ export default function Dossiers({ onVoirTests }: { onVoirTests: (licence: strin
         .toLowerCase();
       return foin.includes(texte);
     });
+    // Dans la file par défaut, la priorité est portée par la plus ancienne
+    // personne encore en attente, et non par la date de création du dossier.
+    if (statut === "nouvelle_demande") {
+      dossiersFiltres.sort((a, b) => {
+        const prochaineA = personnesParPriorite(a.personnes)[0];
+        const prochaineB = personnesParPriorite(b.personnes)[0];
+        return dateDemande(prochaineA) - dateDemande(prochaineB);
+      });
+    }
+    return dossiersFiltres;
   }, [dossiers, statut, q]);
 
   async function decider(
@@ -146,6 +177,7 @@ export default function Dossiers({ onVoirTests }: { onVoirTests: (licence: strin
         <h2>Décider les demandes du portail</h2>
         <p className="abo-admin-rules-lead"><strong>Votre rôle ici :</strong> décider la demande de chaque personne dans le portail. Cette page ne modifie jamais le site du club.</p>
         <ul className="abo-admin-rules-list">
+          <li><strong>Premier arrivé, premier traité :</strong> dans « Nouvelles demandes », les personnes encore en attente sont classées par leur date et heure de dépôt. Une personne ajoutée plus tard est donc traitée à sa propre date, même si son dossier est plus ancien.</li>
           <li><strong>N-1 :</strong> une personne déjà abonnée l’année dernière s’inscrit directement sur le site du club — pas ici.</li>
           <li><strong>Vague 2 :</strong> priorité de dépôt réservée aux élèves actuellement en cours, avec leur licence reconnue.</li>
           <li><strong>Vague 3 :</strong> le portail est ouvert à tous ; les demandes déjà déposées continuent d’être décidées normalement, quelle que soit leur vague.</li>
@@ -191,7 +223,6 @@ export default function Dossiers({ onVoirTests }: { onVoirTests: (licence: strin
           filtres.map((d) => (
             <article key={d.id} className="abo-admin-card abo-admin-dossier-card">
               <div className="abo-admin-card-header">
-                <Badge statut={d.statut_dossier} />
                 <span className="abo-admin-toolbar">
                   {(nonLusParDossier.get(d.id) ?? 0) > 0 && (
                     <span
@@ -205,7 +236,7 @@ export default function Dossiers({ onVoirTests }: { onVoirTests: (licence: strin
                 </span>
               </div>
               <p className="abo-admin-meta">
-                Soumis le{" "}
+                Dossier créé le{" "}
                 {d.date_soumission
                   ? new Date(d.date_soumission).toLocaleDateString("fr-FR")
                   : "—"}
@@ -217,8 +248,16 @@ export default function Dossiers({ onVoirTests }: { onVoirTests: (licence: strin
                   {d.commentaire}
                 </p>
               )}
+              {d.statut_dossier === "nouvelle_demande" && (
+                <p className="abo-admin-status abo-admin-status--warning">
+                  À traiter en priorité :{" "}
+                  <strong>
+                    {formatDateDemande(personnesParPriorite(d.personnes)[0])}
+                  </strong>
+                </p>
+              )}
               <ul className="abo-admin-sublist">
-                {d.personnes.map((p, i) => (
+                {personnesParPriorite(d.personnes).map((p) => (
                   <li
                     key={p.id}
                     className="abo-admin-person-row"
@@ -232,12 +271,16 @@ export default function Dossiers({ onVoirTests }: { onVoirTests: (licence: strin
                       >
                         {`${p.prenom} ${p.nom}`.trim() || "—"}
                       </button>
-                      {i === 0 && (
+                      {p.id === d.personnes[0]?.id && (
                         <span className="abo-admin-meta">
                           demandeur
                         </span>
                       )}
+                      <span className="abo-admin-meta">
+                        Demande déposée le {formatDateDemande(p)}
+                      </span>
                       <ChipEnCours horaire={horaireEleve(p)} />
+                      <Badge statut={p.etape_validation} />
                     </div>
                     <div className="abo-admin-decision-group">
                       {DECISIONS.map((dec) => (
@@ -499,7 +542,7 @@ function DetailModal({
           </button>
         </div>
         <p className="abo-admin-meta">
-          <code>{dossier.email}</code> <Badge statut={dossier.statut_dossier} />
+          <code>{dossier.email}</code> <Badge statut={personne.etape_validation} />
         </p>
         {personne.licence && (
           <p className="abo-admin-modal-copy">

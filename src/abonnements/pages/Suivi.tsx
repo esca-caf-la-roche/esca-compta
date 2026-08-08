@@ -38,14 +38,6 @@ type Check = {
   age: number | null;
 };
 
-const STATUT_DOSSIER: Record<string, string> = {
-  nouvelle_demande: "Nouvelle demande",
-  validee: "Validée",
-  liste_attente: "Liste d'attente",
-  refusee: "Refusée",
-  complete: "Complète",
-};
-
 const formatOk = (l: string) => [12, 14].includes(l.replace(/\D/g, "").length);
 
 export default function Suivi({ dossier }: { dossier: DossierVue }) {
@@ -60,7 +52,6 @@ export default function Suivi({ dossier }: { dossier: DossierVue }) {
   const vague = cfg?.vague ?? 0;
   const vague2 = vague === 2;
   const personnes = dossier.personnes ?? [];
-  const statut = STATUT_DOSSIER[dossier.statut_dossier] ?? dossier.statut_dossier;
   const aDesEtapes = personnes.some((p) => p.etape_validation === "validee");
 
   const checksById = new Map(
@@ -89,10 +80,6 @@ export default function Suivi({ dossier }: { dossier: DossierVue }) {
   return (
     <div className="abo-content">
       <h1>Suivi de ma demande</h1>
-      <p>
-        Statut du dossier : <strong>{statut}</strong>
-      </p>
-
       <div className="abo-suivi">
         {personnes.map((p) => (
           <PersonneBloc
@@ -166,6 +153,7 @@ function PersonneBloc({
 
 const STATUT_DEMANDE: Record<string, { cls: string; label: string; mark: string }> = {
   en_attente: { cls: "waiting", label: "En attente de traitement", mark: "" },
+  validee: { cls: "done", label: "Validée", mark: "✓" },
   liste_attente: { cls: "attente", label: "Liste d'attente", mark: "!" },
   refusee: { cls: "rejected", label: "Refusée", mark: "✕" },
 };
@@ -229,6 +217,9 @@ function CarteFinalisation({
       <h2>
         {personne.prenom} {personne.nom}
       </h2>
+      <p className="abo-statut-badge abo-statut-badge--done">
+        <span aria-hidden="true">✓</span> Validée
+      </p>
       <p className="abo-final-intro">
         Votre demande est <strong>acceptée</strong> 🎉 Voici les étapes pour
         finaliser votre inscription. L'état se met à jour automatiquement.

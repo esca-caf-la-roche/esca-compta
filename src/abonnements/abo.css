@@ -861,6 +861,7 @@ textarea.abo-input {
 .abo-admin-archive-summary { cursor: pointer; font-weight: 800; }
 .abo-admin-archive-item { margin: 0.35rem 0; font-size: 0.85rem; }
 .abo-admin-badge--course { background: var(--info); color: var(--foreground); white-space: nowrap; }
+.abo-admin-badge--en_attente { background: #ddd; }
 .abo-admin-badge--nouvelle_demande { background: var(--info); }
 .abo-admin-badge--validee { background: var(--success); }
 .abo-admin-badge--liste_attente { background: var(--warning); }
