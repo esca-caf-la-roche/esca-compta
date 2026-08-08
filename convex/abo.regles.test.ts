@@ -200,6 +200,39 @@ describe("règles Abonnements : N-1, vague 2, suppression et anomalies", () => {
     })).rejects.toThrow("limité à 10 personnes");
   });
 
+  test("replace le dossier dans les nouvelles demandes lorsqu'une personne est ajoutée", async () => {
+    const t = createTest();
+    const candidat = await creerUtilisateur(t, "ajout-apres-decision@example.test");
+    await t.run(async (ctx) => {
+      await ctx.db.insert("abo_app_config", { cle: "vague3_debut", valeur: "2020-01-01T00:00" });
+      const owner = await ctx.db
+        .query("abo_profiles")
+        .withIndex("by_email", (q) => q.eq("email", "ajout-apres-decision@example.test"))
+        .unique();
+      const dossierId = await ctx.db.insert("abo_dossiers", {
+        email: "ajout-apres-decision@example.test",
+        owner_id: owner!.userId,
+        statut_dossier: "validee",
+        date_soumission: "2026-01-01T00:00:00.000Z",
+      });
+      await ctx.db.insert("abo_personnes", {
+        dossier_id: dossierId, nom: "Déjà", prenom: "Traitée", nom_prenom_normalise: "DEJA TRAITEE",
+        licence_statut: "inconnu", etape_demande: true, etape_validation: "validee", etape_licence: false,
+        etape_inscription_site: false, etape_photo: false, etape_paiement: false, etape_abonnement_valide: false,
+        vague_depot: "vague_3", deposee_le: "2026-01-01T00:00:00.000Z",
+      });
+    });
+
+    await candidat.action(api.abo.demandes.ajouterPersonne, { nom: "Nouvelle", prenom: "Personne" });
+    const dossier = await candidat.query(api.abo.demandes.getMonDossier);
+
+    expect(dossier?.statut_dossier).toBe("nouvelle_demande");
+    expect(dossier?.personnes.map((personne) => personne.etape_validation)).toEqual([
+      "validee",
+      "en_attente",
+    ]);
+  });
+
   test("accepte la licence élève en vague 2 et refuse une licence inconnue", async () => {
     const t = createTest();
     const candidat = await creerUtilisateur(t, "eleve@example.test");
