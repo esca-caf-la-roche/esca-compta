@@ -226,11 +226,44 @@ const CLES_CONFIG = [
 
 export const getConfig = authenticatedQuery({
   args: {},
+  returns: v.object({
+    helloasso_lien: v.union(v.string(), v.null()),
+    places_max: v.union(v.string(), v.null()),
+    licence_lien_nouvelle: v.union(v.string(), v.null()),
+    licence_lien_renouvellement: v.union(v.string(), v.null()),
+    compte_activation_lien: v.union(v.string(), v.null()),
+    inscription_lien: v.union(v.string(), v.null()),
+    test_autonomie_lien: v.union(v.string(), v.null()),
+    vague1_debut: v.union(v.string(), v.null()),
+    vague2_debut: v.union(v.string(), v.null()),
+    vague3_debut: v.union(v.string(), v.null()),
+  }),
   handler: async (ctx) => {
     await requireAboAdmin(ctx);
-    const out: Record<string, string | null> = {};
-    for (const cle of CLES_CONFIG) out[cle] = await getConfigValeur(ctx, cle);
-    return out;
+    const [
+      helloasso_lien,
+      places_max,
+      licence_lien_nouvelle,
+      licence_lien_renouvellement,
+      compte_activation_lien,
+      inscription_lien,
+      test_autonomie_lien,
+      vague1_debut,
+      vague2_debut,
+      vague3_debut,
+    ] = await Promise.all(CLES_CONFIG.map((cle) => getConfigValeur(ctx, cle)));
+    return {
+      helloasso_lien,
+      places_max,
+      licence_lien_nouvelle,
+      licence_lien_renouvellement,
+      compte_activation_lien,
+      inscription_lien,
+      test_autonomie_lien,
+      vague1_debut,
+      vague2_debut,
+      vague3_debut,
+    };
   },
 });
 
@@ -306,7 +339,9 @@ export const setLiens = authenticatedMutation({
 // Archive N-1, vide l'année en cours (scrap, élèves, cache paiements du lien
 // abo, créneaux/réservations de test, email_log), pose le nouveau lien HelloAsso,
 // réinitialise les dates de vagues, PUIS programme la purge des comptes publics
-// (+ cascade) par lots — les comptes staff/admin sont CONSERVÉS. 🔒
+// (+ cascade) par lots. `abo_tests_autonomie_archive` reste volontairement
+// intact : c'est l'archive permanente des scans, sans lien vers les dossiers.
+// Les comptes staff/admin sont CONSERVÉS. 🔒
 export const resetSaison = authenticatedMutation({
   args: { saisonArchivee: v.string(), nouveauLien: v.string() },
   returns: v.number(),

@@ -32,7 +32,7 @@ const DECISIONS = [
   { valeur: "refusee", label: "Refuser" },
 ] as const;
 
-export default function Dossiers() {
+export default function Dossiers({ onVoirTests }: { onVoirTests: (licence: string) => void }) {
   const dossiers = useQuery(api.abo.demandes.getDossiersAdmin);
   const suppressions = useQuery(api.abo.demandes.getSuppressions);
   const eleves = useQuery(api.abo.compteur.getElevesEnCours);
@@ -301,6 +301,7 @@ export default function Dossiers() {
           dossier={detail.dossier}
           personne={detail.personne}
           onClose={() => setDetail(null)}
+          onVoirTests={onVoirTests}
         />
       )}
       {confirmationPlafond && (
@@ -476,10 +477,12 @@ function DetailModal({
   dossier,
   personne,
   onClose,
+  onVoirTests,
 }: {
   dossier: Dossier;
   personne: Personne;
   onClose: () => void;
+  onVoirTests: (licence: string) => void;
 }) {
   const nom = `${personne.prenom} ${personne.nom}`.trim() || "—";
   return (
@@ -502,6 +505,19 @@ function DetailModal({
           <p className="abo-admin-modal-copy">
             Licence : <code>{personne.licence}</code>
             {personne.licence_statut ? ` (${personne.licence_statut})` : ""}
+          </p>
+        )}
+        {personne.licence ? (
+          <button
+            type="button"
+            className="abo-admin-link-button"
+            onClick={() => onVoirTests(personne.licence!)}
+          >
+            Voir les tests de cette personne
+          </button>
+        ) : (
+          <p className="abo-admin-status abo-admin-status--warning">
+            Ajoutez d&apos;abord une licence pour rechercher son test.
           </p>
         )}
         <ol className="abo-admin-steps">

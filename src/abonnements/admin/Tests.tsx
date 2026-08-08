@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useEffect, useRef, useState } from "react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { aboError } from "../lib/errors";
@@ -31,7 +31,7 @@ const hhmm = (t: string) => (t ?? "").slice(0, 5);
 const todayISO = () =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date());
 
-export default function Tests() {
+export default function Tests({ licenceInitiale }: { licenceInitiale: string | null }) {
   const creneaux = useQuery(api.abo.tests.getMesCreneaux);
   const inscrits = useQuery(api.abo.tests.testInscritsAdmin);
   const creer = useMutation(api.abo.tests.creerTestCreneau);
@@ -63,6 +63,406 @@ export default function Tests() {
         <h3 className="abo-admin-subheading">Inscrits par créneau</h3>
         <Inscrits inscrits={inscrits} />
       </section>
+
+      <hr className="abo-admin-separator" />
+
+      <ArchiveTests licenceInitiale={licenceInitiale} />
+    </div>
+  );
+}
+
+type FiltreArchive = "a_traiter" | "traite" | "tous";
+type ArchiveTest = NonNullable<
+  ReturnType<typeof useQuery<typeof api.abo.testDocuments.listArchives>>
+>[number];
+type CandidatTest = NonNullable<
+  ReturnType<typeof useQuery<typeof api.abo.testDocuments.rechercherCandidatParLicence>>
+>;
+
+function ArchiveTests({ licenceInitiale }: { licenceInitiale: string | null }) {
+  const [filtre, setFiltre] = useState<FiltreArchive>("a_traiter");
+  const [licenceSaisie, setLicenceSaisie] = useState("");
+  const [licenceRecherchee, setLicenceRecherchee] = useState<string | null>(null);
+  // L'heure est figée à l'ouverture : un rechargement suffit lorsque le créneau
+  // commence, sans abonnement Convex périodique.
+  const [instantReference] = useState(() => new Date().toISOString());
+  const derniereLicenceInitiale = useRef<string | null>(null);
+  const archives = useQuery(api.abo.testDocuments.listArchives, { filtre });
+  const toutesArchives = useQuery(api.abo.testDocuments.listArchives, { filtre: "tous" });
+  const reservations = useQuery(api.abo.testDocuments.listeReservationsPassees, {
+    avant: instantReference,
+  });
+  const candidat = useQuery(
+    api.abo.testDocuments.rechercherCandidatParLicence,
+    licenceRecherchee ? { licence: licenceRecherchee, avant: instantReference } : "skip",
+  );
+
+  useEffect(() => {
+    if (!licenceInitiale || licenceInitiale === derniereLicenceInitiale.current) return;
+    derniereLicenceInitiale.current = licenceInitiale;
+    setLicenceSaisie(licenceInitiale);
+    setLicenceRecherchee(licenceInitiale);
+  }, [licenceInitiale]);
+
+  function rechercher(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const licence = licenceSaisie.trim();
+    setLicenceRecherchee(licence || null);
+  }
+
+  return (
+    <section className="abo-admin-subsection abo-admin-tests-archive">
+      <div>
+        <h3 className="abo-admin-subheading">Archives des tests réalisés</h3>
+        <p className="abo-admin-intro">
+          Déposez le formulaire ou une photo après le test. Une seule pièce est conservée
+          par test, puis transmise dans Drive pour traitement.
+        </p>
+      </div>
+
+      <ListePersonnesAEnregistrer reservations={reservations} toutesArchives={toutesArchives} />
+
+      <section className="abo-admin-tests-step">
+      <h4 className="abo-admin-subheading">Rechercher un licencié pour enregistrer son test</h4>
+      <p className="abo-admin-meta">Recherchez par numéro de licence, puis importez la photo ou le PDF du test.</p>
+      <form className="abo-admin-toolbar abo-admin-tests-licence-search" onSubmit={rechercher}>
+        <label className="abo-admin-filter-field" htmlFor="recherche-licence-test">
+          <span>Numéro de licence</span>
+          <input
+            id="recherche-licence-test"
+            className="abo-admin-input abo-admin-search"
+            type="search"
+            inputMode="numeric"
+            value={licenceSaisie}
+            onChange={(e) => setLicenceSaisie(e.target.value)}
+            placeholder="Ex. 123456"
+          />
+        </label>
+        <button type="submit" className="abo-admin-button abo-admin-button--secondary">
+          Rechercher
+        </button>
+      </form>
+
+      {licenceRecherchee && candidat === undefined && <p>Recherche…</p>}
+      {licenceRecherchee && candidat === null && (
+        <p className="abo-admin-empty">
+          Aucun test passé n'est associé à cette licence. Vérifiez le numéro de licence.
+        </p>
+      )}
+      {candidat && !candidat.driveUrl && (
+        <RechercheDrive key={candidat.licence} nom={candidat.nom} prenom={candidat.prenom} />
+      )}
+      {candidat && (
+        <DepotTest
+          candidat={candidat}
+          archiveExistante={
+            candidat.archiveId
+              ? toutesArchives?.find((archive) => archive.id === candidat.archiveId) ?? null
+              : null
+          }
+        />
+      )}
+      </section>
+
+      <section className="abo-admin-subsection abo-admin-tests-step">
+        <h4 className="abo-admin-subheading">Retrouver un ancien test dans Drive</h4>
+        <p className="abo-admin-meta">
+          Recherche exacte par nom et prénom, selon le nom normalisé des fichiers Drive.
+        </p>
+        <RechercheDrive />
+      </section>
+
+      <section className="abo-admin-tests-step">
+      <h4 className="abo-admin-subheading">Archives enregistrées</h4>
+      <div className="abo-admin-toolbar abo-admin-tests-filter-tabs" role="group" aria-label="Filtrer les archives">
+        {([
+          ["a_traiter", "À traiter"],
+          ["traite", "Traités"],
+          ["tous", "Tous"],
+        ] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            className="abo-admin-button"
+            aria-pressed={filtre === id}
+            onClick={() => setFiltre(id)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <ArchivesListe archives={archives} />
+      </section>
+    </section>
+  );
+}
+
+function ListePersonnesAEnregistrer({
+  reservations,
+  toutesArchives,
+}: {
+  reservations: CandidatTest[] | undefined;
+  toutesArchives: ArchiveTest[] | undefined;
+}) {
+  return (
+    <section className="abo-admin-subsection abo-admin-tests-step">
+      <h4 className="abo-admin-subheading">Tests d'autonomie à enregistrer</h4>
+      <p className="abo-admin-meta">
+        Les candidats apparaissent dès le début de leur créneau et restent affichés après celui-ci.
+      </p>
+      {reservations === undefined ? (
+        <p>Chargement…</p>
+      ) : reservations.length === 0 ? (
+        <p className="abo-admin-empty">Aucune réservation passée à archiver.</p>
+      ) : (
+        <ul className="abo-admin-list">
+          {reservations.map((reservation) => (
+            <li key={reservation.personneId ?? reservation.licence} className="abo-admin-list-row">
+              <span>
+                <strong>{`${reservation.prenom} ${reservation.nom}`.trim() || "—"}</strong>{" "}
+                {!reservation.licenceManquante && (
+                  <span className="abo-admin-meta">Licence {reservation.licence}</span>
+                )}
+              </span>
+              <DepotTest
+                candidat={reservation}
+                archiveExistante={
+                  reservation.archiveId
+                    ? toutesArchives?.find((archive) => archive.id === reservation.archiveId) ?? null
+                    : null
+                }
+                compact
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function RechercheDrive({ nom: nomInitial, prenom: prenomInitial }: { nom?: string; prenom?: string }) {
+  const rechercherDansDrive = useAction(api.abo.testDocumentsDrive.rechercherDansDrive);
+  const [nom, setNom] = useState(nomInitial ?? "");
+  const [prenom, setPrenom] = useState(prenomInitial ?? "");
+  const [enCours, setEnCours] = useState(false);
+  const [resultats, setResultats] = useState<Array<{ nomFichier: string; driveUrl: string }>>([]);
+  const [erreur, setErreur] = useState<string | null>(null);
+
+  async function rechercher() {
+    setEnCours(true);
+    setErreur(null);
+    try {
+      const trouves = await rechercherDansDrive({ nom, prenom });
+      if (trouves.length === 0) {
+        setErreur("Aucun ancien test n'a été trouvé dans Drive pour ce nom et ce prénom.");
+        return;
+      }
+      setResultats(trouves);
+    } catch (err) {
+      setErreur(aboError(err).message);
+    } finally {
+      setEnCours(false);
+    }
+  }
+
+  return (
+    <div className="abo-admin-toolbar abo-admin-tests-drive-search">
+      {!nomInitial || !prenomInitial ? (
+        <>
+          <label className="abo-admin-filter-field">
+            <span>Nom</span>
+            <input className="abo-admin-input" value={nom} onChange={(e) => setNom(e.target.value)} />
+          </label>
+          <label className="abo-admin-filter-field">
+            <span>Prénom</span>
+            <input className="abo-admin-input" value={prenom} onChange={(e) => setPrenom(e.target.value)} />
+          </label>
+        </>
+      ) : null}
+      <button type="button" className="abo-admin-button abo-admin-button--secondary" disabled={enCours || (!nom.trim() && !prenom.trim())} onClick={() => void rechercher()}>
+        {enCours ? "Recherche dans Drive…" : "Rechercher le test dans Drive"}
+      </button>
+      {resultats.length > 0 && (
+        <ul className="abo-admin-test-results">
+          {resultats.map((resultat) => (
+            <li key={resultat.driveUrl} className="abo-admin-test-result">
+              <span>{resultat.nomFichier}</span>
+              <a className="abo-admin-button abo-admin-button--secondary" href={resultat.driveUrl} target="_blank" rel="noreferrer">Ouvrir dans Drive</a>
+            </li>
+          ))}
+        </ul>
+      )}
+      {erreur && <p className="abo-admin-status abo-admin-status--error" role="status">{erreur}</p>}
+    </div>
+  );
+}
+
+function ArchivesListe({ archives }: { archives: ArchiveTest[] | undefined }) {
+  const marquerTraite = useMutation(api.abo.testDocuments.marquerTraite);
+  const [enCours, setEnCours] = useState<string | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+
+  async function traiter(archiveId: ArchiveTest["id"]) {
+    setEnCours(archiveId);
+    setErreur(null);
+    try {
+      await marquerTraite({ archiveId });
+    } catch (err) {
+      setErreur(aboError(err).message);
+    } finally {
+      setEnCours(null);
+    }
+  }
+
+  if (archives === undefined) return <p>Chargement…</p>;
+  if (archives.length === 0) return <p className="abo-admin-empty">Aucune archive dans cette file.</p>;
+  return (
+    <>
+      {erreur && <p className="abo-admin-status abo-admin-status--error">Échec : {erreur}</p>}
+      <ul className="abo-admin-list">
+        {archives.map((archive) => (
+          <li key={archive.id} className="abo-admin-card abo-admin-list-row">
+            <span>
+              <strong>{`${archive.prenom} ${archive.nom}`.trim() || "—"}</strong>{" "}
+              <span className="abo-admin-meta">Licence {archive.licence}</span>
+            </span>
+            <span className="abo-admin-toolbar">
+              {archive.driveUrl ? (
+                <a className="abo-admin-link-button" href={archive.driveUrl} target="_blank" rel="noreferrer">
+                  Ouvrir dans Drive
+                </a>
+              ) : (
+                <span className="abo-admin-meta">Transfert Drive en attente</span>
+              )}
+              {archive.statut === "a_traiter" && (
+                <button
+                  type="button"
+                  className="abo-admin-link-button"
+                  disabled={enCours === archive.id}
+                  onClick={() => void traiter(archive.id)}
+                >
+                  {enCours === archive.id ? "Traitement…" : "Marquer traité"}
+                </button>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+function DepotTest({
+  candidat,
+  archiveExistante,
+  compact = false,
+}: {
+  candidat: CandidatTest;
+  archiveExistante: ArchiveTest | null;
+  compact?: boolean;
+}) {
+  const preparerDepot = useMutation(api.abo.testDocuments.preparerDepot);
+  const genererUrlUpload = useMutation(api.abo.testDocuments.genererUrlUpload);
+  const envoyerVersDrive = useAction(api.abo.testDocumentsDrive.envoyerVersDrive);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [fichier, setFichier] = useState<File | null>(null);
+  const [enCours, setEnCours] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  if (candidat.licenceManquante) {
+    return (
+      <p className="abo-admin-status abo-admin-status--error">
+        Numéro de licence obligatoire avant de pouvoir importer le test.
+      </p>
+    );
+  }
+
+  if (candidat.archiveId && candidat.driveUrl) {
+    return (
+      <div className={`abo-admin-test-upload${compact ? " abo-admin-test-upload--compact" : ""}`}>
+        <p className="abo-admin-status">
+          Un document est déjà archivé pour cette licence. Le dépôt ne peut pas l'écraser.
+        </p>
+        {candidat.driveUrl || archiveExistante?.driveUrl ? (
+          <a className="abo-admin-link-button" href={candidat.driveUrl ?? archiveExistante!.driveUrl} target="_blank" rel="noreferrer">
+            Ouvrir l'archive dans Drive
+          </a>
+        ) : (
+          <p className="abo-admin-meta">Retrouvez-le dans la file des archives.</p>
+        )}
+      </div>
+    );
+  }
+
+  async function deposer() {
+    if (!fichier) {
+      setMessage("Choisissez une photo JPEG/PNG ou un PDF avant le dépôt.");
+      return;
+    }
+    setEnCours(true);
+    setMessage(null);
+    try {
+      const archive = await preparerDepot({ licence: candidat.licence });
+      const { uploadUrl } = await genererUrlUpload({
+        archiveId: archive.archiveId,
+        uploadToken: archive.uploadToken,
+      });
+      const reponse = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": fichier.type },
+        body: fichier,
+      });
+      if (!reponse.ok) throw new Error("L'envoi du fichier a échoué.");
+      const { storageId } = (await reponse.json()) as { storageId: string };
+      await envoyerVersDrive({
+        archiveId: archive.archiveId,
+        uploadToken: archive.uploadToken,
+        storageId: storageId as Id<"_storage">,
+      });
+      setFichier(null);
+      if (inputRef.current) inputRef.current.value = "";
+      setMessage("Document déposé et envoyé dans Drive. Il est maintenant à traiter.");
+    } catch (err) {
+      setMessage(`Échec : ${aboError(err).message}`);
+    } finally {
+      setEnCours(false);
+    }
+  }
+
+  return (
+    <div className={`abo-admin-test-upload${compact ? " abo-admin-test-upload--compact" : ""}`}>
+      {!compact && (
+        <p className="abo-admin-card abo-admin-card-copy">
+          <strong>{`${candidat.prenom} ${candidat.nom}`.trim() || "—"}</strong>{" "}
+          <span className="abo-admin-meta">Licence {candidat.licence}</span>
+        </p>
+      )}
+      <label className="abo-admin-filter-field">
+        <span>Formulaire ou photo du test</span>
+        <input
+          ref={inputRef}
+          className="abo-admin-input"
+          type="file"
+          accept="image/jpeg,image/png,application/pdf"
+          capture="environment"
+          onChange={(e) => {
+            const prochain = e.target.files?.[0] ?? null;
+            if (prochain && !["image/jpeg", "image/png", "application/pdf"].includes(prochain.type)) {
+              setFichier(null);
+              setMessage("Format non pris en charge : utilisez une photo JPEG/PNG ou un PDF.");
+              e.currentTarget.value = "";
+              return;
+            }
+            setFichier(prochain);
+            setMessage(null);
+          }}
+        />
+      </label>
+      <button type="button" className="abo-admin-button abo-admin-button--primary" disabled={enCours} onClick={() => void deposer()}>
+        {enCours ? "Dépôt…" : "Déposer le test"}
+      </button>
+      {message && <p className={`abo-admin-status${message.startsWith("Échec") ? " abo-admin-status--error" : ""}`} role="status">{message}</p>}
     </div>
   );
 }
@@ -249,6 +649,13 @@ function MesCreneaux({
 }
 
 // ── Inscrits par jour puis par tranche ───────────────────────────────
+function etatConfirmationReservation(reservation: object): "provisoire" | "confirmee" {
+  return (reservation as { etat_confirmation?: "provisoire" | "confirmee" })
+    .etat_confirmation === "confirmee"
+    ? "confirmee"
+    : "provisoire";
+}
+
 function Inscrits({
   inscrits,
 }: {
@@ -297,12 +704,21 @@ function Inscrits({
                   </span>
                 </div>
                 <ul className="abo-admin-attendee-list">
-                  {gens.map((g) => (
-                    <li key={g.personne_id}>
-                      {`${g.prenom ?? ""} ${g.nom ?? ""}`.trim() || "—"}{" "}
-                      <span className="abo-admin-meta">({g.email})</span>
-                    </li>
-                  ))}
+                  {gens.map((g) => {
+                    const confirmation = etatConfirmationReservation(g);
+                    return (
+                      <li key={g.personne_id}>
+                        {`${g.prenom ?? ""} ${g.nom ?? ""}`.trim() || "—"}{" "}
+                        <span className="abo-admin-meta">({g.email})</span>
+                        <span
+                          className={`abo-admin-badge abo-admin-badge--confirmation-${confirmation}`}
+                          aria-label={`Réservation ${confirmation === "confirmee" ? "confirmée" : "provisoire"}`}
+                        >
+                          {confirmation === "confirmee" ? "Confirmé" : "Provisoire"}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             ))}

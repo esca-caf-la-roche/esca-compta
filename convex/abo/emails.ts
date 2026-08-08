@@ -224,3 +224,103 @@ export const envoyerEmailAbo = internalAction({
     return null;
   },
 });
+
+interface EmailReservationTest {
+  destinataire: string;
+  nom: string;
+  prenom: string;
+  licence: string | null;
+  tranche: string;
+}
+
+// Prépare atomiquement le rappel : les tâches scheduler rejouées, annulées par
+// le candidat ou devenues obsolètes après reset n'envoient rien.
+export const preparerRappelTest = internalMutation({
+  args: { reservationId: v.id("abo_test_reservations") },
+  handler: async (ctx, args): Promise<EmailReservationTest | null> => {
+    const reservation = await ctx.db.get(args.reservationId);
+    if (
+      !reservation ||
+      reservation.statut !== "active" ||
+      reservation.rappel_envoye_le ||
+      new Date(reservation.tranche).getTime() <= Date.now()
+    ) {
+      return null;
+    }
+    const personne = await ctx.db.get(reservation.personne_id);
+    const dossier = personne ? await ctx.db.get(personne.dossier_id) : null;
+    if (!personne || !dossier?.email) return null;
+    return {
+      destinataire: dossier.email,
+      nom: personne.nom,
+      prenom: personne.prenom,
+      licence: personne.licence ?? null,
+      tranche: reservation.tranche,
+    };
+  },
+});
+
+export const contexteReservationTest = internalQuery({
+  args: { reservationId: v.id("abo_test_reservations") },
+  handler: async (ctx, args): Promise<EmailReservationTest | null> => {
+    const reservation = await ctx.db.get(args.reservationId);
+    if (!reservation) return null;
+    const personne = await ctx.db.get(reservation.personne_id);
+    const dossier = personne ? await ctx.db.get(personne.dossier_id) : null;
+    if (!personne || !dossier?.email) return null;
+    return {
+      destinataire: dossier.email,
+      nom: personne.nom,
+      prenom: personne.prenom,
+      licence: personne.licence ?? null,
+      tranche: reservation.tranche,
+    };
+  },
+});
+
+// Marqué seulement APRÈS l'acceptation SMTP : un problème de génération ou
+// d'envoi ne transforme jamais le rappel en faux succès.
+export const marquerRappelTestEnvoye = internalMutation({
+  args: { reservationId: v.id("abo_test_reservations") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const reservation = await ctx.db.get(args.reservationId);
+    if (reservation && reservation.statut === "active" && !reservation.rappel_envoye_le) {
+      await ctx.db.patch(reservation._id, { rappel_envoye_le: new Date().toISOString() });
+    }
+    return null;
+  },
+});
+
+function formaterTrancheParis(tranche: string): string {
+  return new Intl.DateTimeFormat("fr-FR", {
+    timeZone: "Europe/Paris",
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(tranche));
+}
+
+export const envoyerAnnulationConditionsTest = internalAction({
+  args: { reservationId: v.id("abo_test_reservations") },
+  handler: async (ctx, args): Promise<null> => {
+    const email: EmailReservationTest | null = await ctx.runQuery(
+      internal.abo.emails.contexteReservationTest,
+      { reservationId: args.reservationId },
+    );
+    if (!email) return null;
+    await ctx.runAction(internal.email.sendAboEmail, {
+      to: email.destinataire,
+      subject: "Votre réservation de test d'autonomie est annulée",
+      text:
+        `Bonjour ${email.prenom},\n\n` +
+        `Votre réservation du ${formaterTrancheParis(email.tranche)} est annulée : ` +
+        `la synchronisation du site du club indique que le test n'est pas requis ` +
+        `ou que la condition d'âge de 16 ans n'est pas remplie.\n\n` +
+        `Si cette information vous paraît erronée, contactez la commission escalade.` + SIGNATURE,
+    });
+    return null;
+  },
+});

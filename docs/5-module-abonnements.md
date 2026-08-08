@@ -190,6 +190,30 @@ puis vérifier la présence du singleton `cle = "courant"` avant d'ouvrir
 l'iframe publique. Le calcul borné de transition ne doit pas devenir le régime
 normal.
 
+## Rendez-vous de test d'autonomie
+
+Une personne dont la demande est **validée** peut réserver un créneau de test,
+même si sa licence, son âge ou le besoin de test ne sont pas encore connus. La
+réservation est alors un **RDV provisoire** : elle évite de retarder la prise de
+rendez-vous sur la seule attente des données du site du club.
+
+Après une synchronisation réussie du site, la réévaluation ne s'appuie que sur
+une **licence exactement identique**. Un rapprochement par nom et prénom ne
+peut ni confirmer ni annuler un rendez-vous. Lorsque les données ainsi
+retrouvées indiquent qu'un test est requis et que la personne a au moins 16 ans,
+le RDV est confirmé. Lorsqu'elles indiquent que le test n'est pas requis, qu'il
+est déjà validé ou que l'âge est inférieur à 16 ans, le RDV est annulé et la
+personne est prévenue. Si ces conditions restent inconnues, la réservation est
+conservée jusqu'au jour J.
+
+Un rappel est planifié pour chaque réservation active à J-1 ; pour un créneau
+dans moins de 24 heures, il part immédiatement. Son objet indique explicitement
+qu'il s'agit d'un rappel de test d'autonomie et demande d'imprimer le
+formulaire. Le formulaire n'est pas joint : il est à récupérer dans l'espace
+sécurisé du demandeur. Ce mécanisme utilise une tâche différée attachée à la
+réservation, jamais un cron périodique. Les créneaux, réservations, rappels et
+réévaluations restent disponibles hors saison.
+
 Les destinataires sont validés comme adresses uniques à l'entrée de
 l'authentification puis de nouveau dans les actions SMTP. Les listes de
 destinataires, noms d'affichage et injections d'en-têtes sont refusés, y compris
@@ -219,8 +243,15 @@ déploiement `npx convex dev` actif.
   des candidats ; résolution auto (match exact) + validation manuelle la retirent
   de la file.
 - [ ] **Test d'autonomie** : créer des créneaux (plusieurs admins) → tranches
-  40/60 min à capacité cumulée ; réserver/annuler ; supprimer un créneau surbooké
-  → délogement LIFO + email `test_annule`.
+  40/60 min à capacité cumulée ; une demande validée, sans licence, âge ni
+  autonomie connus, réserve un RDV provisoire ; réserver/annuler ; supprimer un
+  créneau surbooké → délogement LIFO + email `test_annule`.
+- [ ] **Réévaluation et rappel du test** : après un scrap, seul un match de
+  licence exact confirme un RDV lorsque le test est requis et l'âge est d'au
+  moins 16 ans, ou l'annule lorsque les conditions connues ne le permettent pas.
+  Sans conditions connues, le RDV reste actif. Vérifier le rappel à J-1, ou
+  immédiat sous 24 h, son objet explicite et son lien vers le formulaire à
+  imprimer dans l'espace sécurisé ; vérifier aussi le même parcours hors saison.
 - [ ] **Formulaire du test** : depuis le suivi d'une personne validée, télécharger
   le PDF pré-rempli (date Europe/Paris, nom, prénom, licence) ; vérifier le
   rendu après réouverture et le cas d'une licence absente.

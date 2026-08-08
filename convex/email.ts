@@ -21,6 +21,7 @@ async function envoyerEmail(
   destinataire: string,
   sujet: string,
   texte: string,
+  pieceJointe?: { nom: string; contenuBase64: string; type: string },
 ) {
   const client = creerTransporteur(compteSmtp, motDePasse);
   try {
@@ -29,6 +30,17 @@ async function envoyerEmail(
       to: destinataire,
       subject: sujet,
       text: texte,
+      ...(pieceJointe
+        ? {
+            attachment: [{
+              name: pieceJointe.nom,
+              data: pieceJointe.contenuBase64,
+              // emailjs attend une chaîne déjà encodée lorsque `encoded` vaut true.
+              encoded: true,
+              type: pieceJointe.type,
+            }],
+          }
+        : {}),
     });
   } finally {
     client.smtp.close();
@@ -75,7 +87,18 @@ export const sendOTP = action({
 // emails transactionnels (validation, liste d'attente, refus, messagerie).
 // Secrets Convex : EMAIL_SENDER_ABO / EMAIL_PASSWORD_ABO (mot de passe d'appli).
 export const sendAboEmail = action({
-  args: { to: v.string(), subject: v.string(), text: v.string() },
+  args: {
+    to: v.string(),
+    subject: v.string(),
+    text: v.string(),
+    pieceJointe: v.optional(
+      v.object({
+        nom: v.string(),
+        contenuBase64: v.string(),
+        type: v.string(),
+      }),
+    ),
+  },
   returns: v.null(),
   handler: async (_ctx, args) => {
     const destinataire = canoniserEmailUnique(args.to);
@@ -95,6 +118,7 @@ export const sendAboEmail = action({
         destinataire,
         args.subject,
         args.text,
+        args.pieceJointe,
       );
 
       console.info("[Abo] E-mail transactionnel envoyé.");

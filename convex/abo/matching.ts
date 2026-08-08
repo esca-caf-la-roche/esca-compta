@@ -17,6 +17,7 @@ import { canoniserLicence, normaliserNomPrenom } from "./lib";
 import { trouverLienAbo, estRemboursement } from "./paiements";
 import { champsModifies } from "../dbUtils";
 import { abonnementEstValide } from "./statutAbonnement";
+import { internal } from "../_generated/api";
 
 // ── upsertAbonnesScrapBatch : miroir brut de la page club (par licence) ──
 // Comme le scrap Supabase, on n'écrit QUE les lignes ayant une licence (clé
@@ -202,6 +203,35 @@ export const matcherScrapPersonnes = internalMutation({
       if (champsModifies(p, patch)) {
         await ctx.db.patch(p._id, patch);
         maj++;
+      }
+
+      // Après un scrap effectivement réussi, seule la ligne trouvée par la
+      // licence exacte peut confirmer ou invalider une réservation provisoire.
+      // Aucun rapprochement nom/prénom ne suffit pour annuler un rendez-vous.
+      if (!p.licence || s.licence !== p.licence) continue;
+      const autonomie = testAutonomieDepuisScrap(s.autonomie);
+      const age = s.age;
+      if (autonomie === undefined || age === undefined) continue;
+      const reservations = await ctx.db
+        .query("abo_test_reservations")
+        .withIndex("by_personne", (q) => q.eq("personne_id", p._id))
+        .collect();
+      for (const reservation of reservations) {
+        if (reservation.statut !== "active") continue;
+        if (autonomie === "requis" && age >= 16) {
+          if (reservation.etat_confirmation !== "confirmee") {
+            await ctx.db.patch(reservation._id, { etat_confirmation: "confirmee" });
+          }
+          continue;
+        }
+        await ctx.db.patch(reservation._id, {
+          statut: "annulee",
+          annulee_le: new Date().toISOString(),
+          annulee_raison: "conditions_test_non_remplies",
+        });
+        await ctx.scheduler.runAfter(0, internal.abo.emails.envoyerAnnulationConditionsTest, {
+          reservationId: reservation._id,
+        });
       }
     }
 

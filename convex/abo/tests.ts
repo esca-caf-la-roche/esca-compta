@@ -32,6 +32,10 @@ import { parisWallToUtcMs } from "./config";
 
 const SLOT_MS = 20 * 60 * 1000; // slot de base = 20 min
 
+function estReservationActive(r: Doc<"abo_test_reservations">): boolean {
+  return r.statut === "active";
+}
+
 // ── Tranches (40/60 min) avec capacité cumulée ───────────────────────
 // Reproduit test_tranches() : 1) slots de 20 min (cap = 2 × admins distincts) sur
 // [début, fin-20min] ; 2) plages continues (slots espacés de 20 min) ; 3) découpe
@@ -130,7 +134,7 @@ async function reservationsActivesParTranche(
     .collect();
   const parTranche = new Map<string, number>();
   for (const r of actives) {
-    if (r.statut !== "active") continue;
+    if (!estReservationActive(r)) continue;
     parTranche.set(r.tranche, (parTranche.get(r.tranche) ?? 0) + 1);
   }
   return parTranche;
@@ -205,18 +209,6 @@ export const reserverTest = authenticatedMutation({
         message: "La réservation du test est réservée aux demandes validées.",
       });
     }
-    if (personne.etape_test_autonomie !== "requis") {
-      throw new ConvexError({
-        code: "P0014",
-        message: "Cette personne n'a pas de test d'autonomie à réserver.",
-      });
-    }
-    if (personne.age == null || personne.age < 16) {
-      throw new ConvexError({
-        code: "P0015",
-        message: "Le test d'autonomie est réservé aux personnes de 16 ans et plus.",
-      });
-    }
     if (await reservationActive(ctx, args.personneId)) {
       throw new ConvexError({
         code: "P0011",
@@ -246,12 +238,23 @@ export const reserverTest = authenticatedMutation({
       });
     }
 
-    await ctx.db.insert("abo_test_reservations", {
+    const rappelPrevuMs = Math.max(
+      Date.now(),
+      new Date(cible.tranche_debut).getTime() - 24 * 60 * 60 * 1000,
+    );
+    const reservationId = await ctx.db.insert("abo_test_reservations", {
       personne_id: args.personneId,
       tranche: cible.tranche_debut,
       tranche_fin: cible.tranche_fin,
       statut: "active",
+      etat_confirmation: "provisoire",
+      rappel_prevu_le: new Date(rappelPrevuMs).toISOString(),
     });
+    await ctx.scheduler.runAfter(
+      rappelPrevuMs - Date.now(),
+      internal.abo.emailsRappel.envoyerRappelTest,
+      { reservationId },
+    );
     return null;
   },
 });
@@ -283,7 +286,8 @@ interface ReservationVue {
   tranche_fin: string | null;
   statut: "active" | "annulee";
   annulee_le: string | null;
-  annulee_raison: "candidat" | "creneau_admin_annule" | null;
+  etat_confirmation: "provisoire" | "confirmee";
+  annulee_raison: "candidat" | "creneau_admin_annule" | "conditions_test_non_remplies" | null;
 }
 
 function reservationVue(r: Doc<"abo_test_reservations">): ReservationVue {
@@ -292,6 +296,7 @@ function reservationVue(r: Doc<"abo_test_reservations">): ReservationVue {
     tranche: r.tranche,
     tranche_fin: r.tranche_fin ?? null,
     statut: r.statut,
+    etat_confirmation: r.etat_confirmation ?? "provisoire",
     annulee_le: r.annulee_le ?? null,
     annulee_raison: r.annulee_raison ?? null,
   };
@@ -324,12 +329,13 @@ export const getMesReservationsParPersonne = authenticatedQuery({
           .collect();
         // Plus récent d'abord (l'annulée subie la plus récente pour le bandeau).
         rows.sort((a, b) => b._creationTime - a._creationTime);
-        const active = rows.find((r) => r.statut === "active") ?? null;
+        const active = rows.find(estReservationActive) ?? null;
         const annulee =
           rows.find(
             (r) =>
               r.statut === "annulee" &&
-              r.annulee_raison === "creneau_admin_annule",
+              (r.annulee_raison === "creneau_admin_annule" ||
+                r.annulee_raison === "conditions_test_non_remplies"),
           ) ?? null;
         if (active || annulee) {
           out.push({
@@ -415,6 +421,10 @@ export const creerTestCreneau = authenticatedMutation({
     if (args.date < todayParisISO()) {
       err("Le jour du créneau ne peut pas être dans le passé.");
     }
+    const debutCreneau = parisWallToUtcMs(`${args.date}T${args.debut}`);
+    if (debutCreneau == null || debutCreneau <= Date.now()) {
+      err("Le début du créneau doit être dans le futur.");
+    }
 
     return await ctx.db.insert("abo_test_creneaux", {
       admin_id: id.userId,
@@ -455,7 +465,7 @@ export const supprimerTestCreneau = authenticatedMutation({
 
     // Toutes les réservations actives, groupées par tranche.
     const actives = (await ctx.db.query("abo_test_reservations").collect()).filter(
-      (r) => r.statut === "active",
+      estReservationActive,
     );
     const parTranche = new Map<string, Doc<"abo_test_reservations">[]>();
     for (const r of actives) {
@@ -500,7 +510,7 @@ export const testInscritsAdmin = authenticatedQuery({
   handler: async (ctx) => {
     await requireAboAdmin(ctx);
     const actives = (await ctx.db.query("abo_test_reservations").collect()).filter(
-      (r) => r.statut === "active",
+      estReservationActive,
     );
     actives.sort(
       (a, b) => a.tranche.localeCompare(b.tranche) || a._creationTime - b._creationTime,
@@ -509,6 +519,7 @@ export const testInscritsAdmin = authenticatedQuery({
     const out: {
       tranche_debut: string;
       tranche_fin: string | null;
+      etat_confirmation: "provisoire" | "confirmee";
       personne_id: Id<"abo_personnes">;
       nom: string;
       prenom: string;
@@ -521,6 +532,7 @@ export const testInscritsAdmin = authenticatedQuery({
       out.push({
         tranche_debut: r.tranche,
         tranche_fin: r.tranche_fin ?? null,
+        etat_confirmation: r.etat_confirmation ?? "provisoire",
         personne_id: personne._id,
         nom: personne.nom,
         prenom: personne.prenom,

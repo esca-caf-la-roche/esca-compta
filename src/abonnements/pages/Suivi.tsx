@@ -211,10 +211,17 @@ function CarteFinalisation({
     test_autonomie: null,
     age: personne.age,
   };
-  const etapes = construireEtapes(c, liens, personne, (
+  const peutAfficherTest = Boolean(reservation) ||
+    !(c.test_autonomie === "non_requis" || (c.age != null && c.age < 16));
+  const peutReserverTest =
+    c.test_autonomie !== "non_requis" &&
+    c.test_autonomie !== "valide" &&
+    !(c.age != null && c.age < 16);
+  const etapes = construireEtapes(c, liens, personne, peutAfficherTest, (
     <ReservationTest
       personneId={personne.id as Id<"abo_personnes">}
       reservation={reservation}
+      peutReserver={peutReserverTest}
     />
   ));
   return (
@@ -274,6 +281,7 @@ function construireEtapes(
   c: Check,
   liens: Liens,
   personne: PersonneVue,
+  peutAfficherTest: boolean,
   reservationWidget: React.ReactNode,
 ): Etape[] {
   const etapes: Etape[] = [
@@ -339,7 +347,7 @@ function construireEtapes(
   ];
 
   // Étape 5 — test d'autonomie (16 ans et plus). Masquée si non requis ou < 16 ans.
-  if (!(c.test_autonomie === "non_requis" || (c.age != null && c.age < 16))) {
+  if (peutAfficherTest) {
     const fait = c.test_autonomie === "valide";
     etapes.push({
       num: 5,
@@ -414,9 +422,11 @@ function TelechargerFormulaireTest({ personne }: { personne: PersonneVue }) {
 function ReservationTest({
   personneId,
   reservation,
+  peutReserver,
 }: {
   personneId: Id<"abo_personnes">;
   reservation?: ReservationPersonne;
+  peutReserver: boolean;
 }) {
   const annuler = useMutation(api.abo.tests.annulerMaReservation);
   const [ouvert, setOuvert] = useState(false);
@@ -424,6 +434,11 @@ function ReservationTest({
 
   const active = reservation?.active ?? null;
   const annulee = reservation?.annulee ?? null;
+  // Les anciennes réservations actives n'avaient pas ce champ : elles restent
+  // affichées comme provisoires jusqu'à leur prochaine vérification.
+  const estConfirmee =
+    (active as (typeof active & { etat_confirmation?: "provisoire" | "confirmee" }) | null)
+      ?.etat_confirmation === "confirmee";
 
   async function annulerRdv() {
     if (!window.confirm("Annuler votre réservation de test ?")) return;
@@ -445,6 +460,17 @@ function ReservationTest({
             <strong>Votre RDV :</strong> {formatJour(active.tranche)},{" "}
             {formatTranche(active.tranche, active.tranche_fin)}
           </p>
+          <p
+            className={`abo-resa-confirmation abo-resa-confirmation--${
+              estConfirmee ? "confirmee" : "provisoire"
+            }`}
+            role="status"
+          >
+            <strong>{estConfirmee ? "RDV confirmé" : "RDV provisoire"}</strong>
+            {estConfirmee
+              ? " : vos conditions de test sont validées."
+              : " : votre place est réservée. Nous vérifierons vos conditions de test via votre licence avant le rendez-vous."}
+          </p>
           <button
             type="button"
             className="abo-link"
@@ -456,19 +482,21 @@ function ReservationTest({
         </div>
       ) : (
         <>
-          {annulee && (
-            <p className="abo-resa-annulee" role="status">
-              Votre précédent RDV a été annulé (le créneau a été retiré). Merci
-              d'en choisir un nouveau.
+          {annulee && <AnnulationReservation reservation={annulee} />}
+          {peutReserver ? (
+            <button
+              type="button"
+              className="abo-btn abo-resa-ouvrir"
+              onClick={() => setOuvert(true)}
+            >
+              Réserver un créneau de test
+            </button>
+          ) : (
+            <p className="abo-resa-information" role="status">
+              Le test n'est pas accessible pour cette personne. Sa situation sera
+              mise à jour automatiquement après vérification.
             </p>
           )}
-          <button
-            type="button"
-            className="abo-btn abo-resa-ouvrir"
-            onClick={() => setOuvert(true)}
-          >
-            Réserver un créneau de test
-          </button>
         </>
       )}
 
@@ -479,6 +507,31 @@ function ReservationTest({
         />
       )}
     </div>
+  );
+}
+
+function AnnulationReservation({
+  reservation,
+}: {
+  reservation: NonNullable<ReservationPersonne["annulee"]>;
+}) {
+  if (
+    (reservation as typeof reservation & {
+      annulee_raison?: "conditions_test_non_remplies";
+    }).annulee_raison === "conditions_test_non_remplies"
+  ) {
+    return (
+      <p className="abo-resa-annulee" role="status">
+        Votre précédent RDV a été annulé après vérification : le test n'est
+        finalement pas requis, est déjà validé, ou n'est pas accessible pour cette personne.
+      </p>
+    );
+  }
+
+  return (
+    <p className="abo-resa-annulee" role="status">
+      Votre précédent RDV a été annulé. Merci d'en choisir un nouveau.
+    </p>
   );
 }
 

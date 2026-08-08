@@ -90,6 +90,14 @@ explicite. Après cette confirmation, le hook Codex attend le commentaire
 Les variables d'environnement sensibles sont configurées dans Convex. Ne jamais
 les copier dans la documentation, les logs, un commit ou une capture d'écran.
 
+L'archive des tests d'autonomie réutilise le compte de service Google Drive
+existant (`GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL` et `GOOGLE_DRIVE_PRIVATE_KEY`).
+Avant son premier essai sur un déploiement, configurer aussi les identifiants
+non secrets du Drive partagé : `ABO_TESTS_DRIVE_ID` et
+`ABO_TESTS_DRIVE_ROOT_FOLDER_ID`. Le compte de service doit avoir accès en
+lecture et écriture au répertoire historique des tests ; ne pas remplacer ce
+répertoire ni changer son classement alphabétique.
+
 ## Validation d'une fonctionnalité
 
 1. Vérifier le parcours nominal et les erreurs attendues.

@@ -230,6 +230,23 @@ sont résolues automatiquement. Les cas restants exigent un arbitrage humain.
 > fausse le suivi de la licence, de l'inscription et potentiellement le
 > rapprochement avec le site du club.
 
+### Conflit de licence
+
+Si une licence est déjà affectée à une autre personne, l'association est
+arrêtée avant toute écriture. La carte de la personne en cours affiche alors
+la personne déjà porteuse de la licence et propose, après confirmation, de la
+fusionner dans le dossier que l'administrateur souhaite conserver. Les doublons
+déjà présents apparaissent aussi dans **Conflits de licence**. Vérifier les deux
+personnes, leurs e-mails et leurs réservations de test avant de choisir la
+personne à conserver.
+
+La fusion déplace uniquement les réservations de test de la personne écartée et
+conserve une trace administrative. Si son dossier ne contient alors plus aucune
+personne, aucun message et aucun journal d'e-mail, ce dossier vide est supprimé.
+Sinon il est conservé : la fusion ne supprime jamais automatiquement comptes,
+messages, paiements ou inscriptions du site du club. Si les deux personnes ont
+une réservation active, traiter d'abord ce doublon de rendez-vous.
+
 ## 6. Tests
 
 ### À quoi sert cet onglet ?
@@ -237,6 +254,11 @@ sont résolues automatiquement. Les cas restants exigent un arbitrage humain.
 L'onglet **Tests** organise les rendez-vous de test d'autonomie. Chaque
 encadrant y déclare ses propres disponibilités ; les candidats réservent ensuite
 des tranches calculées automatiquement à partir de l'ensemble des encadrants.
+
+Une personne dont la demande a été **validée** peut réserver, même si sa
+licence, son âge ou son besoin de test ne sont pas encore connus. Le rendez-vous
+est alors affiché comme **provisoire**. Cette réservation reste possible hors
+saison : elle ne dépend pas de l'ouverture d'une vague.
 
 ### Proposer une disponibilité
 
@@ -264,12 +286,46 @@ Avant de supprimer un créneau, tenir compte de l'avertissement : si la capacit�
 devient insuffisante, les derniers inscrits sont annulés en premier. Ils sont
 invités à reprendre rendez-vous et un e-mail d'annulation est planifié.
 
-### Limite actuelle : résultat du test
+### Confirmer ou annuler un RDV provisoire
 
-Cet onglet ne permet pas encore de cocher « réussi », « échoué » ou « absent ».
-Le résultat doit actuellement être renseigné dans le site du club, puis ramené
-dans le portail par synchronisation. Sans cette mise à jour externe, le suivi
-du candidat ne peut pas passer automatiquement à « test validé ».
+La vérification se fait après une synchronisation du site du club. Pour protéger
+les personnes portant des noms proches, le portail ne réévalue un RDV que si la
+**licence correspond exactement** ; une similitude de nom ou de prénom ne suffit
+jamais.
+
+- Si les informations synchronisées confirment qu'un test est requis et que la
+  personne a au moins 16 ans, le RDV devient **confirmé**.
+- Si elles indiquent que le test n'est pas requis, qu'il est déjà validé, ou que
+  la personne a moins de 16 ans, le RDV est annulé et le demandeur reçoit une
+  explication.
+- Si la licence, l'âge ou le besoin de test restent inconnus, le RDV demeure
+  provisoire jusqu'au jour du rendez-vous. Ne l'annulez pas sur une supposition.
+
+Chaque réservation active reçoit un rappel à J-1 ; si le créneau est à moins de
+24 heures au moment de la réservation, le rappel est envoyé immédiatement. Son
+objet mentionne le test d'autonomie et demande d'imprimer le formulaire. Le
+demandeur le télécharge depuis son espace sécurisé : aucun formulaire n'est joint
+à l'e-mail. Les rappels sont programmés individuellement avec chaque
+réservation ; aucun cron périodique n'est utilisé.
+
+### Enregistrer et traiter un test
+
+Après un rendez-vous, ouvrez la liste des candidats ayant réservé un créneau
+passé, puis cliquez sur **Enregistrer le test**. Prenez ou choisissez une seule
+photo du formulaire rempli et validez l'envoi. Le scan est rangé dans le même
+répertoire Google Drive historique que les anciens tests, avec le nom
+`NOM Prénom`.
+
+Si la personne n'apparaît pas dans la liste, utilisez **Rechercher un candidat**
+et saisissez son numéro de licence. Cette recherche ne charge pas l'annuaire
+complet : elle sert uniquement à retrouver la personne demandée.
+
+La file **À traiter** rassemble les scans récemment enregistrés. Ouvrez le test,
+effectuez les démarches nécessaires dans les outils du club, puis cliquez sur
+**Marquer comme traité**. Ce statut est un repère interne ; il ne modifie pas le
+résultat du test dans le portail ni sur le site du club. Les scans restent
+conservés d'une campagne à l'autre et sont également accessibles depuis le
+détail du demandeur lorsqu'une licence est renseignée.
 
 ## 7. Configuration
 

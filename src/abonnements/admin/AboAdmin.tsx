@@ -30,10 +30,15 @@ const TABS: { id: Vue; label: string }[] = [
 export default function AboAdmin() {
   const me = useQuery(api.abo.identity.me);
   const messagesNonLus = useQuery(api.abo.messages.messagesNonLusAdmin);
+  const testsATraiter = useQuery(api.abo.testDocuments.listArchives, {
+    filtre: "a_traiter",
+  });
   const [vue, setVue] = useState<Vue>("dossiers");
+  const [licenceTest, setLicenceTest] = useState<string | null>(null);
 
   const compteurs: Partial<Record<Vue, number>> = {
     messages: messagesNonLus?.reduce((total, message) => total + message.count, 0),
+    tests: testsATraiter?.length,
   };
 
   // Synchro on-demand au chargement (throttle serveur ~1 h) : remplace les crons
@@ -98,13 +103,18 @@ export default function AboAdmin() {
 
       <div className="abo-admin-view">
         {vue === "dossiers" ? (
-          <Dossiers />
+          <Dossiers
+            onVoirTests={(licence) => {
+              setLicenceTest(licence);
+              setVue("tests");
+            }}
+          />
         ) : vue === "messages" ? (
           <Messages />
         ) : vue === "licences" ? (
           <Licences />
         ) : vue === "tests" ? (
-          <Tests />
+          <Tests licenceInitiale={licenceTest} />
         ) : vue === "anomalies" ? (
           <Anomalies />
         ) : vue === "paiements" ? (

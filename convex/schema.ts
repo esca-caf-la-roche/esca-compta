@@ -515,6 +515,58 @@ export default defineSchema({
     .index("by_nom_prenom_normalise", ["nom_prenom_normalise"])
     .index("by_licence", ["licence"]),
 
+  // SAISON-EXEMPT: archive administrative permanente des scans, conservée hors campagne.
+  // Elle est indépendante du dossier public d'origine, purgé au changement de campagne.
+  abo_tests_autonomie_archive: defineTable({
+    licence: v.string(),
+    nom: v.string(),
+    prenom: v.string(),
+    nom_prenom_normalise: v.string(),
+    drive_file_id: v.string(),
+    drive_url: v.string(),
+    statut: v.union(v.literal("a_traiter"), v.literal("traite")),
+  })
+    .index("by_licence", ["licence"])
+    .index("by_statut", ["statut"])
+    .index("by_nom_prenom_normalise", ["nom_prenom_normalise"]),
+
+  // SAISON-EXEMPT: état technique TTL d'un upload, sans axe métier saisonnier.
+  // Il lie l'archive au staff auteur jusqu'au dépôt Drive atomique.
+  abo_test_document_uploads: defineTable({
+    archive_id: v.id("abo_tests_autonomie_archive"),
+    author_id: v.id("users"),
+    token: v.string(),
+    storage_id: v.optional(v.id("_storage")),
+    statut: v.union(
+      v.literal("autorise"),
+      v.literal("en_cours"),
+      v.literal("drive_depose"),
+    ),
+    drive_file_id: v.optional(v.string()),
+    drive_url: v.optional(v.string()),
+    expires_at: v.number(),
+    claimed_at: v.optional(v.number()),
+  })
+    .index("by_token", ["token"])
+    .index("by_archive", ["archive_id"]),
+
+  // SAISON-EXEMPT: trace administrative permanente d'une fusion manuelle de
+  // deux personnes portant la même licence.
+  abo_licence_fusions: defineTable({
+    licence: v.string(),
+    personne_source_id: v.id("abo_personnes"),
+    personne_cible_id: v.id("abo_personnes"),
+    dossier_source_id: v.id("abo_dossiers"),
+    dossier_cible_id: v.id("abo_dossiers"),
+    source_nom: v.string(),
+    source_prenom: v.string(),
+    fusionnee_le: v.string(),
+    fusionnee_par: v.id("users"),
+  })
+    .index("by_licence", ["licence"])
+    .index("by_personne_source", ["personne_source_id"])
+    .index("by_personne_cible", ["personne_cible_id"]),
+
   // Fil de discussion par dossier (un fil partagé user ↔ admins), temps réel.
   abo_messages: defineTable({
     dossier_id: v.id("abo_dossiers"),
@@ -667,8 +719,21 @@ export default defineSchema({
     statut: v.union(v.literal("active"), v.literal("annulee")),
     annulee_le: v.optional(v.string()),
     annulee_raison: v.optional(
-      v.union(v.literal("candidat"), v.literal("creneau_admin_annule")),
+      v.union(
+        v.literal("candidat"),
+        v.literal("creneau_admin_annule"),
+        v.literal("conditions_test_non_remplies"),
+      ),
     ),
+    // Absente pour les réservations historiques : elles restent provisoires
+    // jusqu'au prochain scrap qui les réévalue sur leur licence exacte.
+    etat_confirmation: v.optional(
+      v.union(v.literal("provisoire"), v.literal("confirmee")),
+    ),
+    // Données techniques du rappel unique. Le scheduler relit la réservation
+    // par son id ; ces champs rendent ses rejouements et tâches obsolètes sûrs.
+    rappel_prevu_le: v.optional(v.string()),
+    rappel_envoye_le: v.optional(v.string()),
   })
     .index("by_personne", ["personne_id"])
     .index("by_tranche", ["tranche"]),

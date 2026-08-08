@@ -84,13 +84,28 @@ export const getLicencesAValider = authenticatedQuery({
 
 // Aligne nom/prénom d'une personne sur la fiche annuaire d'une licence, et pose
 // la licence + son statut. Recalcule nom_prenom_normalise (ex-trigger).
+async function autrePorteuseLicence(
+  ctx: MutationCtx,
+  personneId: Doc<"abo_personnes">["_id"],
+  licence: string,
+): Promise<Doc<"abo_personnes"> | null> {
+  const porteuses = await ctx.db
+    .query("abo_personnes")
+    .withIndex("by_licence", (q) => q.eq("licence", licence))
+    .take(2);
+  return porteuses.find((porteuse) => porteuse._id !== personneId) ?? null;
+}
+
 async function poserLicence(
   ctx: MutationCtx,
   personne: Doc<"abo_personnes">,
   licence: string,
   statut: "annuaire_auto" | "annuaire_valide",
   fiche: Doc<"abo_licences"> | null,
-): Promise<void> {
+): Promise<boolean> {
+  if (await autrePorteuseLicence(ctx, personne._id, licence)) {
+    return false;
+  }
   const nom = fiche?.nom ?? personne.nom;
   const prenom = fiche?.prenom ?? personne.prenom;
   await ctx.db.patch(personne._id, {
@@ -100,6 +115,7 @@ async function poserLicence(
     prenom,
     nom_prenom_normalise: normaliserNomPrenom(nom, prenom),
   });
+  return true;
 }
 
 // ── resoudreLicencesPersonnes : match exact unique (auto) ────────────
@@ -138,8 +154,9 @@ export const resoudreLicencesPersonnes = authenticatedMutation({
       // Résolue SSI l'annuaire contient EXACTEMENT une licence correspondante.
       if (distinctes.size === 1) {
         const licence = [...distinctes][0];
-        await poserLicence(ctx, p, licence, "annuaire_auto", fiches.get(licence) ?? null);
-        resolues++;
+        if (await poserLicence(ctx, p, licence, "annuaire_auto", fiches.get(licence) ?? null)) {
+          resolues++;
+        }
       }
     }
     return resolues;
@@ -149,6 +166,17 @@ export const resoudreLicencesPersonnes = authenticatedMutation({
 // ── validerLicence : association manuelle (admin) ────────────────────
 export const validerLicence = authenticatedMutation({
   args: { personneId: v.id("abo_personnes"), licence: v.string() },
+  returns: v.union(
+    v.object({ statut: v.literal("attribue"), licence: v.string() }),
+    v.object({
+      statut: v.literal("conflit"),
+      licence: v.string(),
+      personneExistanteId: v.id("abo_personnes"),
+      personneExistanteNom: v.string(),
+      personneExistantePrenom: v.string(),
+      personneExistanteEmail: v.union(v.string(), v.null()),
+    }),
+  ),
   handler: async (ctx, args) => {
     await requireAboAdmin(ctx);
     const licence = canoniserLicence(args.licence);
@@ -167,14 +195,201 @@ export const validerLicence = authenticatedMutation({
       .query("abo_licences")
       .withIndex("by_licence", (q) => q.eq("licence", licence))
       .first();
-    await poserLicence(ctx, personne, licence, "annuaire_valide", fiche);
-    return null;
+    const porteuse = await autrePorteuseLicence(ctx, personne._id, licence);
+    if (porteuse) {
+      const dossierPorteuse = await ctx.db.get(porteuse.dossier_id);
+      return {
+        statut: "conflit" as const,
+        licence,
+        personneExistanteId: porteuse._id,
+        personneExistanteNom: porteuse.nom,
+        personneExistantePrenom: porteuse.prenom,
+        personneExistanteEmail: dossierPorteuse?.email ?? null,
+      };
+    }
+    if (!await poserLicence(ctx, personne, licence, "annuaire_valide", fiche)) {
+      throw new ConvexError({
+        code: "LICENCE_CONCURRENTE",
+        message: "Cette licence vient d'être affectée à une autre personne. Réessayez pour voir le conflit.",
+      });
+    }
+    return { statut: "attribue" as const, licence };
   },
 });
 
 // ── upsertLicencesBatch : import annuaire (interne, appelé par l'action) ──
 // Upsert par licence canonique ; recalcule nom_prenom_normalise. Ignore les
 // enregistrements sans licence exploitable.
+// Conflits réels : une même licence ne doit désigner qu'une seule personne.
+// La liste est bornée au volume réel de la campagne; aucun rapprochement par
+// nom/prénom n'est effectué automatiquement.
+export const getConflitsLicences = authenticatedQuery({
+  args: {},
+  returns: v.array(v.object({
+    licence: v.string(),
+    personnes: v.array(v.object({
+      personneId: v.id("abo_personnes"),
+      dossierId: v.id("abo_dossiers"),
+      nom: v.string(),
+      prenom: v.string(),
+      email: v.string(),
+      etapeValidation: v.union(
+        v.literal("en_attente"),
+        v.literal("validee"),
+        v.literal("liste_attente"),
+        v.literal("refusee"),
+      ),
+      reservationActive: v.boolean(),
+    })),
+  })),
+  handler: async (ctx) => {
+    await requireAboAdmin(ctx);
+    const personnes = await ctx.db
+      .query("abo_personnes")
+      .withIndex("by_licence")
+      .take(500);
+    const parLicence = new Map<string, typeof personnes>();
+    for (const personne of personnes) {
+      if (!personne.licence) continue;
+      const groupe = parLicence.get(personne.licence) ?? [];
+      groupe.push(personne);
+      parLicence.set(personne.licence, groupe);
+    }
+    const conflits = [] as Array<{
+      licence: string;
+      personnes: Array<{
+        personneId: Doc<"abo_personnes">["_id"];
+        dossierId: Doc<"abo_dossiers">["_id"];
+        nom: string;
+        prenom: string;
+        email: string;
+        etapeValidation: Doc<"abo_personnes">["etape_validation"];
+        reservationActive: boolean;
+      }>;
+    }>;
+    for (const [licence, groupe] of parLicence) {
+      if (groupe.length < 2) continue;
+      const vues = [] as (typeof conflits)[number]["personnes"];
+      for (const personne of groupe) {
+        const dossier = await ctx.db.get(personne.dossier_id);
+        if (!dossier) continue;
+        const reservations = await ctx.db
+          .query("abo_test_reservations")
+          .withIndex("by_personne", (q) => q.eq("personne_id", personne._id))
+          .take(20);
+        vues.push({
+          personneId: personne._id,
+          dossierId: dossier._id,
+          nom: personne.nom,
+          prenom: personne.prenom,
+          email: dossier.email,
+          etapeValidation: personne.etape_validation,
+          reservationActive: reservations.some((reservation) => reservation.statut === "active"),
+        });
+      }
+      if (vues.length > 1) conflits.push({ licence, personnes: vues });
+    }
+    return conflits.sort((a, b) => a.licence.localeCompare(b.licence));
+  },
+});
+
+// Fusion ciblée d'une personne dans une autre. Les dossiers, comptes et messages
+// restent séparés : leur propriétaire peut être différent. Seules les réservations
+// de test, qui sont les seules dépendances directes, sont réaffectées. Le
+// dossier source n'est supprimé que s'il devient réellement vide.
+export const fusionnerPersonnesLicence = authenticatedMutation({
+  args: {
+    personneSourceId: v.id("abo_personnes"),
+    personneCibleId: v.id("abo_personnes"),
+  },
+  returns: v.object({
+    personneCibleId: v.id("abo_personnes"),
+    reservationsReaffectees: v.number(),
+    dossierSourceSupprime: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    await requireAboAdmin(ctx);
+    if (args.personneSourceId === args.personneCibleId) {
+      throw new ConvexError({ code: "FUSION_IDENTIQUE", message: "Choisissez deux personnes distinctes." });
+    }
+    const source = await ctx.db.get(args.personneSourceId);
+    const cible = await ctx.db.get(args.personneCibleId);
+    if (!source || !cible || !source.licence || (cible.licence && source.licence !== cible.licence)) {
+      throw new ConvexError({ code: "FUSION_LICENCE_INVALIDE", message: "La personne source doit porter la licence à conserver ; la personne cible ne doit pas porter une autre licence." });
+    }
+    const [dossierSource, dossierCible] = await Promise.all([
+      ctx.db.get(source.dossier_id),
+      ctx.db.get(cible.dossier_id),
+    ]);
+    if (!dossierSource || !dossierCible) {
+      throw new ConvexError({ code: "FUSION_DOSSIER_INTRouvable", message: "Un dossier lié à la fusion est introuvable." });
+    }
+    const [reservationsSource, reservationsCible] = await Promise.all([
+      ctx.db.query("abo_test_reservations").withIndex("by_personne", (q) => q.eq("personne_id", source._id)).take(20),
+      ctx.db.query("abo_test_reservations").withIndex("by_personne", (q) => q.eq("personne_id", cible._id)).take(20),
+    ]);
+    if (reservationsSource.some((reservation) => reservation.statut === "active") && reservationsCible.some((reservation) => reservation.statut === "active")) {
+      throw new ConvexError({ code: "FUSION_RESERVATIONS_ACTIVES", message: "Les deux personnes ont une réservation de test active. Annulez ou traitez d'abord l'une des réservations avant la fusion." });
+    }
+    for (const reservation of reservationsSource) {
+      await ctx.db.patch(reservation._id, { personne_id: cible._id });
+    }
+    await ctx.db.insert("abo_licence_fusions", {
+      licence: source.licence,
+      personne_source_id: source._id,
+      personne_cible_id: cible._id,
+      dossier_source_id: dossierSource._id,
+      dossier_cible_id: dossierCible._id,
+      source_nom: source.nom,
+      source_prenom: source.prenom,
+      fusionnee_le: new Date().toISOString(),
+      fusionnee_par: ctx.userId,
+    });
+    await ctx.db.delete(source._id);
+    const [personneRestante, messageRestant, emailRestant] = await Promise.all([
+      ctx.db
+        .query("abo_personnes")
+        .withIndex("by_dossier", (q) => q.eq("dossier_id", dossierSource._id))
+        .take(1),
+      ctx.db
+        .query("abo_messages")
+        .withIndex("by_dossier", (q) => q.eq("dossier_id", dossierSource._id))
+        .take(1),
+      ctx.db
+        .query("abo_email_log")
+        .withIndex("by_dossier", (q) => q.eq("dossier_id", dossierSource._id))
+        .take(1),
+    ]);
+    const dossierSourceSupprime =
+      personneRestante.length === 0 &&
+      messageRestant.length === 0 &&
+      emailRestant.length === 0;
+    if (dossierSourceSupprime) {
+      await ctx.db.delete(dossierSource._id);
+    }
+    if (!cible.licence) {
+      const fiche = await ctx.db
+        .query("abo_licences")
+        .withIndex("by_licence", (q) => q.eq("licence", source.licence!))
+        .first();
+      const nom = fiche?.nom ?? cible.nom;
+      const prenom = fiche?.prenom ?? cible.prenom;
+      await ctx.db.patch(cible._id, {
+        licence: source.licence,
+        licence_statut: "annuaire_valide",
+        nom,
+        prenom,
+        nom_prenom_normalise: normaliserNomPrenom(nom, prenom),
+      });
+    }
+    return {
+      personneCibleId: cible._id,
+      reservationsReaffectees: reservationsSource.length,
+      dossierSourceSupprime,
+    };
+  },
+});
+
 export const upsertLicencesBatch = internalMutation({
   args: {
     lignes: v.array(
