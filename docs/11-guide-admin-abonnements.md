@@ -320,12 +320,12 @@ Si la personne n'apparaît pas dans la liste, utilisez **Rechercher un candidat*
 et saisissez son numéro de licence. Cette recherche ne charge pas l'annuaire
 complet : elle sert uniquement à retrouver la personne demandée.
 
-La file **À traiter** rassemble les scans récemment enregistrés. Ouvrez le test,
-effectuez les démarches nécessaires dans les outils du club, puis cliquez sur
-**Marquer comme traité**. Ce statut est un repère interne ; il ne modifie pas le
-résultat du test dans le portail ni sur le site du club. Les scans restent
-conservés d'une campagne à l'autre et sont également accessibles depuis le
-détail du demandeur lorsqu'une licence est renseignée.
+La liste **Tests déposés sur Drive** rassemble les scans récemment enregistrés.
+Ouvrez le test, validez son résultat sur le site du club, puis cliquez sur
+**Marquer comme traité** dans le portail. Ce statut est un repère interne ; il
+ne modifie pas le résultat du test dans le portail ni sur le site du club. Les
+scans restent conservés d'une campagne à l'autre et sont également accessibles
+depuis le détail du demandeur lorsqu'une licence est renseignée.
 
 ## 7. Configuration
 

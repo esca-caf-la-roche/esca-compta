@@ -173,7 +173,10 @@ function ArchiveTests({ licenceInitiale }: { licenceInitiale: string | null }) {
       </section>
 
       <section className="abo-admin-tests-step">
-      <h4 className="abo-admin-subheading">Archives enregistrées</h4>
+      <h4 className="abo-admin-subheading">Tests déposés sur Drive</h4>
+      <p className="abo-admin-meta">
+        Cette file liste les tests d&apos;autonomie déposés sur Drive. Après les avoir validés sur le site du club, marquez-les comme traités ici.
+      </p>
       <div className="abo-admin-toolbar abo-admin-tests-filter-tabs" role="group" aria-label="Filtrer les archives">
         {([
           ["a_traiter", "À traiter"],
