@@ -6,6 +6,7 @@ import { ConvexError, v } from "convex/values";
 import { authenticatedAction } from "../customFunctions";
 import { internal } from "../_generated/api";
 import { google } from "googleapis";
+import { Readable } from "node:stream";
 
 function echapperRequeteDrive(value: string): string {
   return value.replaceAll("'", "\\'");
@@ -180,7 +181,9 @@ export const envoyerVersDrive = authenticatedAction({
           requestBody: { name: nomFichier, parents: [parentId] },
           media: {
             mimeType: source.headers.get("content-type") ?? "application/pdf",
-            body: bytes,
+            // googleapis transmet le contenu multimédia via un flux Node ; un
+            // Buffer n'implémente pas `.pipe()`, ce qui faisait échouer l'import.
+            body: Readable.from(bytes),
           },
           supportsAllDrives: true,
           fields: "id, webViewLink",
