@@ -5,6 +5,15 @@ import { v } from "convex/values";
 import { SMTPClient } from "emailjs";
 import { canoniserEmailUnique } from "./emailValidation";
 
+export const AVERTISSEMENT_REPONSE_EMAIL_ABO =
+  "Merci de ne pas répondre à cet e-mail : votre réponse ne sera pas prise en compte. " +
+  "Pour nous contacter, utilisez la messagerie du site.";
+
+export function ajouterAvertissementReponseEmailAbo(texte: string): string {
+  if (texte.includes(AVERTISSEMENT_REPONSE_EMAIL_ABO)) return texte;
+  return `${texte.trimEnd()}\n\n${AVERTISSEMENT_REPONSE_EMAIL_ABO}`;
+}
+
 function creerTransporteur(email: string, motDePasse: string) {
   return new SMTPClient({
     user: email,
@@ -117,7 +126,7 @@ export const sendAboEmail = action({
         `Abonnements Escalade CAF <${senderEmail}>`,
         destinataire,
         args.subject,
-        args.text,
+        ajouterAvertissementReponseEmailAbo(args.text),
         args.pieceJointe,
       );
 

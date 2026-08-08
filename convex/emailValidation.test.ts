@@ -3,6 +3,10 @@ import { convexTest } from "convex-test";
 import { describe, expect, test } from "vitest";
 import { internal } from "./_generated/api";
 import schema from "./schema";
+import {
+  ajouterAvertissementReponseEmailAbo,
+  AVERTISSEMENT_REPONSE_EMAIL_ABO,
+} from "./email";
 import { canoniserEmailUnique } from "./emailValidation";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -39,5 +43,18 @@ describe("validation des destinataires email", () => {
       subject: "Test",
       text: "Test",
     })).rejects.toThrow("Adresse email invalide");
+  });
+});
+
+describe("corps des emails Abonnements", () => {
+  test("indique de ne pas répondre et renvoie vers la messagerie du site", () => {
+    expect(ajouterAvertissementReponseEmailAbo("Bonjour.\n")).toBe(
+      `Bonjour.\n\n${AVERTISSEMENT_REPONSE_EMAIL_ABO}`,
+    );
+  });
+
+  test("n'ajoute pas deux fois l'avertissement", () => {
+    const texte = `Bonjour.\n\n${AVERTISSEMENT_REPONSE_EMAIL_ABO}`;
+    expect(ajouterAvertissementReponseEmailAbo(texte)).toBe(texte);
   });
 });
